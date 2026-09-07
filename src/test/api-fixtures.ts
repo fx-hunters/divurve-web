@@ -13,10 +13,22 @@ import type { ImportedAssetSummary } from "../types/assets";
 
 /** 온보딩 2단계가 표시하는 자산 요약. 금액은 환율에 따라 달라지므로 예시일 뿐이다. */
 export const IMPORTED_ASSET_SUMMARY_FIXTURE: ImportedAssetSummary = {
+  totalAssetKrw: 100_058_000,
   fxAssetKrw: 64_058_000,
   krwAssetKrw: 36_000_000,
   currencyCodes: ["USD", "JPY", "EUR"],
   asOf: "2026-09-07T09:30:00Z",
+  isSampleData: true,
+  hasAssets: true,
+  holdings: [
+    { id: "holding-1", ticker: "AAPL", currencyCode: "USD", quantity: 12 },
+  ],
+  deposits: [
+    { id: "deposit-1", currencyCode: "JPY", amount: 400_000 },
+  ],
+  krwAssets: [
+    { id: "krw-1", kind: "cash", label: "생활비 통장", amountKrw: 12_000_000 },
+  ],
 };
 
 export const FORECAST_API_FIXTURE: ForecastBundle = {

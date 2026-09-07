@@ -130,7 +130,11 @@ describe("request", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         data: { created_at: "t" },
-        meta: { asOf: "now", source_names: ["server"] },
+        meta: {
+          asOf: "now",
+          source_names: ["server"],
+          is_sample_data: true,
+        },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -143,7 +147,11 @@ describe("request", () => {
 
     expect(result).toEqual({
       data: { createdAt: "t" },
-      meta: { asOf: "now", sourceNames: ["server"] },
+      meta: {
+        asOf: "now",
+        sourceNames: ["server"],
+        isSampleData: true,
+      },
     });
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(requestInit.headers);

@@ -29,7 +29,7 @@ describe("useInitialSetup", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("자산 단계에 들어오면 스스로 조회하고 중복 요청을 막는다", async () => {
+  it("사용자가 자산 불러오기를 선택하면 조회하고 중복 요청을 막는다", async () => {
     let resolveImport!: (value: ImportedAssetSummary) => void;
     const importAssets = vi.fn(
       () => new Promise<ImportedAssetSummary>((resolve) => {
@@ -46,18 +46,22 @@ describe("useInitialSetup", () => {
     await act(async () => {
       result.current.actions.goNext();
     });
-    expect(result.current.state.assetImport.status).toBe("loading");
+    expect(result.current.state.assetImport.status).toBe("idle");
+    expect(importAssets).not.toHaveBeenCalled();
 
-    // 조회 중 다시 시도를 눌러도 요청이 겹치지 않는다.
-    await act(async () => {
-      await result.current.actions.retryAssetImport();
+    let first!: Promise<void>;
+    act(() => {
+      first = result.current.actions.importAssets();
     });
-    expect(importAssets).toHaveBeenCalledTimes(1);
-
+    expect(result.current.state.assetImport.status).toBe("loading");
+    await act(async () => {
+      await result.current.actions.importAssets();
+    });
     await act(async () => {
       resolveImport(IMPORTED_ASSET_SUMMARY_FIXTURE);
-      await Promise.resolve();
+      await first;
     });
+    expect(importAssets).toHaveBeenCalledTimes(1);
     expect(result.current.state.assetImport).toEqual({
       status: "success",
       data: IMPORTED_ASSET_SUMMARY_FIXTURE,
@@ -65,6 +69,35 @@ describe("useInitialSetup", () => {
     expect(result.current.state.draft.importedAssets).toBe(
       IMPORTED_ASSET_SUMMARY_FIXTURE,
     );
+    expect(result.current.state.canContinue).toBe(true);
+  });
+
+  it("조회 결과가 비어 있어도 빈 상태로 알리고 다음 단계로 이동할 수 있다", async () => {
+    const emptyAssets: ImportedAssetSummary = {
+      ...IMPORTED_ASSET_SUMMARY_FIXTURE,
+      totalAssetKrw: 0,
+      fxAssetKrw: 0,
+      krwAssetKrw: 0,
+      currencyCodes: [],
+      hasAssets: false,
+      holdings: [],
+      deposits: [],
+      krwAssets: [],
+    };
+    const { result } = renderHook(() =>
+      useInitialSetup(vi.fn(), {
+        dependencies: { importAssets: vi.fn().mockResolvedValue(emptyAssets) },
+      }),
+    );
+
+    act(() => result.current.actions.selectExplanationDomain("finance"));
+    act(() => result.current.actions.goNext());
+    await act(async () => result.current.actions.importAssets());
+
+    expect(result.current.state.assetImport).toEqual({
+      status: "empty",
+      data: emptyAssets,
+    });
     expect(result.current.state.canContinue).toBe(true);
   });
 

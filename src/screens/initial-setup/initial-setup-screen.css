@@ -237,11 +237,56 @@
 }
 
 .initial-setup__import-loading,
+.initial-setup__import-idle,
+.initial-setup__import-empty,
 .initial-setup__import-error,
 .initial-setup__import-result {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-subtle);
+}
+
+.initial-setup__import-idle {
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  align-content: center;
+  gap: 0.625rem;
+  padding: 1.5rem;
+  color: var(--text);
+  text-align: center;
+}
+
+.initial-setup__import-idle > svg {
+  color: var(--primary);
+}
+
+.initial-setup__import-idle > span,
+.initial-setup__import-empty span {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.initial-setup__import-idle .initial-setup__button {
+  margin-top: 0.5rem;
+}
+
+.initial-setup__import-empty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.initial-setup__import-empty > svg {
+  color: var(--text-muted);
+}
+
+.initial-setup__import-empty > div {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .initial-setup__import-error {
@@ -365,6 +410,35 @@
   color: var(--text);
   font-size: 1rem;
   font-weight: 800;
+}
+
+.initial-setup__imported-groups {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.initial-setup__imported-groups > div {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.25fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.initial-setup__imported-groups strong {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.initial-setup__imported-groups ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  list-style: none;
 }
 
 .initial-setup__question-meta {
@@ -699,6 +773,20 @@
   .initial-setup__import-error {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .initial-setup__import-empty {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .initial-setup__import-empty .badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .initial-setup__imported-groups > div {
+    grid-template-columns: 1fr;
+    gap: 0.375rem;
   }
 
   .initial-setup__asset-summary,

@@ -5,6 +5,8 @@
  * 환율로 계산되어 매번 달라지므로 화면은 특정 숫자를 전제하지 않는다.
  */
 export interface ImportedAssetSummary {
+  /** 서버 X-Ray가 제공한 총자산 원화 평가액. */
+  readonly totalAssetKrw: number;
   /** 외화·해외자산 원화 평가액. */
   readonly fxAssetKrw: number;
   /** 원화 자산. */
@@ -13,4 +15,30 @@ export interface ImportedAssetSummary {
   readonly currencyCodes: readonly string[];
   /** 서버가 응답 meta로 알려준 기준 시각(ISO 8601). 값이 없으면 빈 문자열. */
   readonly asOf: string;
+  /** 서버가 알려준 샘플 자산 여부. 없으면 화면에서 단정하지 않는다. */
+  readonly isSampleData?: boolean;
+  readonly hasAssets: boolean;
+  readonly holdings: readonly ImportedHolding[];
+  readonly deposits: readonly ImportedDeposit[];
+  readonly krwAssets: readonly ImportedKrwAsset[];
+}
+
+export interface ImportedHolding {
+  readonly id: string;
+  readonly ticker: string;
+  readonly currencyCode: string;
+  readonly quantity: number;
+}
+
+export interface ImportedDeposit {
+  readonly id: string;
+  readonly currencyCode: string;
+  readonly amount: number;
+}
+
+export interface ImportedKrwAsset {
+  readonly id: string;
+  readonly kind: string;
+  readonly label: string | null;
+  readonly amountKrw: number;
 }

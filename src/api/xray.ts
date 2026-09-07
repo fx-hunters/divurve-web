@@ -12,9 +12,14 @@ import type {
   XrayResponse,
 } from "./generated/divurve-api";
 
+export interface XrayOverviewResponse extends XrayResponse {
+  /** 배포 계약은 샘플 여부를 X-Ray 본문에 제공한다. */
+  readonly isSampleData?: boolean;
+}
+
 /** X-Ray 개요만 조회한다. 기준 시각이 필요하므로 meta까지 함께 돌려준다. */
-export function fetchXrayOverview(): Promise<ApiResult<XrayResponse>> {
-  return requestWithMeta<XrayResponse>("/api/v1/xray");
+export function fetchXrayOverview(): Promise<ApiResult<XrayOverviewResponse>> {
+  return requestWithMeta<XrayOverviewResponse>("/api/v1/xray");
 }
 
 export async function fetchXrayBundle(

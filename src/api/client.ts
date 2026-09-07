@@ -9,6 +9,8 @@ export interface ApiMeta {
   readonly dataState?: string;
   readonly sources?: readonly string[];
   readonly isDemo?: boolean;
+  /** 일부 API가 공통 meta로 샘플 여부를 제공할 때 사용한다. */
+  readonly isSampleData?: boolean;
   readonly regime?: string;
   readonly modelVersion?: string;
 }
