@@ -1,8 +1,5 @@
-import type {
-  ActivePlanResponse,
-  GoalResponse,
-  PlanStep,
-} from "../../api/generated/divurve-api";
+import type { PlannerApiItem } from "../../api/planner";
+import type { DataSourceKind } from "../../types/data-source";
 
 export type PlannerNodeStatus =
   | "completed"
@@ -15,6 +12,9 @@ export interface PlannerGoalItemViewModel {
   readonly id: string;
   readonly name: string;
   readonly currencyCode: string;
+  readonly targetAmountLabel: string;
+  readonly heldAmountLabel: string;
+  readonly targetDateLabel: string;
   readonly isSelected: boolean;
 }
 
@@ -29,18 +29,25 @@ export interface PlannerGoalSummaryViewModel {
   readonly targetAmountLabel: string;
   readonly heldAmountLabel: string;
   readonly progressPercent: number;
-  /** ProgressBar 왼쪽에 표시할 진행 설명. 퍼센트는 progressPercent를 사용한다. */
   readonly progressLabel: string;
 }
 
 export interface PlannerPlanSummaryViewModel {
-  readonly id: string;
-  readonly version: number;
-  readonly reason: string;
-  readonly safeRatio: number;
-  readonly safeRatioLabel: string;
-  readonly splitCount: number;
-  readonly isActive: boolean;
+  readonly id: string | null;
+  readonly version: number | null;
+  readonly versionLabel: string;
+  readonly status: string;
+  readonly statusLabel: string;
+  readonly planEndDateLabel: string;
+  readonly totalRounds: number;
+  readonly completedRounds: number;
+  readonly scheduledRounds: number;
+  readonly skippedRounds: number;
+  readonly estimatedCostLabel: string | null;
+  readonly policyVersion: string;
+  readonly disclaimer: string;
+  readonly warnings: readonly string[];
+  readonly isPreview: boolean;
 }
 
 export interface PlannerCurveNodeViewModel {
@@ -75,6 +82,8 @@ export interface PlannerStepViewModel {
   readonly scheduledDate: string;
   readonly amount: number;
   readonly amountLabel: string;
+  readonly budgetLabel: string | null;
+  readonly estimatedCostLabel: string | null;
   readonly executedAmount: number | null;
   readonly status: PlannerNodeStatus;
   readonly statusLabel: string;
@@ -97,10 +106,14 @@ export interface PlannerViewModel {
   readonly curve: PlannerCurveViewModel | null;
   readonly steps: readonly PlannerStepViewModel[];
   readonly nextAction: PlannerNextActionViewModel | null;
-  readonly dataSource: { readonly kind: "server"; readonly label: string };
+  readonly dataSource: { readonly kind: DataSourceKind; readonly label: string };
   readonly supportedActions: {
+    readonly canPreviewPlan: boolean;
+    readonly canCreatePlan: boolean;
     readonly canCompleteStep: boolean;
     readonly canSkipStep: boolean;
+    readonly canPreviewScenario: boolean;
+    readonly canApplyDraft: boolean;
   };
   readonly unsupportedAreas: readonly string[];
 }
@@ -114,10 +127,7 @@ export type ExecutedStepValidation =
   | { readonly isValid: true; readonly value: ExecutedStepInput }
   | { readonly isValid: false; readonly message: string };
 
-export interface PlannerSourceItem {
-  readonly goal: GoalResponse;
-  readonly activePlan: ActivePlanResponse | null;
-}
+export type PlannerSourceItem = PlannerApiItem;
 
 export function validateExecutedStepInput(
   input: ExecutedStepInput,
@@ -136,5 +146,3 @@ export function validateExecutedStepInput(
   }
   return { isValid: true, value: input };
 }
-
-export type PlannerSourceStep = PlanStep;

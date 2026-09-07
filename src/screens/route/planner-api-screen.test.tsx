@@ -5,9 +5,9 @@ import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import { PlannerApiScreen } from "./planner-api-screen";
 
-const completeResult = { seq: 2, status: "completed", executedAmount: 145, executedRate: 1400, remainingAmount: 1595 };
-const skipResult = { redistributed: { perStepBefore: 145, perStepAfter: 160, increasePct: 10 }, achieveProb: { before: .8, after: .7 }, consecutiveSkips: 1, safeModeTriggered: false, newPlanVersion: 3 };
-function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies { return { load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), ...overrides }; }
+const completeResult = { seq: 2, status: "completed", executedAmount: 145, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 1595, nextActionSeq: null, alreadyApplied: false };
+const skipResult = { seq: 2, applied: false as const, amountBefore: 145, amountAfter: 160, remainingAmount: 1595, remainingRounds: 2, perRoundCostKrw: 224_000, exceedsBudget: false, adjustmentOptions: [] };
+function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies { return { load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), createExecutionKey: vi.fn(() => "screen-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides }; }
 async function openAction(deps = dependencies()) { render(<PlannerApiScreen dependencies={deps} />); await screen.findByRole("region", { name: "API 플래너" }); fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" })); fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" })); return deps; }
 
 describe("PlannerApiScreen", () => {
@@ -59,7 +59,7 @@ describe("PlannerApiScreen", () => {
     const deps = await openAction(dependencies({ complete: vi.fn().mockReturnValue(promise) }));
     fireEvent.change(screen.getByLabelText("실행 외화 금액"), { target: { value: "150" } }); fireEvent.change(screen.getByLabelText("실행 환율"), { target: { value: "1395" } }); fireEvent.click(screen.getByRole("button", { name: "이번 회차 기록" }));
     expect(screen.getByRole("button", { name: "서버에 반영 중…" })).toBeDisabled(); expect(screen.getByRole("button", { name: "이번 회차 건너뛰기" })).toBeDisabled(); resolve(completeResult);
-    await waitFor(() => expect(deps.complete).toHaveBeenCalledWith("plan-usd", 2, { executedAmount: 150, executedRate: 1395 })); expect(await screen.findByRole("status")).toHaveTextContent("기록을 서버에 저장했습니다");
+    await waitFor(() => expect(deps.complete).toHaveBeenCalledWith("plan-usd", 2, { executedAmount: 150, executedRate: 1395, executedDate: "2026-09-08", executionKey: "screen-key" })); expect(await screen.findByRole("status")).toHaveTextContent("기록을 서버에 저장했습니다");
   });
 
   it("건너뛰기 실패를 알리고 모바일 Curve 구조를 유지한다", async () => {
@@ -81,7 +81,7 @@ describe("PlannerApiScreen", () => {
   });
 
   it("완료된 활성 계획의 action-null 상세와 모든 navigation handler를 제공한다", async () => {
-    const completed = { items: [{ ...PLANNER_API_FIXTURE.items[0]!, activePlan: { ...PLANNER_API_FIXTURE.items[0]!.activePlan!, steps: PLANNER_API_FIXTURE.items[0]!.activePlan!.steps.map((step) => ({ ...step, status: "completed" })) } }] };
+    const completed = { items: [{ ...PLANNER_API_FIXTURE.items[0]!, activePlan: { ...PLANNER_API_FIXTURE.items[0]!.activePlan!, summary: { ...PLANNER_API_FIXTURE.items[0]!.activePlan!.summary, nextActionSeq: null }, steps: PLANNER_API_FIXTURE.items[0]!.activePlan!.steps.map((step) => ({ ...step, status: "completed", nextAction: false })) } }] };
     render(<PlannerApiScreen dependencies={dependencies({ load: vi.fn().mockResolvedValue(completed) })} />); await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" })); fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" })); expect(screen.getByRole("dialog")).toBeInTheDocument(); const closeButtons = screen.getAllByRole("button", { name: "상세 닫기" }); fireEvent.click(closeButtons[closeButtons.length - 1]!); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

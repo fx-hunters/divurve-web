@@ -4,8 +4,8 @@ import type { PlannerCurveViewModel, PlannerStepViewModel } from "./planner-api-
 import { PlannerJourneyCurve } from "./planner-journey-curve";
 
 const steps: readonly PlannerStepViewModel[] = [
-  { sequence: 1, sequenceLabel: "1회차", scheduledDate: "2026-01-01", amount: 10, amountLabel: "10 USD", executedAmount: null, status: "completed", statusLabel: "완료" },
-  { sequence: 2, sequenceLabel: "2회차", scheduledDate: "2026-01-02", amount: 20, amountLabel: "20 USD", executedAmount: null, status: "next", statusLabel: "다음 회차" },
+  { sequence: 1, sequenceLabel: "1회차", scheduledDate: "2026-01-01", amount: 10, amountLabel: "10 USD", budgetLabel: null, estimatedCostLabel: null, executedAmount: null, status: "completed", statusLabel: "완료" },
+  { sequence: 2, sequenceLabel: "2회차", scheduledDate: "2026-01-02", amount: 20, amountLabel: "20 USD", budgetLabel: null, estimatedCostLabel: null, executedAmount: null, status: "next", statusLabel: "다음 회차" },
 ];
 const curve: PlannerCurveViewModel = { path: "M 0 0 L 100 100", nodes: [{ id: "one", sequence: 1, x: 0, y: 0, status: "completed", statusLabel: "완료", roundLabel: "1회차" }, { id: "two", sequence: 2, x: 100, y: 100, status: "next", statusLabel: "다음 회차", roundLabel: "2회차" }], destination: null };
 function renderCurve(selectedSequence: number | null, items = steps, model = curve) { const onSelect = vi.fn(); const onBack = vi.fn(); const onContinue = vi.fn(); render(<PlannerJourneyCurve curve={model} steps={items} selectedSequence={selectedSequence} onSelect={onSelect} onBack={onBack} onContinue={onContinue} />); return { onSelect, onBack, onContinue }; }

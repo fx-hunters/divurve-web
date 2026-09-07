@@ -1,4 +1,9 @@
 import type { PlannerApiOverview } from "../../api/planner";
+import type { PlannerCostRange } from "../../api/planner-contract";
+import {
+  getDataSourceCopy,
+  toApiDataSourceKind,
+} from "../../components/common/data-source-badge";
 import type {
   PlannerCurveNodeViewModel,
   PlannerCurveViewModel,
@@ -11,14 +16,21 @@ import type {
 const numberFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
 });
-
-const percentFormatter = new Intl.NumberFormat("ko-KR", {
-  style: "percent",
-  maximumFractionDigits: 1,
+const krwFormatter = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: 0,
 });
 
 function formatAmount(value: number, currencyCode: string): string {
   return `${numberFormatter.format(value)} ${currencyCode}`;
+}
+
+function formatKrw(value: number): string {
+  return `${krwFormatter.format(value)}원`;
+}
+
+function formatCostRange(range: PlannerCostRange | null): string | null {
+  if (range === null) return null;
+  return `${formatKrw(range.lowKrw)} ~ ${formatKrw(range.highKrw)}`;
 }
 
 function progressPercent(heldAmount: number, targetAmount: number): number {
@@ -47,9 +59,29 @@ function statusLabel(status: PlannerNodeStatus): string {
   }
 }
 
+function planStatusLabel(status: string): string {
+  switch (status.toLowerCase()) {
+    case "active":
+      return "적용 중";
+    case "draft":
+      return "적용 전 미리보기";
+    case "completed":
+      return "완료";
+    case "superseded":
+      return "이전 버전";
+    default:
+      return status;
+  }
+}
+
 function nextStepIndex(item: PlannerSourceItem): number {
-  if (item.activePlan === null || !item.activePlan.isActive) return -1;
-  return item.activePlan.steps.findIndex(
+  const plan = item.activePlan;
+  if (plan === null) return -1;
+  const explicit = plan.steps.findIndex(
+    (step) => step.nextAction || step.seq === plan.summary.nextActionSeq,
+  );
+  if (explicit >= 0) return explicit;
+  return plan.steps.findIndex(
     (step) => step.status !== "completed" && step.status !== "skipped",
   );
 }
@@ -66,16 +98,21 @@ function toSteps(
 ): readonly PlannerStepViewModel[] {
   const plan = item.activePlan;
   if (plan === null) return [];
-  return plan.steps.map((step, index) => ({
-    sequence: step.seq,
-    scheduledDate: step.scheduledDate,
-    amount: step.amount,
-    amountLabel: formatAmount(step.amount, item.goal.currencyCode),
-    executedAmount: step.executedAmount ?? null,
-    status: nodeStatus(step.status, index === nextIndex),
-    statusLabel: statusLabel(nodeStatus(step.status, index === nextIndex)),
-    sequenceLabel: `${step.seq}회차`,
-  }));
+  return plan.steps.map((step, index) => {
+    const status = nodeStatus(step.status, index === nextIndex);
+    return {
+      sequence: step.seq,
+      scheduledDate: step.scheduledDate,
+      amount: step.amount,
+      amountLabel: formatAmount(step.amount, item.goal.currencyCode),
+      budgetLabel: step.budgetKrw === null ? null : formatKrw(step.budgetKrw),
+      estimatedCostLabel: formatCostRange(step.estimatedCost),
+      executedAmount: step.executedAmount > 0 ? step.executedAmount : null,
+      status,
+      statusLabel: statusLabel(status),
+      sequenceLabel: `${step.seq}회차`,
+    };
+  });
 }
 
 function toCurveNodes(
@@ -85,15 +122,19 @@ function toCurveNodes(
   const plan = item.activePlan;
   if (plan === null) return [];
   const count = plan.steps.length;
-  return plan.steps.map((step, index) => ({
-    id: `${plan.id}-${step.seq}`,
-    sequence: step.seq,
-    x: ((index + 1) / (count + 1)) * 100,
-    y: nodeStatus(step.status, index === nextIndex) === "completed" ? 70 : 30,
-    status: nodeStatus(step.status, index === nextIndex),
-    statusLabel: statusLabel(nodeStatus(step.status, index === nextIndex)),
-    roundLabel: `${step.seq}회차`,
-  }));
+  const planKey = plan.planId ?? `preview-${item.goal.id}`;
+  return plan.steps.map((step, index) => {
+    const status = nodeStatus(step.status, index === nextIndex);
+    return {
+      id: `${planKey}-${step.seq}`,
+      sequence: step.seq,
+      x: ((index + 1) / (count + 1)) * 88,
+      y: index % 2 === 0 ? 65 : 35,
+      status,
+      statusLabel: statusLabel(status),
+      roundLabel: `${step.seq}회차`,
+    };
+  });
 }
 
 function toCurve(
@@ -103,10 +144,11 @@ function toCurve(
   const plan = item.activePlan;
   if (plan === null) return null;
   const nodes = toCurveNodes(item, nextIndex);
+  const planKey = plan.planId ?? `preview-${item.goal.id}`;
   const destination = {
-    id: `${plan.id}-destination`,
-    x: 100,
-    y: 20,
+    id: `${planKey}-destination`,
+    x: 96,
+    y: 24,
     status: "destination" as const,
     statusLabel: statusLabel("destination"),
     label: "목표",
@@ -116,7 +158,7 @@ function toCurve(
     ),
     targetDateLabel: item.goal.targetDate ?? "미설정",
   };
-  const points = [...nodes, destination].map((node) => `${node.x} ${node.y}`);
+  const points = ["2 78", ...nodes.map((node) => `${node.x} ${node.y}`), `${destination.x} ${destination.y}`];
   return { path: `M ${points.join(" L ")}`, nodes, destination };
 }
 
@@ -139,12 +181,16 @@ export function presentPlannerOverview(
     activePlan !== undefined && activePlan !== null && nextIndex >= 0
       ? activePlan.steps[nextIndex]
       : undefined;
+  const dataSourceKind = toApiDataSourceKind(overview.isSampleData);
 
   return {
     goalItems: overview.items.map((item) => ({
       id: item.goal.id,
       name: item.goal.name,
       currencyCode: item.goal.currencyCode,
+      targetAmountLabel: formatAmount(item.goal.targetAmount, item.goal.currencyCode),
+      heldAmountLabel: formatAmount(item.goal.heldAmount, item.goal.currencyCode),
+      targetDateLabel: item.goal.targetDate ?? "미설정",
       isSelected: item.goal.id === selected?.goal.id,
     })),
     selectedGoal:
@@ -173,39 +219,54 @@ export function presentPlannerOverview(
             progressLabel: "외화 확보 진행",
           },
     plan:
-      selected?.activePlan === null || selected === null
+      activePlan === undefined || activePlan === null
         ? null
         : {
-            id: selected.activePlan.id,
-            version: selected.activePlan.version,
-            reason: selected.activePlan.reason,
-            safeRatio: selected.activePlan.safeRatio,
-            safeRatioLabel: percentFormatter.format(selected.activePlan.safeRatio),
-            splitCount: selected.activePlan.splitCount,
-            isActive: selected.activePlan.isActive,
+            id: activePlan.planId,
+            version: activePlan.version,
+            versionLabel:
+              activePlan.version === null ? "미리보기" : `v${activePlan.version}`,
+            status: activePlan.summary.status,
+            statusLabel: planStatusLabel(activePlan.summary.status),
+            planEndDateLabel: activePlan.summary.planEndDate,
+            totalRounds: activePlan.summary.totalRounds,
+            completedRounds: activePlan.summary.completedRounds,
+            scheduledRounds: activePlan.summary.scheduledRounds,
+            skippedRounds: activePlan.summary.skippedRounds,
+            estimatedCostLabel: formatCostRange(activePlan.summary.estimatedCost),
+            policyVersion: activePlan.calculationMeta.policyVersion,
+            disclaimer: activePlan.disclaimer,
+            warnings: activePlan.warnings,
+            isPreview: activePlan.planId === null,
           },
     curveNodes: selected === null ? [] : toCurveNodes(selected, nextIndex),
     curve: selected === null ? null : toCurve(selected, nextIndex),
     steps: selected === null ? [] : toSteps(selected, nextIndex),
     nextAction:
-      selected?.activePlan === null || selected === null || nextSourceStep === undefined
+      activePlan?.planId === null ||
+      activePlan === undefined ||
+      activePlan === null ||
+      nextSourceStep === undefined
         ? null
         : {
-            planId: selected.activePlan.id,
+            planId: activePlan.planId,
             sequence: nextSourceStep.seq,
             scheduledDate: nextSourceStep.scheduledDate,
             amount: nextSourceStep.amount,
-            amountLabel: formatAmount(nextSourceStep.amount, selected.goal.currencyCode),
+            amountLabel: formatAmount(nextSourceStep.amount, selected!.goal.currencyCode),
           },
-    dataSource: { kind: "server", label: "서버 응답" },
-    supportedActions: {
-      canCompleteStep: nextSourceStep !== undefined,
-      canSkipStep: nextSourceStep !== undefined,
+    dataSource: {
+      kind: dataSourceKind,
+      label: getDataSourceCopy(dataSourceKind).label,
     },
-    unsupportedAreas: [
-      "목표 및 계획 생성·재계산",
-      "대체 시나리오",
-      "AI 설명 생성",
-    ],
+    supportedActions: {
+      canPreviewPlan: selected !== null && activePlan === null,
+      canCreatePlan: selected !== null && activePlan === null,
+      canCompleteStep: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canSkipStep: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canPreviewScenario: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canApplyDraft: false,
+    },
+    unsupportedAreas: ["서버에 없는 AI 설명 생성"],
   };
 }

@@ -1,80 +1,177 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, request } from "./client";
+import { PLANNER_API_FIXTURE } from "../test/api-fixtures";
+import { ApiError, request, requestWithMeta } from "./client";
+import { fetchXrayOverview } from "./xray";
 import {
+  applyDraftPlan,
   completePlanStep,
+  createGoalPlan,
+  createPlannerExecutionKey,
   fetchPlannerOverview,
+  parsePlannerPlanResponse,
+  previewGoalPlan,
+  previewPlanScenario,
   skipPlanStep,
 } from "./planner";
 
 vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
-  return { ...actual, request: vi.fn() };
+  return { ...actual, request: vi.fn(), requestWithMeta: vi.fn() };
 });
+vi.mock("./xray", () => ({ fetchXrayOverview: vi.fn() }));
 
-const goal = (id: string) => ({
-  id,
-  name: id,
-  kind: "deadline",
-  purpose: "travel",
-  currencyCode: "USD",
-  targetAmount: 100,
-  isSpeculative: false,
-  status: "active",
-  heldAmount: 10,
+const firstItem = PLANNER_API_FIXTURE.items[0]!;
+const activePlan = firstItem.activePlan!;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(fetchXrayOverview).mockResolvedValue({
+    data: {
+      totalAssetKrw: 1,
+      krwAssetKrw: 0,
+      fxAssetKrw: 1,
+      fxRatio: 1,
+      exposure: [],
+      concentration: { status: "unknown" },
+      sensitivity1pct: { totalKrw: 0, byCurrency: {} },
+      isSampleData: true,
+    },
+    meta: { asOf: "", isDemo: false },
+  });
 });
 
 describe("planner API", () => {
-  beforeEach(() => vi.mocked(request).mockReset());
-
-  it("목록을 조회하고 각 목표의 활성 계획을 URL 인코딩해 조회한다", async () => {
-    vi.mocked(request)
-      .mockResolvedValueOnce({ goals: [goal("a/b"), goal("two")] })
-      .mockResolvedValueOnce({ id: "plan-1", steps: [] })
-      .mockResolvedValueOnce({ id: "plan-2", steps: [] });
-    await expect(fetchPlannerOverview()).resolves.toEqual({
-      items: [
-        { goal: goal("a/b"), activePlan: { id: "plan-1", steps: [] } },
-        { goal: goal("two"), activePlan: { id: "plan-2", steps: [] } },
-      ],
+  it("목록·샘플 여부를 조회하고 각 목표의 활성 계획을 URL 인코딩해 조회한다", async () => {
+    const encodedGoal = { ...firstItem.goal, id: "a/b" };
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: { goals: [encodedGoal] },
+      meta: { asOf: "", isDemo: false },
     });
-    expect(request).toHaveBeenCalledWith("/api/v1/goals");
+    vi.mocked(request).mockResolvedValue(activePlan);
+
+    await expect(fetchPlannerOverview()).resolves.toEqual({
+      items: [{ goal: encodedGoal, activePlan }],
+      isDemo: false,
+      isSampleData: true,
+    });
+    expect(requestWithMeta).toHaveBeenCalledWith("/api/v1/goals");
     expect(request).toHaveBeenCalledWith("/api/v1/goals/a%2Fb/plans/active");
-    expect(request).toHaveBeenCalledWith("/api/v1/goals/two/plans/active");
   });
 
-  it("활성 계획의 404만 계획 없음으로 바꾼다", async () => {
-    vi.mocked(request)
-      .mockResolvedValueOnce({ goals: [goal("missing")] })
-      .mockRejectedValueOnce(new ApiError("없음", 404));
+  it("활성 계획의 404만 계획 없음으로 바꾸고 meta 샘플 여부를 보조로 쓴다", async () => {
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: { goals: [firstItem.goal] },
+      meta: { asOf: "", isDemo: true },
+    });
+    vi.mocked(fetchXrayOverview).mockResolvedValue({
+      data: {
+        totalAssetKrw: 0,
+        krwAssetKrw: 0,
+        fxAssetKrw: 0,
+        fxRatio: 0,
+        exposure: [],
+        concentration: { status: "unknown" },
+        sensitivity1pct: { totalKrw: 0, byCurrency: {} },
+      },
+      meta: { asOf: "", isSampleData: false },
+    });
+    vi.mocked(request).mockRejectedValue(new ApiError("없음", 404));
+
     await expect(fetchPlannerOverview()).resolves.toEqual({
-      items: [{ goal: goal("missing"), activePlan: null }],
+      items: [{ goal: firstItem.goal, activePlan: null }],
+      isDemo: true,
+      isSampleData: false,
     });
   });
 
   it("활성 계획의 다른 오류는 전파한다", async () => {
     const error = new ApiError("서버 오류", 500);
-    vi.mocked(request)
-      .mockResolvedValueOnce({ goals: [goal("error")] })
-      .mockRejectedValueOnce(error);
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: { goals: [firstItem.goal] },
+      meta: { asOf: "" },
+    });
+    vi.mocked(request).mockRejectedValue(error);
     await expect(fetchPlannerOverview()).rejects.toBe(error);
   });
 
-  it("완료와 건너뛰기 요청을 인코딩된 경로와 서버 입력으로 전송한다", async () => {
-    vi.mocked(request).mockResolvedValue({});
-    await completePlanStep("plan/a", 2, {
-      executedAmount: 10,
-      executedRate: 1400,
+  it("최신 Plan 구조를 런타임 타입으로 검증한다", () => {
+    expect(parsePlannerPlanResponse(activePlan)).toEqual(activePlan);
+    expect(parsePlannerPlanResponse({ ...activePlan, planId: undefined })).toMatchObject({
+      planId: null,
     });
+    expect(() => parsePlannerPlanResponse(null)).toThrowError(ApiError);
+    expect(() => parsePlannerPlanResponse({ ...activePlan, steps: null })).toThrowError(
+      /steps/,
+    );
+    expect(() =>
+      parsePlannerPlanResponse({
+        ...activePlan,
+        calculationMeta: { ...activePlan.calculationMeta, quoteUnit: "one" },
+      }),
+    ).toThrowError(/quoteUnit/);
+    expect(() =>
+      parsePlannerPlanResponse({ ...activePlan, warnings: ["ok", 1] }),
+    ).toThrowError(/warnings/);
+  });
+
+  it("계획 미리보기와 생성은 저장 목표 ID와 통화만 서버에 전달한다", async () => {
+    vi.mocked(request).mockResolvedValue(activePlan);
+    await expect(previewGoalPlan(firstItem.goal)).resolves.toEqual(activePlan);
+    await expect(createGoalPlan({ ...firstItem.goal, id: "goal/a" })).resolves.toEqual(
+      activePlan,
+    );
+    expect(request).toHaveBeenNthCalledWith(1, "/api/v1/plans/preview", {
+      method: "POST",
+      body: { goalId: "goal-usd", currencyCode: "USD" },
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "/api/v1/goals/goal%2Fa/plans", {
+      method: "POST",
+      body: { goalId: "goal/a", currencyCode: "USD" },
+    });
+  });
+
+  it("complete·skip·scenario·apply 요청을 최신 경로와 payload로 전달한다", async () => {
+    vi.mocked(request).mockResolvedValue(activePlan);
+    const completeInput = {
+      executedAmount: 10,
+      executedRate: 1_400,
+      executedDate: "2026-09-08",
+      executionKey: "execution-key",
+    };
+    await completePlanStep("plan/a", 2, completeInput);
     await skipPlanStep("plan/a", 3);
+    await previewPlanScenario("plan/a", {
+      scenarioCode: "STEP_SKIPPED",
+      skippedSeq: 3,
+    });
+    await applyDraftPlan("draft/a");
+
     expect(request).toHaveBeenNthCalledWith(
       1,
       "/api/v1/plans/plan%2Fa/steps/2/complete",
-      { method: "POST", body: { executedAmount: 10, executedRate: 1400 } },
+      { method: "POST", body: completeInput },
     );
     expect(request).toHaveBeenNthCalledWith(
       2,
       "/api/v1/plans/plan%2Fa/steps/3/skip",
       { method: "POST" },
     );
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/plans/plan%2Fa/scenarios/preview",
+      {
+        method: "POST",
+        body: { scenarioCode: "STEP_SKIPPED", skippedSeq: 3 },
+      },
+    );
+    expect(request).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/plans/draft%2Fa/apply",
+      { method: "POST" },
+    );
+  });
+
+  it("한 사용자 실행에 사용할 execution key를 주입된 UUID 생성기로 만든다", () => {
+    expect(createPlannerExecutionKey(() => "stable-key")).toBe("stable-key");
   });
 });

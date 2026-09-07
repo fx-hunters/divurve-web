@@ -5,11 +5,11 @@ import type { PlannerApiOverview } from "../../api/planner";
 import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
 
 const overview = (): PlannerApiOverview => ({ items: [{ goal: { id: "goal", name: "목표", kind: "deadline", purpose: "travel", currencyCode: "USD", targetAmount: 100, isSpeculative: false, status: "active", heldAmount: 10 }, activePlan: null }] });
-const completeResult = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, remainingAmount: 90 };
-const skipResult = { redistributed: { perStepBefore: 1, perStepAfter: 2, increasePct: 1 }, achieveProb: { before: 0.5, after: 0.4 }, consecutiveSkips: 1, safeModeTriggered: false, newPlanVersion: 2 };
+const completeResult = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 90, nextActionSeq: 2, alreadyApplied: false };
+const skipResult = { seq: 1, applied: false as const, amountBefore: 10, amountAfter: 12, remainingAmount: 90, remainingRounds: 3, perRoundCostKrw: 16_800, exceedsBudget: false, adjustmentOptions: [] };
 
 function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies {
-  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), ...overrides };
+  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -57,7 +57,12 @@ describe("usePlannerApi", () => {
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     await act(async () => result.current.complete("plan", 1, 10, 1400));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(deps.complete).toHaveBeenCalledWith("plan", 1, { executedAmount: 10, executedRate: 1400 });
+    expect(deps.complete).toHaveBeenCalledWith("plan", 1, {
+      executedAmount: 10,
+      executedRate: 1400,
+      executedDate: "2026-09-08",
+      executionKey: "stable-key",
+    });
     expect(result.current.actionState).toMatchObject({ status: "success" });
     const firstReload = result.current.reload;
     act(() => result.current.reload());
@@ -66,17 +71,29 @@ describe("usePlannerApi", () => {
     expect(result.current.reload).toBe(firstReload);
   });
 
-  it("완료 실패는 재조회하지 않고 서버 오류 메시지를 보존한다", async () => {
+  it("완료 실패는 재조회하지 않고 같은 입력 재시도에 execution key를 유지한다", async () => {
     const load = vi.fn().mockResolvedValue(overview());
-    const deps = dependencies({ load, complete: vi.fn().mockRejectedValue(new ApiError("완료 실패", 400)) });
+    const complete = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("완료 실패", 400))
+      .mockResolvedValueOnce(completeResult);
+    const createExecutionKey = vi.fn(() => "retry-key");
+    const deps = dependencies({ load, complete, createExecutionKey });
     const { result } = renderHook(() => usePlannerApi(deps));
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     await act(async () => result.current.complete("plan", 1, 10, 1400));
     expect(load).toHaveBeenCalledTimes(1);
     expect(result.current.actionState).toEqual({ status: "error", message: "완료 실패" });
+    await act(async () => result.current.complete("plan", 1, 10, 1400));
+    expect(createExecutionKey).toHaveBeenCalledTimes(1);
+    expect(complete).toHaveBeenLastCalledWith(
+      "plan",
+      1,
+      expect.objectContaining({ executionKey: "retry-key" }),
+    );
   });
 
-  it("진행 중에는 중복 완료와 건너뛰기를 막고, 건너뛰기 성공 후 재조회한다", async () => {
+  it("진행 중에는 중복 완료와 건너뛰기를 막고, 건너뛰기는 미리보기만 표시한다", async () => {
     const pending = deferred<typeof completeResult>();
     const load = vi.fn().mockResolvedValue(overview());
     const deps = dependencies({ load, complete: vi.fn().mockReturnValue(pending.promise) });
@@ -88,8 +105,12 @@ describe("usePlannerApi", () => {
     await act(async () => pending.resolve(completeResult));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     await act(async () => result.current.skip("plan", 1));
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    expect(load).toHaveBeenCalledTimes(2);
     expect(deps.skip).toHaveBeenCalledWith("plan", 1);
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("아직 계획에는 적용되지 않았습니다"),
+    });
   });
 
   it("진행 중에는 중복 건너뛰기를 막는다", async () => {

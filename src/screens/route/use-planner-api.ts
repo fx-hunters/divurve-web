@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import type {
-  StepCompleteResponse,
-  StepSkipResponse,
-} from "../../api/generated/divurve-api";
+  PlannerStepCompleteResponse,
+  PlannerStepSkipResponse,
+} from "../../api/planner-contract";
 import {
   completePlanStep,
+  createPlannerExecutionKey,
   fetchPlannerOverview,
   skipPlanStep,
   type PlannerApiOverview,
@@ -24,7 +25,7 @@ export type PlannerActionState =
   | {
       readonly status: "success";
       readonly message: string;
-      readonly result: StepCompleteResponse | StepSkipResponse;
+      readonly result: PlannerStepCompleteResponse | PlannerStepSkipResponse;
     }
   | { readonly status: "error"; readonly message: string };
 
@@ -32,12 +33,16 @@ export interface PlannerApiDependencies {
   readonly load: typeof fetchPlannerOverview;
   readonly complete: typeof completePlanStep;
   readonly skip: typeof skipPlanStep;
+  readonly createExecutionKey?: () => string;
+  readonly getToday?: () => string;
 }
 
 const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
   load: fetchPlannerOverview,
   complete: completePlanStep,
   skip: skipPlanStep,
+  createExecutionKey: createPlannerExecutionKey,
+  getToday: () => new Date().toISOString().slice(0, 10),
 };
 
 function errorMessage(error: unknown): string {
@@ -55,6 +60,10 @@ export function usePlannerApi(
   });
   const [reloadKey, setReloadKey] = useState(0);
   const isActionPendingRef = useRef(false);
+  const executionRef = useRef<{
+    readonly signature: string;
+    readonly key: string;
+  } | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -95,15 +104,26 @@ export function usePlannerApi(
       }
       isActionPendingRef.current = true;
       setActionState({ status: "loading" });
+      const signature = `${planId}:${sequence}:${executedAmount}:${executedRate}`;
+      if (executionRef.current?.signature !== signature) {
+        executionRef.current = {
+          signature,
+          key: (dependencies.createExecutionKey ?? createPlannerExecutionKey)(),
+        };
+      }
       try {
         const result = await dependencies.complete(planId, sequence, {
           ...validation.value,
+          executedDate:
+            (dependencies.getToday ?? (() => new Date().toISOString().slice(0, 10)))(),
+          executionKey: executionRef.current.key,
         });
         setActionState({
           status: "success",
           message: `${result.seq}회차 기록을 서버에 저장했습니다.`,
           result,
         });
+        executionRef.current = null;
         setReloadKey((key) => key + 1);
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
@@ -123,10 +143,9 @@ export function usePlannerApi(
         const result = await dependencies.skip(planId, sequence);
         setActionState({
           status: "success",
-          message: `${sequence}회차 건너뛰기를 서버에 저장했습니다.`,
+          message: `${sequence}회차 건너뛰기 이후의 계획 미리보기입니다. 아직 계획에는 적용되지 않았습니다.`,
           result,
         });
-        setReloadKey((key) => key + 1);
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
       } finally {
