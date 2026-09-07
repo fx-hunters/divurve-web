@@ -1,23 +1,27 @@
-import { TodayActionCard } from "./today-action-card";
+import { TodayHeadlineCard } from "./today-headline-card";
 import { FxHoldingCard } from "./fx-holding-card";
+import { GoalsRouteCard } from "./goals-route-card";
 import { AttentionBanner } from "./attention-banner";
 import { MarketSummaryCard } from "./market-summary-card";
-import { WeeklyComparisonCard } from "./weekly-comparison-card";
 import type { HomeDashboardData } from "../../types/home";
 
 interface HomeDashboardViewProps {
   readonly data: HomeDashboardData;
-  readonly onRecordComplete?: () => void;
   readonly onNavigateToAssets?: () => void;
   readonly onNavigateToPlanner?: () => void;
+  readonly onNavigateToRange?: () => void;
+  readonly onNavigateToMypage?: () => void;
 }
 
 export function HomeDashboardView({
   data,
-  onRecordComplete,
   onNavigateToAssets,
   onNavigateToPlanner,
+  onNavigateToRange,
+  onNavigateToMypage,
 }: HomeDashboardViewProps) {
+  const { blockStates } = data;
+
   return (
     <div
       className="home-dashboard-grid"
@@ -27,19 +31,42 @@ export function HomeDashboardView({
         gap: "1.5rem",
       }}
     >
-      {/* 주요 액션 및 외화 현황 컬럼 */}
+      {/* 오늘의 핵심 및 외화 현황 컬럼 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", minWidth: 0 }}>
-        <TodayActionCard data={data.todayAction} onRecordComplete={onRecordComplete} />
-        <FxHoldingCard data={data.fxHolding} onNavigateToAssets={onNavigateToAssets} />
+        {blockStates.today !== "empty" && (
+          <TodayHeadlineCard
+            today={data.today}
+            profileFit={data.profileFit}
+            isProfileMeasured={blockStates.profile_fit === "filled"}
+            asOfLabel={data.asOfLabel}
+            onNavigateToMypage={onNavigateToMypage}
+          />
+        )}
+        {blockStates.fx_status !== "empty" && (
+          <FxHoldingCard
+            data={data.fxStatus}
+            onNavigateToAssets={onNavigateToAssets}
+          />
+        )}
       </div>
 
-      {/* 시장, 경고 알림, 주간 비교 컬럼 */}
+      {/* 목표, 주의 필요, 시장 요약 컬럼 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", minWidth: 0 }}>
-        {data.attentionAlert && (
-          <AttentionBanner alert={data.attentionAlert} onNavigateToPlanner={onNavigateToPlanner} />
+        {blockStates.goals_route !== "empty" && (
+          <GoalsRouteCard
+            data={data.goalsRoute}
+            onNavigateToPlanner={onNavigateToPlanner}
+          />
         )}
-        <MarketSummaryCard data={data.marketSummary} />
-        <WeeklyComparisonCard data={data.weeklyComparison} />
+        {blockStates.attention !== "empty" && (
+          <AttentionBanner
+            data={data.attention}
+            onNavigateToRange={onNavigateToRange}
+          />
+        )}
+        {blockStates.forecast !== "empty" && (
+          <MarketSummaryCard data={data.forecast} />
+        )}
       </div>
     </div>
   );

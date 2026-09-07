@@ -1,51 +1,156 @@
-import { useCallback, useMemo, useState } from "react";
-import { DEMO_XRAY_DATA } from "../../api/fixtures/xray-dashboard";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ApiError } from "../../api/client";
+import {
+  fetchXrayBundle,
+  previewFitAdjustment,
+  runStressScenario,
+} from "../../api/xray";
 import type {
-  StressScenarioItem,
-  XRayDashboardData,
-  XRayTabId,
-} from "../../types/xray";
+  FitPreviewRequest,
+  FitPreviewResponse,
+  StressRunRequest,
+  StressRunResponse,
+  XrayBundle,
+} from "../../api/generated/divurve-api";
+import type { XRayTabId } from "../../types/xray";
+import { toStressRunResult, toXRayDashboardData } from "./xray-presenter";
 
-export { DEMO_XRAY_DATA } from "../../api/fixtures/xray-dashboard";
+export interface XRayDependencies {
+  readonly loadBundle: (currencyCode?: string) => Promise<XrayBundle>;
+  readonly runScenario: (input: StressRunRequest) => Promise<StressRunResponse>;
+  readonly previewAdjustment: (
+    input: FitPreviewRequest,
+  ) => Promise<FitPreviewResponse>;
+}
 
-export function useXRay() {
+const DEFAULT_DEPENDENCIES: XRayDependencies = {
+  loadBundle: fetchXrayBundle,
+  runScenario: runStressScenario,
+  previewAdjustment: previewFitAdjustment,
+};
+
+export type XRayState =
+  | { readonly status: "loading" }
+  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "empty" }
+  | { readonly status: "success"; readonly data: XrayBundle };
+
+const FALLBACK_MESSAGE =
+  "내 자산 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.";
+
+export function toErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
+}
+
+export function useXRay(dependencies: XRayDependencies = DEFAULT_DEPENDENCIES) {
   const [activeTab, setActiveTab] = useState<XRayTabId>("exposure");
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("2008");
-  const [eurSimulationPct, setEurSimulationPctState] = useState<number>(10);
-  const [isAssetModalOpen, setIsAssetModalOpen] = useState<boolean>(false);
+  const [state, setState] = useState<XRayState>({ status: "loading" });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [selectedScenarioCode, setSelectedScenarioCode] = useState<string>("");
+  const [runState, setRunState] = useState<
+    | { readonly status: "idle" }
+    | { readonly status: "running" }
+    | { readonly status: "error"; readonly message: string }
+    | { readonly status: "done"; readonly run: StressRunResponse }
+  >({ status: "idle" });
+  const [previewState, setPreviewState] = useState<
+    | { readonly status: "idle" }
+    | { readonly status: "running" }
+    | { readonly status: "error"; readonly message: string }
+    | { readonly status: "done"; readonly preview: FitPreviewResponse }
+  >({ status: "idle" });
 
-  const data: XRayDashboardData = useMemo(() => DEMO_XRAY_DATA, []);
+  // 호출자가 의존성 객체를 인라인으로 만들어 넘겨도 조회가 반복되지 않도록
+  // ref로 최신 값만 참조한다. 의존성 교체는 재조회 신호가 아니다.
+  const dependenciesRef = useRef(dependencies);
+  dependenciesRef.current = dependencies;
 
-  const activeScenario: StressScenarioItem = useMemo(() => {
-    return (
-      data.scenarios.find((scenario) => scenario.id === selectedScenarioId) ??
-      data.scenarios[0]
-    );
-  }, [data.scenarios, selectedScenarioId]);
+  useEffect(() => {
+    let isActive = true;
+    setState({ status: "loading" });
 
-  const handleSetEurSimulationPct = useCallback((value: number) => {
-    setEurSimulationPctState(Math.max(0, Math.min(50, value)));
+    void dependenciesRef.current
+      .loadBundle()
+      .then((bundle) => {
+        if (!isActive) return;
+        setState(
+          bundle.overview.totalAssetKrw === 0
+            ? { status: "empty" }
+            : { status: "success", data: bundle },
+        );
+      })
+      .catch((error: unknown) => {
+        if (!isActive) return;
+        setState({
+          status: "error",
+          message: toErrorMessage(error, FALLBACK_MESSAGE),
+        });
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [reloadKey]);
+
+  const data = useMemo(
+    () => (state.status === "success" ? toXRayDashboardData(state.data) : null),
+    [state],
+  );
+
+  const selectScenario = useCallback((code: string) => {
+    setSelectedScenarioCode(code);
+    setRunState({ status: "running" });
+    void dependenciesRef.current
+      .runScenario({ scenarioCode: code })
+      .then((run) => setRunState({ status: "done", run }))
+      .catch((error: unknown) =>
+        setRunState({
+          status: "error",
+          message: toErrorMessage(
+            error,
+            "시나리오를 계산하지 못했습니다. 잠시 후 다시 확인해 주세요.",
+          ),
+        }),
+      );
   }, []);
 
-  const handleOpenAssetModal = useCallback(() => {
-    setIsAssetModalOpen(true);
-  }, []);
+  const runResult = useMemo(
+    () => (runState.status === "done" ? toStressRunResult(runState.run) : null),
+    [runState],
+  );
 
-  const handleCloseAssetModal = useCallback(() => {
-    setIsAssetModalOpen(false);
-  }, []);
+  const previewAdjustment = useCallback(
+    (input: FitPreviewRequest) => {
+      setPreviewState({ status: "running" });
+      void dependenciesRef.current
+        .previewAdjustment(input)
+        .then((preview) => setPreviewState({ status: "done", preview }))
+        .catch((error: unknown) =>
+          setPreviewState({
+            status: "error",
+            message: toErrorMessage(
+              error,
+              "조정 결과를 계산하지 못했습니다. 잠시 후 다시 확인해 주세요.",
+            ),
+          }),
+        );
+    },
+    [],
+  );
+
+  const reload = useCallback(() => setReloadKey((key) => key + 1), []);
 
   return {
-    data,
     activeTab,
-    selectedScenarioId,
-    activeScenario,
-    eurSimulationPct,
-    isAssetModalOpen,
+    data,
+    state,
+    selectedScenarioCode,
+    runState,
+    runResult,
+    previewState,
     setActiveTab,
-    setSelectedScenarioId,
-    setEurSimulationPct: handleSetEurSimulationPct,
-    openAssetModal: handleOpenAssetModal,
-    closeAssetModal: handleCloseAssetModal,
+    selectScenario,
+    previewAdjustment,
+    reload,
   };
 }

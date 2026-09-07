@@ -1,4 +1,4 @@
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "./fixtures/xray-dashboard";
+import { MOCK_IMPORTED_ASSET_SUMMARY } from "./fixtures/initial-setup-assets";
 import type { ImportedAssetSummary } from "../types/assets";
 
 export type AssetImportLoader = () => Promise<ImportedAssetSummary>;

@@ -1,45 +1,49 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { FxHoldingCard } from "./fx-holding-card";
-import type { FxHoldingData } from "../../types/home";
 
 describe("FxHoldingCard", () => {
-  const sampleData: FxHoldingData = {
-    fxRatio: 0.36,
-    fxKrw: 64000000,
-    krwAmount: 36000000,
-    dayOverDayDiffPctPoints: 0.2,
-    sensitivity1PctKrw: 14200,
-    breakdown: {
-      usd: 75,
-      jpy: 15,
-      eur: 10,
-    },
-  };
-
-  it("도넛 차트와 비중 바, 범례 및 변동 민감도를 렌더링한다", () => {
+  it("외화 비중과 서버가 준 지표를 렌더링한다", () => {
     const onNavigateToAssets = vi.fn();
-    render(<FxHoldingCard data={sampleData} onNavigateToAssets={onNavigateToAssets} />);
+    render(
+      <FxHoldingCard
+        data={{
+          fxRatioPct: 36.1,
+          topCurrencyCode: "USD",
+          dayChangeKrw: 84_000,
+          sensitivity1pctKrw: 247_200,
+        }}
+        onNavigateToAssets={onNavigateToAssets}
+      />,
+    );
 
-    expect(screen.getByRole("heading", { name: "내 외화 현황" })).toBeInTheDocument();
-    expect(screen.getByText("+0.2%p")).toBeInTheDocument();
-    expect(screen.getByText(/1% 변동시 ±₩14,200/)).toBeInTheDocument();
-    expect(screen.getByText("USD 75%")).toBeInTheDocument();
-    expect(screen.getByText("JPY 15%")).toBeInTheDocument();
-    expect(screen.getByText("EUR 10%")).toBeInTheDocument();
+    expect(screen.getByLabelText("외화 비중 36.1%")).toBeInTheDocument();
+    expect(screen.getByText("USD")).toBeInTheDocument();
+    expect(screen.getByText("+₩ 84,000")).toBeInTheDocument();
+    expect(screen.getByText("±₩ 247,200")).toBeInTheDocument();
 
-    const editBtn = screen.getByRole("button", { name: "자산 등록 / 편집" });
-    fireEvent.click(editBtn);
+    fireEvent.click(screen.getByRole("button", { name: "자산 등록 / 편집" }));
     expect(onNavigateToAssets).toHaveBeenCalled();
   });
 
-  it("음수 변동치와 액션 버튼 없는 상태를 올바르게 렌더링한다", () => {
-    const negativeData: FxHoldingData = {
-      ...sampleData,
-      dayOverDayDiffPctPoints: -0.5,
-    };
-    render(<FxHoldingCard data={negativeData} />);
-    expect(screen.getByText("-0.5%p")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "자산 등록 / 편집" })).not.toBeInTheDocument();
+  it("어제 대비가 음수면 위험 색으로 표시한다", () => {
+    render(<FxHoldingCard data={{ fxRatioPct: 40, dayChangeKrw: -12_000 }} />);
+    expect(screen.getByText("₩ -12,000")).toHaveStyle({ color: "var(--danger)" });
+  });
+
+  it("서버가 주지 않은 지표는 줄을 감춘다", () => {
+    render(<FxHoldingCard data={{ fxRatioPct: 100, topCurrencyCode: "USD" }} />);
+    expect(screen.queryByText("어제 대비")).not.toBeInTheDocument();
+    expect(screen.queryByText("1% 변동 시")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "자산 등록 / 편집" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("외화 비중을 계산할 수 없으면 안내 문구를 보여준다", () => {
+    render(<FxHoldingCard data={{}} />);
+    expect(
+      screen.getByText("등록된 자산이 없어 외화 비중을 계산할 수 없습니다."),
+    ).toBeInTheDocument();
   });
 });

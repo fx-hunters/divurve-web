@@ -1,36 +1,93 @@
-import { useForecast } from "./use-forecast";
+import { useForecast, type ForecastLoader } from "./use-forecast";
 import { FanChart } from "./fan-chart";
+import { ApiStateView } from "../../components/common/api-state-view";
 import { Badge } from "../../components/common/badge";
 import { Icon } from "../../components/common/icon";
 import type { NavTabId } from "../../types/navigation";
-import type { ForecastCurrency, ForecastPeriod } from "../../types/forecast";
-import { ForecastApiScreen } from "./forecast-api-screen";
-import type { ForecastApiLoader } from "./use-forecast-api";
+import type {
+  CurrencyForecastInfo,
+  FanChartDataPoint,
+  ForecastCurrency,
+  ForecastPeriod,
+} from "../../types/forecast";
+import {
+  toCurrencyForecastInfo,
+  toFanChartData,
+} from "./forecast-presenter";
 
 interface ForecastScreenProps {
-  readonly isDemo?: boolean;
   readonly onNavigate?: (tab: NavTabId) => void;
-  readonly apiLoader?: ForecastApiLoader;
+  readonly loader?: ForecastLoader;
 }
 
 const CURRENCIES: readonly ForecastCurrency[] = ["USD", "JPY", "EUR"];
 const PERIODS: readonly ForecastPeriod[] = ["30D", "90D"];
 
-export function ForecastScreen({
-  isDemo = true,
-  onNavigate,
-  apiLoader,
-}: ForecastScreenProps) {
-  if (!isDemo) {
-    return <ForecastApiScreen onNavigate={onNavigate} loader={apiLoader} />;
+export function ForecastScreen({ onNavigate, loader }: ForecastScreenProps) {
+  const { currency, period, state, setCurrency, setPeriod, reload } =
+    useForecast(loader);
+
+  if (state.status === "loading") {
+    return (
+      <ApiStateView
+        status="loading"
+        title="환율 범위를 불러오는 중입니다"
+        message="팬 차트와 근거 데이터를 함께 확인하고 있습니다."
+      />
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <ApiStateView
+        status="error"
+        title="환율 범위를 불러오지 못했습니다"
+        message={state.message}
+        onRetry={reload}
+      />
+    );
+  }
+  if (state.status === "empty") {
+    return (
+      <ApiStateView
+        status="empty"
+        title="표시할 환율 범위가 없습니다"
+        message="선택한 통화와 기간의 데이터가 준비되면 이곳에 표시됩니다."
+      />
+    );
   }
 
-  return <ForecastDemoScreen onNavigate={onNavigate} />;
+  return (
+    <ForecastView
+      currency={currency}
+      period={period}
+      chartData={toFanChartData(state.data)}
+      currencyInfo={toCurrencyForecastInfo(state.data, currency)}
+      onSelectCurrency={setCurrency}
+      onSelectPeriod={setPeriod}
+      onNavigate={onNavigate}
+    />
+  );
 }
 
-function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigate">) {
-  const { currency, period, chartData, currencyInfo, setCurrency, setPeriod } =
-    useForecast();
+interface ForecastViewProps {
+  readonly currency: ForecastCurrency;
+  readonly period: ForecastPeriod;
+  readonly chartData: readonly FanChartDataPoint[];
+  readonly currencyInfo: CurrencyForecastInfo;
+  readonly onSelectCurrency: (currency: ForecastCurrency) => void;
+  readonly onSelectPeriod: (period: ForecastPeriod) => void;
+  readonly onNavigate?: (tab: NavTabId) => void;
+}
+
+function ForecastView({
+  currency,
+  period,
+  chartData,
+  currencyInfo,
+  onSelectCurrency,
+  onSelectPeriod,
+  onNavigate,
+}: ForecastViewProps) {
 
   const handleNavigateToPlanner = () => {
     if (onNavigate) {
@@ -38,7 +95,7 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
     }
   };
 
-  const isPercentileWarn = currency === "JPY";
+  const { isPercentileWarn } = currencyInfo.summary;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -65,7 +122,8 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
               <button
                 key={c}
                 type="button"
-                onClick={() => setCurrency(c)}
+                aria-pressed={isSelected}
+                onClick={() => onSelectCurrency(c)}
                 style={{
                   padding: "0.5rem 1rem",
                   fontWeight: 700,
@@ -91,7 +149,8 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
               <button
                 key={p}
                 type="button"
-                onClick={() => setPeriod(p)}
+                aria-pressed={isSelected}
+                onClick={() => onSelectPeriod(p)}
                 style={{
                   padding: "0.5rem 1rem",
                   fontWeight: 700,
@@ -116,7 +175,7 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          다음 갱신: {currencyInfo.nextUpdateUtc}
+          기준 시각: {currencyInfo.asOfLabel}
         </div>
       </div>
 
@@ -186,7 +245,7 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
                 letterSpacing: "-0.02em",
               }}
             >
-              {currencyInfo.summary.lower.toLocaleString()} ~ {currencyInfo.summary.upper.toLocaleString()}
+              {currencyInfo.summary.lowerLabel} ~ {currencyInfo.summary.upperLabel}
             </div>
           </div>
 
@@ -231,7 +290,7 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
                 fontWeight: 500,
               }}
             >
-              주의가 필요한 구간입니다.
+              {currencyInfo.uncertaintyNote}
             </div>
           </div>
 
@@ -272,7 +331,7 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
                   marginBottom: "0.75rem",
                 }}
               >
-                하단 이탈시 ₩{currencyInfo.summary.impact}
+                1% 움직일 때 ₩{currencyInfo.summary.impact}
               </div>
             </div>
 
@@ -328,6 +387,11 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {currencyInfo.drivers.length === 0 && (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                이 통화의 동인 데이터가 아직 제공되지 않습니다.
+              </p>
+            )}
             {currencyInfo.drivers.map((driver) => {
               const barColor =
                 driver.type === "danger"
@@ -390,6 +454,11 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {currencyInfo.events.length === 0 && (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                예정된 일정이 없습니다.
+              </p>
+            )}
             {currencyInfo.events.map((event) => (
               <div
                 key={event.title}
@@ -474,9 +543,9 @@ function ForecastDemoScreen({ onNavigate }: Pick<ForecastScreenProps, "onNavigat
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-                <span style={{ color: "var(--text-muted)" }}>MAE</span>
+                <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  ₩ {currencyInfo.modelScore.maeKrw}
+                  {currencyInfo.modelScore.maePct}%
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>

@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { SettingsResponse } from "../../api/generated/divurve-api";
+import type { SettingsView } from "../../types/mypage";
 import { calculateQuickRiskResult } from "../initial-setup/risk-diagnosis";
 import {
   createProfilePreferencesViewModel,
   createServerDiagnosisSummary,
 } from "./mypage-profile-presenter";
 
-const SETTINGS: SettingsResponse = {
-  defaultBankCode: "001",
-  fxDiscountRatio: 0.5,
+const SETTINGS: Pick<SettingsView, "explainDomain" | "explainLevel"> = {
   explainLevel: "detailed",
   explainDomain: "plain",
-  baseSpreadRatio: 0.02,
-  effectiveSpreadRatio: 0.01,
 };
 
 const quickResult = calculateQuickRiskResult({ Q1: "B", Q2: "B", Q3: "B" });

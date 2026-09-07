@@ -347,8 +347,6 @@ export function App({ ensureSession }: AppProps = {}) {
     );
   }
 
-  // 화면들은 아직 계정 종류로 데모 fixture와 API 화면을 가른다.
-  // 도메인별 통합(PR-C~G)이 끝나면 이 분기 자체가 사라진다.
   const isDemoAccount = sessionState.accountKind === "demo";
 
   return (
@@ -374,16 +372,16 @@ export function App({ ensureSession }: AppProps = {}) {
             className="app-content-container page-enter-animation"
           >
             {activeTab === "home" && (
-              <HomeScreen isDemo={isDemoAccount} onNavigate={handleNavigate} />
+              <HomeScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "planner" && (
               <RouteScreen mode={isDemoAccount ? "demo" : "api"} onNavigate={handleNavigate} />
             )}
             {activeTab === "assets" && (
-              <XRayScreen isDemo={isDemoAccount} onNavigate={handleNavigate} />
+              <XRayScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "range" && (
-              <ForecastScreen isDemo={isDemoAccount} onNavigate={handleNavigate} />
+              <ForecastScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "mypage" && showDiagnosisResult && (
               <DiagnosisResultScreen
@@ -395,8 +393,6 @@ export function App({ ensureSession }: AppProps = {}) {
             )}
             {activeTab === "mypage" && !showDiagnosisResult && (
               <MyPageScreen
-                isDemo={isDemoAccount}
-                isLoggedIn={true}
                 onNavigate={handleNavigate}
                 onLogin={goToLogin}
                 onLogout={handleLogout}

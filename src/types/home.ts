@@ -1,56 +1,71 @@
-import type { NavTabId } from "./navigation";
+import type {
+  HomeBlockKey,
+  HomeBlockState,
+} from "../api/generated/divurve-api";
 
-export interface TodayActionData {
-  readonly amountUsd: number;
-  readonly amountKrw: number;
-  readonly deadlineDday: number;
-  readonly fundedRatio: number;
-  readonly remainingRounds: number;
+export type HomeTone = "default" | "normal" | "warn" | "danger";
+
+export interface TodaySummaryData {
+  readonly headline: string;
+  readonly badgeLabel: string;
+  readonly tone: HomeTone;
 }
 
-export interface FxHoldingData {
-  readonly fxRatio: number;
-  readonly fxKrw: number;
-  readonly krwAmount: number;
-  readonly dayOverDayDiffPctPoints: number;
-  readonly sensitivity1PctKrw: number;
-  readonly breakdown: {
-    readonly usd: number;
-    readonly jpy: number;
-    readonly eur: number;
-  };
+export interface ProfileFitData {
+  readonly gradeLabel?: string;
+  readonly concentrationLabel: string;
+  readonly tone: HomeTone;
 }
 
-export interface AttentionAlertData {
-  readonly currency: "USD" | "JPY" | "EUR";
+export interface FxStatusData {
+  readonly fxRatioPct?: number;
+  readonly topCurrencyCode?: string;
+  readonly dayChangeKrw?: number;
+  readonly sensitivity1pctKrw?: number;
+}
+
+export interface ActiveGoalItem {
+  readonly id: string;
+  readonly name: string;
+  readonly currencyCode: string;
+  readonly targetAmount: number;
+  readonly targetDateLabel: string;
+  readonly status: string;
+}
+
+export interface GoalsRouteData {
+  readonly goals: readonly ActiveGoalItem[];
+  readonly isRouteEnabled: boolean;
+}
+
+export interface UpcomingEventItem {
   readonly title: string;
-  readonly message: string;
-  readonly targetTab: NavTabId;
+  readonly dateLabel: string;
+  readonly currencyCode: string;
+  readonly severity: "고변동성" | "중변동성";
 }
 
-export interface MarketPricePoint {
-  readonly time: string;
-  readonly price: number;
+export interface AttentionData {
+  readonly regimeLabel: string;
+  readonly tone: HomeTone;
+  readonly events: readonly UpcomingEventItem[];
 }
 
-export interface MarketSummaryData {
-  readonly pair: string;
-  readonly currentPrice: number;
-  readonly bandLower: number;
-  readonly bandUpper: number;
-  readonly sparkline: readonly MarketPricePoint[];
-}
-
-export interface WeeklyComparisonData {
-  readonly fundedRatioDiffPct: number;
-  readonly valuationDiffKrw: number;
-  readonly usdConcentrationDiffPctPoints: number;
+export interface ForecastSummaryData {
+  readonly pairLabel: string;
+  readonly currentRateLabel?: string;
+  readonly lowerLabel?: string;
+  readonly upperLabel?: string;
 }
 
 export interface HomeDashboardData {
-  readonly todayAction: TodayActionData;
-  readonly fxHolding: FxHoldingData;
-  readonly attentionAlert?: AttentionAlertData;
-  readonly marketSummary: MarketSummaryData;
-  readonly weeklyComparison: WeeklyComparisonData;
+  /** 서버가 정한 고정 순서 그대로. 렌더 분기는 state로만 한다. */
+  readonly blockStates: Readonly<Record<HomeBlockKey, HomeBlockState>>;
+  readonly today: TodaySummaryData;
+  readonly profileFit: ProfileFitData;
+  readonly fxStatus: FxStatusData;
+  readonly goalsRoute: GoalsRouteData;
+  readonly attention: AttentionData;
+  readonly forecast: ForecastSummaryData;
+  readonly asOfLabel: string;
 }

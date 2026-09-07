@@ -9,6 +9,9 @@ import { getDiagnosisStatusCopy } from "./diagnosis-status-copy";
 export interface ServerDiagnosisSummary {
   readonly displayName: string;
   readonly description: string;
+  readonly scoreLabel?: string | null;
+  readonly diagnosedOnLabel?: string | null;
+  readonly limitationNote?: string | null;
 }
 
 interface DiagnosisStatusCardProps {
@@ -68,9 +71,28 @@ export function DiagnosisStatusCard({
           <DiagnosisNarrative presentation={detailedPresentation} />
         )}
         {isServerOnly && (
-          <p className="diagnosis-status__server-copy">
-            {serverResult.description}
-          </p>
+          <>
+            {(serverResult.scoreLabel || serverResult.diagnosedOnLabel) && (
+              <div className="diagnosis-status__server-details">
+                {serverResult.scoreLabel && (
+                  <Badge variant="primary">{serverResult.scoreLabel}</Badge>
+                )}
+                {serverResult.diagnosedOnLabel && (
+                  <Badge variant="primary">
+                    {serverResult.diagnosedOnLabel}
+                  </Badge>
+                )}
+              </div>
+            )}
+            <p className="diagnosis-status__server-copy">
+              {serverResult.description}
+            </p>
+            {serverResult.limitationNote && (
+              <p className="diagnosis-status__server-copy">
+                {serverResult.limitationNote}
+              </p>
+            )}
+          </>
         )}
         {(primaryAction ||
           (progress.status === "detailComplete" && onRestart)) && (

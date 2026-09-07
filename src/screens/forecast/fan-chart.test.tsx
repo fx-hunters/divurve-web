@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { FanChart, FanChartTooltip, formatYTick, formatTooltipValue } from "./fan-chart";
-import { generateFanChartPoints } from "./use-forecast";
+import { FORECAST_API_FIXTURE } from "../../test/api-fixtures";
+import { toFanChartData } from "./forecast-presenter";
 
 describe("FanChart", () => {
   it("데이터가 있을 때 팬 차트 컨테이너를 렌더링한다", () => {
-    const data = generateFanChartPoints("USD", "30D");
+    const data = toFanChartData(FORECAST_API_FIXTURE);
 
     render(<FanChart data={data} currency="USD" />);
 

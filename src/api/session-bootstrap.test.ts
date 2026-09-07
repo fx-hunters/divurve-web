@@ -1,16 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { startDemoSession } from "./auth";
-import { readApiSession } from "./session";
-import { ensureApiSession } from "./session-bootstrap";
+import { refreshSession, startDemoSession } from "./auth";
+import { registerSessionRefresher, type SessionRefresher } from "./client";
+import { clearApiSession, readApiSession } from "./session";
+import { ensureApiSession, installSessionRefresh } from "./session-bootstrap";
 
-vi.mock("./auth", () => ({ startDemoSession: vi.fn() }));
-vi.mock("./session", () => ({ readApiSession: vi.fn() }));
+vi.mock("./auth", () => ({
+  refreshSession: vi.fn(),
+  startDemoSession: vi.fn(),
+}));
+vi.mock("./client", () => ({ registerSessionRefresher: vi.fn() }));
+vi.mock("./session", () => ({
+  clearApiSession: vi.fn(),
+  readApiSession: vi.fn(),
+}));
+
+/** `installSessionRefresh()`가 client에 등록한 갱신자를 꺼낸다. */
+function registeredRefresher(): SessionRefresher {
+  installSessionRefresh();
+  const [call] = vi.mocked(registerSessionRefresher).mock.calls;
+  if (!call?.[0]) throw new Error("갱신자가 등록되지 않았습니다.");
+  return call[0];
+}
 
 const DEMO_SESSION = {
   accessToken: "demo",
   refreshToken: "refresh",
   expiresIn: 1800,
   isDemo: true,
+  onboarded: true,
 };
 
 beforeEach(() => {
@@ -50,5 +67,40 @@ describe("ensureApiSession", () => {
     await expect(ensureApiSession()).rejects.toThrow("network");
     await expect(ensureApiSession()).resolves.toBe(DEMO_SESSION);
     expect(startDemoSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("세션을 확보하면서 401 갱신자를 client에 등록한다", async () => {
+    await ensureApiSession();
+    expect(registerSessionRefresher).toHaveBeenCalledWith(expect.any(Function));
+  });
+});
+
+describe("installSessionRefresh", () => {
+  it("등록된 갱신자는 새 액세스 토큰을 돌려준다", async () => {
+    vi.mocked(refreshSession).mockResolvedValue({
+      ...DEMO_SESSION,
+      accessToken: "renewed",
+    });
+
+    await expect(registeredRefresher()()).resolves.toBe("renewed");
+    expect(clearApiSession).not.toHaveBeenCalled();
+  });
+
+  it("갱신에 실패하면 남은 세션을 버리고 null을 돌려준다", async () => {
+    vi.mocked(refreshSession).mockRejectedValue(new Error("expired"));
+
+    await expect(registeredRefresher()()).resolves.toBeNull();
+    expect(clearApiSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("동시에 여러 요청이 갱신을 요청해도 한 번만 나간다", async () => {
+    vi.mocked(refreshSession).mockResolvedValue({
+      ...DEMO_SESSION,
+      accessToken: "renewed",
+    });
+    const refresh = registeredRefresher();
+
+    await Promise.all([refresh(), refresh()]);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
   });
 });

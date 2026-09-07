@@ -7,7 +7,7 @@ import type {
 } from "./generated/divurve-api";
 import {
   clearApiSession,
-  readApiSession,
+  readStoredApiSession,
   saveApiSession,
   type ApiSession,
   type SessionPersistence,
@@ -45,8 +45,14 @@ export function startDemoSession(): Promise<ApiSession> {
   return authenticate("/api/v1/auth/demo", undefined, "session");
 }
 
+/**
+ * 리프레시 토큰으로 세션을 갱신한다.
+ *
+ * 액세스 토큰이 만료돼도 리프레시 토큰은 살아 있을 수 있으므로
+ * 만료를 따지지 않는 `readStoredApiSession()`으로 읽는다.
+ */
 export async function refreshSession(): Promise<ApiSession> {
-  const current = readApiSession();
+  const current = readStoredApiSession();
   if (!current) {
     throw new Error("갱신할 API 세션이 없습니다.");
   }

@@ -10,6 +10,7 @@ import {
   toSnakeCase,
 } from "./client";
 import { clearApiSession, saveApiSession } from "./session";
+import { registerSessionRefresher } from "./client";
 
 const env = { VITE_API_URL: "https://api.test/" };
 
@@ -20,10 +21,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-beforeEach(() => clearApiSession());
+beforeEach(() => {
+  clearApiSession();
+  registerSessionRefresher(null);
+});
 
 afterEach(() => {
   clearApiSession();
+  registerSessionRefresher(null);
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -50,7 +55,7 @@ describe("API URL helpers", () => {
         enabled: true,
         omitted: undefined,
       }),
-    ).toBe("/forecast?pairCode=USD%2FKRW&horizon=30&enabled=true");
+    ).toBe("/forecast?pair_code=USD%2FKRW&horizon=30&enabled=true");
     expect(apiPath("/events", { omitted: undefined })).toBe("/events");
   });
 });
@@ -70,6 +75,34 @@ describe("API key conversion", () => {
     ]);
     expect(toSnakeCase("plain")).toBe("plain");
     expect(toSnakeCase(null)).toBeNull();
+  });
+
+  // 백엔드는 숫자 경계에도 밑줄을 넣는다(`vol_30d`, `interval_80`).
+  // 밑줄 뒤 숫자는 대문자화되지 않으므로 밑줄만 사라진다 — 이 대응표를
+  // 고정해두지 않으면 타입 선언이 실제 응답 키와 어긋나도 드러나지 않는다.
+  it.each([
+    ["interval_80", "interval80"],
+    ["vol_30d", "vol30d"],
+    ["vol_percentile_5y", "volPercentile5y"],
+    ["per_1pct_krw", "per1pctKrw"],
+    ["coverage_80", "coverage80"],
+    ["sensitivity_1pct", "sensitivity1pct"],
+    ["sensitivity_1pct_krw", "sensitivity1pctKrw"],
+    ["worst_5_rate", "worst5Rate"],
+    ["p50_lo", "p50Lo"],
+    ["p80_hi", "p80Hi"],
+  ])("숫자 경계 응답 키 %s를 %s로 바꾼다", (snakeKey, camelKey) => {
+    expect(toCamelCase({ [snakeKey]: 1 })).toEqual({ [camelKey]: 1 });
+  });
+
+  // camelToSnakeKey는 대문자 앞에만 밑줄을 넣으므로 숫자 경계를 복원하지
+  // 못한다(`vol30d` → `vol30d`). 응답 전용 필드라 현재는 문제가 없지만,
+  // 요청 바디에 숫자 경계 필드가 생기면 백엔드가 읽지 못한다.
+  it("요청 변환은 숫자 경계 밑줄을 복원하지 못한다", () => {
+    expect(toSnakeCase({ vol30d: 1, interval80: 2 })).toEqual({
+      vol30d: 1,
+      interval80: 2,
+    });
   });
 });
 
@@ -92,11 +125,12 @@ describe("request", () => {
       refreshToken: "refresh",
       expiresIn: 1800,
       isDemo: true,
+      onboarded: true,
     });
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         data: { created_at: "t" },
-        meta: { timestamp: "now", source_names: ["server"] },
+        meta: { asOf: "now", source_names: ["server"] },
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -109,7 +143,7 @@ describe("request", () => {
 
     expect(result).toEqual({
       data: { createdAt: "t" },
-      meta: { timestamp: "now", sourceNames: ["server"] },
+      meta: { asOf: "now", sourceNames: ["server"] },
     });
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(requestInit.headers);
@@ -149,6 +183,124 @@ describe("request", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("토큰이 없으면 갱신자를 먼저 불러 새 토큰으로 요청한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: { ok: true } }));
+    vi.stubGlobal("fetch", fetchMock);
+    registerSessionRefresher(async () => {
+      saveApiSession({
+        accessToken: "renewed",
+        refreshToken: "r",
+        expiresIn: 1800,
+        isDemo: true,
+        onboarded: true,
+      });
+      return "renewed";
+    });
+
+    await expect(request("/private", {}, env)).resolves.toEqual({ ok: true });
+    const headers = new Headers((fetchMock.mock.calls[0]?.[1] as RequestInit).headers);
+    expect(headers.get("Authorization")).toBe("Bearer renewed");
+  });
+
+  it("갱신자가 토큰을 주지 못하면 인증 오류를 던진다", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    registerSessionRefresher(async () => null);
+
+    await expect(request("/private", {}, env)).rejects.toMatchObject({
+      status: 401,
+      code: "AUTH_REQUIRED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("갱신자가 실패하면 인증 오류를 던진다", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    registerSessionRefresher(() => Promise.reject(new Error("boom")));
+
+    await expect(request("/private", {}, env)).rejects.toMatchObject({
+      status: 401,
+      code: "AUTH_REQUIRED",
+    });
+  });
+
+  it("서버가 401을 주면 한 번 갱신해 재요청한다", async () => {
+    saveApiSession({
+      accessToken: "stale",
+      refreshToken: "r",
+      expiresIn: 1800,
+      isDemo: true,
+      onboarded: true,
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "UNAUTHORIZED", message: "인증이 필요합니다." } }, 401),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: { ok: true } }));
+    vi.stubGlobal("fetch", fetchMock);
+    registerSessionRefresher(async () => {
+      saveApiSession({
+        accessToken: "renewed",
+        refreshToken: "r",
+        expiresIn: 1800,
+        isDemo: true,
+        onboarded: true,
+      });
+      return "renewed";
+    });
+
+    await expect(request("/private", {}, env)).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryHeaders = new Headers(
+      (fetchMock.mock.calls[1]?.[1] as RequestInit).headers,
+    );
+    expect(retryHeaders.get("Authorization")).toBe("Bearer renewed");
+  });
+
+  it("재요청도 401이면 더 갱신하지 않고 서버 오류를 던진다", async () => {
+    saveApiSession({
+      accessToken: "stale",
+      refreshToken: "r",
+      expiresIn: 1800,
+      isDemo: true,
+      onboarded: true,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ error: { code: "UNAUTHORIZED", message: "인증이 필요합니다." } }, 401),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const refresher = vi.fn().mockResolvedValue("renewed");
+    registerSessionRefresher(refresher);
+
+    await expect(request("/private", {}, env)).rejects.toMatchObject({
+      status: 401,
+      code: "UNAUTHORIZED",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(refresher).toHaveBeenCalledTimes(1);
+  });
+
+  it("갱신자가 없으면 401을 그대로 던진다", async () => {
+    saveApiSession({
+      accessToken: "stale",
+      refreshToken: "r",
+      expiresIn: 1800,
+      isDemo: true,
+      onboarded: true,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ error: { code: "UNAUTHORIZED", message: "인증이 필요합니다." } }, 401),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(request("/private", {}, env)).rejects.toMatchObject({
+      status: 401,
+      code: "UNAUTHORIZED",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("서버의 구조화된 오류와 일반 HTTP 오류를 변환한다", async () => {
     const fetchMock = vi
       .fn()
@@ -177,7 +329,7 @@ describe("request", () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(jsonResponse({ meta: { timestamp: "now" } }));
+      .mockResolvedValueOnce(jsonResponse({ meta: { asOf: "now" } }));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -200,6 +352,6 @@ describe("request", () => {
     ).resolves.toBeUndefined();
     await expect(
       requestWithMeta<string>("/ok", { requiresAuth: false }, env),
-    ).resolves.toEqual({ data: "ok", meta: { timestamp: "" } });
+    ).resolves.toEqual({ data: "ok", meta: { asOf: "" } });
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadMockImportedAssets } from "./asset-import";
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "./fixtures/xray-dashboard";
+import { MOCK_IMPORTED_ASSET_SUMMARY } from "./fixtures/initial-setup-assets";
 
 describe("loadMockImportedAssets", () => {
   afterEach(() => vi.useRealTimers());

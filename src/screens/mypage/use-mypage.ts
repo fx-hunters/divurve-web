@@ -1,109 +1,112 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError } from "../../api/client";
 import type {
-  UserProfile,
-  NotificationKey,
-  NotificationOption,
-  RiskProfileType,
-} from '../../types/mypage';
+  MyPageBundle,
+  SettingsUpdateRequest,
+} from "../../api/generated/divurve-api";
+import { fetchMyPageBundle, updateSettings } from "../../api/mypage";
+import type { MyPageViewData } from "../../types/mypage";
+import { toMyPageViewData, toSettingsView } from "./mypage-presenter";
 
-export const NOTIFICATION_OPTIONS: readonly NotificationOption[] = [
-  { id: 'budgetWarning', label: '예산 부족 경고' },
-  { id: 'highVolatility', label: '고변동성 구간 진입' },
-  { id: 'opportunityBucket', label: '기회 버킷 실행 알림' },
-  { id: 'safetyMode', label: '안전모드 전환 알림' },
-] as const;
+export type MyPageState =
+  | { readonly status: "loading" }
+  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "success"; readonly data: MyPageViewData };
 
-export const INITIAL_USER_PROFILE: UserProfile = {
-  name: '김데모',
-  email: 'demo.kim@example.com',
-  riskProfile: '안정항로형',
-  diagnosisDate: '2026.08.15',
+export type SettingsSaveState =
+  | { readonly status: "idle" }
+  | { readonly status: "saving" }
+  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "saved" };
+
+export interface MyPageDependencies {
+  readonly load: () => Promise<MyPageBundle>;
+  readonly saveSettings: typeof updateSettings;
+}
+
+const DEFAULT_DEPENDENCIES: MyPageDependencies = {
+  load: fetchMyPageBundle,
+  saveSettings: updateSettings,
 };
 
-const RISK_PROFILES: readonly RiskProfileType[] = [
-  '안정항로형',
-  '균형항로형',
-  '적극항로형',
-  '도전항로형',
-];
+function toErrorMessage(error: unknown): string {
+  return error instanceof ApiError
+    ? error.message
+    : "마이페이지 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.";
+}
 
-export function useMyPage() {
-  const [profile, setProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
-  const [bankPreferentialRate, setBankPreferentialRate] = useState<number>(80);
-  const [notifications, setNotifications] = useState<Record<NotificationKey, boolean>>({
-    budgetWarning: true,
-    highVolatility: true,
-    opportunityBucket: false,
-    safetyMode: false,
+interface UseMyPageResult {
+  readonly state: MyPageState;
+  readonly saveState: SettingsSaveState;
+  readonly reload: () => void;
+  readonly saveSettings: (input: SettingsUpdateRequest) => void;
+}
+
+export function useMyPage(
+  dependencies: MyPageDependencies = DEFAULT_DEPENDENCIES,
+): UseMyPageResult {
+  const [state, setState] = useState<MyPageState>({ status: "loading" });
+  const [saveState, setSaveState] = useState<SettingsSaveState>({
+    status: "idle",
   });
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // 호출자가 의존성 객체를 인라인으로 만들어 넘겨도 조회가 반복되지 않도록
+  // ref로 최신 값만 참조한다. 의존성 교체는 재조회 신호가 아니다.
+  const dependenciesRef = useRef(dependencies);
+  dependenciesRef.current = dependencies;
 
-  const showToast = useCallback((message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage((prev) => (prev === message ? null : prev));
-    }, 3000);
+  useEffect(() => {
+    let isActive = true;
+    setState({ status: "loading" });
+
+    void dependenciesRef.current
+      .load()
+      .then((bundle) => {
+        if (isActive) {
+          setState({ status: "success", data: toMyPageViewData(bundle) });
+        }
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          setState({ status: "error", message: toErrorMessage(error) });
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [reloadKey]);
+
+  const reload = useCallback(() => {
+    setReloadKey((currentKey) => currentKey + 1);
   }, []);
 
-  const handleRateChange = useCallback((newRate: number) => {
-    const clamped = Math.max(0, Math.min(100, Math.round(newRate)));
-    setBankPreferentialRate(clamped);
+  const saveSettings = useCallback((input: SettingsUpdateRequest) => {
+    setSaveState({ status: "saving" });
+    void dependenciesRef.current
+      .saveSettings(input)
+      .then((settings) => {
+        setState((current) =>
+          current.status === "success"
+            ? {
+                status: "success",
+                data: { ...current.data, settings: toSettingsView(settings) },
+              }
+            : current,
+        );
+        setSaveState({ status: "saved" });
+      })
+      .catch((error: unknown) => {
+        setSaveState({
+          status: "error",
+          message:
+            error instanceof ApiError
+              ? error.message
+              : "설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        });
+      });
   }, []);
 
-  const toggleNotification = useCallback((key: NotificationKey) => {
-    setNotifications((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  }, []);
-
-  const handlePasswordChange = useCallback(() => {
-    showToast('비밀번호 변경 안내 메일이 발송되었습니다.');
-  }, [showToast]);
-
-  const handleLogout = useCallback(() => {
-    showToast('로그아웃되었습니다.');
-  }, [showToast]);
-
-  const handleLogin = useCallback(() => {
-    showToast('로그인 페이지로 이동합니다.');
-  }, [showToast]);
-
-  const handleRediagnosis = useCallback(() => {
-    // Cycle to next risk profile or update date
-    setProfile((prev) => {
-      const currentIndex = RISK_PROFILES.indexOf(prev.riskProfile);
-      const nextIndex = (currentIndex + 1) % RISK_PROFILES.length;
-      const nextProfile = RISK_PROFILES[nextIndex] as RiskProfileType;
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
-      return {
-        ...prev,
-        riskProfile: nextProfile,
-        diagnosisDate: today,
-      };
-    });
-    showToast('의사결정 성향이 재진단되었습니다.');
-  }, [showToast]);
-
-  // Base standard spread is ~1.0%, so at 80% discount effective spread is 0.2%
-  const effectiveSpread = useMemo(() => {
-    const spread = (1.0 * (100 - bankPreferentialRate)) / 100;
-    return spread.toFixed(1);
-  }, [bankPreferentialRate]);
-
-  return {
-    profile,
-    bankPreferentialRate,
-    notifications,
-    toastMessage,
-    effectiveSpread,
-    setBankPreferentialRate: handleRateChange,
-    toggleNotification,
-    handlePasswordChange,
-    handleLogout,
-    handleLogin,
-    handleRediagnosis,
-    clearToast: () => setToastMessage(null),
-  };
+  return { state, saveState, reload, saveSettings };
 }

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/xray-dashboard";
+import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/initial-setup-assets";
 import {
   readDiagnosisProgress,
   writeDiagnosisProgress,

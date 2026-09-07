@@ -3,9 +3,9 @@ import { ApiError, request, requestWithMeta } from "./client";
 import { fetchHomeSummary } from "./home";
 import { fetchForecastBundle } from "./forecast";
 import {
-  applyStressScenario,
   fetchXrayBundle,
-  simulateDiversification,
+  previewFitAdjustment,
+  runStressScenario,
 } from "./xray";
 import { fetchMyPageBundle, updateSettings } from "./mypage";
 import {
@@ -27,39 +27,54 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("screen API modules", () => {
   it("홈 요약을 메타와 함께 조회한다", async () => {
-    const result = { data: { notice: { message: "ok" } }, meta: { timestamp: "t" } };
+    const result = { data: { notice: { message: "ok" } }, meta: { asOf: "t" } };
     vi.mocked(requestWithMeta).mockResolvedValue(result);
     await expect(fetchHomeSummary()).resolves.toEqual(result);
     expect(requestWithMeta).toHaveBeenCalledWith("/api/v1/home/summary");
   });
 
-  it("환율 범위 관련 공개 API 네 개를 한 번에 조회한다", async () => {
+  it("인증이 필요한 forecast와 공개 API 셋을 한 번에 조회한다", async () => {
     vi.mocked(request).mockImplementation(async (path) => ({ path }));
+    vi.mocked(requestWithMeta).mockImplementation(async (path) => ({
+      data: { path },
+      meta: { asOf: "2026-09-06T22:14:01Z" },
+    }));
     const result = await fetchForecastBundle("USD_KRW", 30);
-    expect(result.forecast).toEqual({ path: "/api/v1/forecast?pairCode=USD_KRW&horizon=30" });
-    expect(result.factors).toEqual({ path: "/api/v1/forecast/factors?pairCode=USD_KRW" });
-    expect(result.performance).toEqual({ path: "/api/v1/forecast/model-performance?pairCode=USD_KRW&horizon=30" });
+    expect(result.forecast).toEqual({
+      path: "/api/v1/forecast?pair_code=USD_KRW&horizon_days=30",
+    });
+    expect(result.asOf).toBe("2026-09-06T22:14:01Z");
+    expect(result.factors).toEqual({ path: "/api/v1/forecast/factors?pair_code=USD_KRW" });
+    expect(result.performance).toEqual({ path: "/api/v1/forecast/model-performance?pair_code=USD_KRW&horizon_days=30" });
     expect(result.events).toEqual({ path: "/api/v1/events" });
-    expect(request).toHaveBeenCalledTimes(4);
+    // forecast만 인증 요청이므로 공개 request는 셋뿐이다.
+    expect(request).toHaveBeenCalledTimes(3);
     expect(request).toHaveBeenCalledWith(expect.any(String), { requiresAuth: false });
   });
 
   it("X-Ray 묶음 조회와 두 계산 요청을 전달한다", async () => {
     vi.mocked(request).mockImplementation(async (path) => ({ path }));
+    vi.mocked(requestWithMeta).mockImplementation(async (path) => ({
+      data: { path },
+      meta: { asOf: "2026-09-06T22:32:19Z" },
+    }));
     const result = await fetchXrayBundle("USD");
-    expect(result.attribution).toEqual({
-      path: "/api/v1/xray/attribution?currencyCode=USD",
-    });
     expect(result.overview).toEqual({ path: "/api/v1/xray" });
-    expect(result.concentration).toEqual({ path: "/api/v1/fit/concentration" });
-
-    await applyStressScenario({ shocks: { USD: -0.1 } });
-    expect(request).toHaveBeenCalledWith("/api/v1/xray/stress", {
-      method: "POST",
-      body: { shocks: { USD: -0.1 } },
+    expect(result.asOf).toBe("2026-09-06T22:32:19Z");
+    expect(result.attribution).toEqual({
+      path: "/api/v1/xray/attribution?currency_code=USD",
     });
-    await simulateDiversification({ currencyCode: "EUR", deltaShare: 0.1 });
-    expect(request).toHaveBeenCalledWith("/api/v1/fit/simulate", {
+    expect(result.fit).toEqual({ path: "/api/v1/fit" });
+    expect(result.scenarios).toEqual({ path: "/api/v1/stress/scenarios" });
+
+    await runStressScenario({ scenarioCode: "equity_down_krw_weak" });
+    expect(request).toHaveBeenCalledWith("/api/v1/stress/runs", {
+      method: "POST",
+      body: { scenarioCode: "equity_down_krw_weak" },
+    });
+
+    await previewFitAdjustment({ currencyCode: "EUR", deltaShare: 0.1 });
+    expect(request).toHaveBeenCalledWith("/api/v1/fit/preview", {
       method: "POST",
       body: { currencyCode: "EUR", deltaShare: 0.1 },
     });

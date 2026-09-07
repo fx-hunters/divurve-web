@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // app.test.tsx는 앱 전체를 28번 렌더한다. 커버리지 계측이 붙으면 기본 5초를
+    // 넘겨 간헐적으로 타임아웃이 났다.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

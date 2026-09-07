@@ -1,51 +1,63 @@
-import { useXRay } from "./use-xray";
+import { useXRay, type XRayDependencies } from "./use-xray";
 import { XRayExposureView } from "./xray-exposure-view";
 import { XRayFitnessView } from "./xray-fitness-view";
+import { ApiStateView } from "../../components/common/api-state-view";
 import type { NavTabId } from "../../types/navigation";
-import { XrayApiScreen } from "./xray-api-screen";
-import type { XrayApiDependencies } from "./use-xray-api";
 
 interface XRayScreenProps {
-  readonly isDemo?: boolean;
   readonly onNavigate?: (tab: NavTabId) => void;
-  readonly apiDependencies?: XrayApiDependencies;
+  readonly dependencies?: XRayDependencies;
 }
 
-export function XRayScreen({
-  isDemo = true,
-  onNavigate,
-  apiDependencies,
-}: XRayScreenProps) {
-  if (!isDemo) {
-    return (
-      <XrayApiScreen
-        onNavigate={onNavigate}
-        dependencies={apiDependencies}
-      />
-    );
-  }
-
-  return <XrayDemoScreen onNavigate={onNavigate} />;
-}
-
-function XrayDemoScreen({ onNavigate }: Pick<XRayScreenProps, "onNavigate">) {
+export function XRayScreen({ onNavigate, dependencies }: XRayScreenProps) {
   const {
-    data,
     activeTab,
-    selectedScenarioId,
-    activeScenario,
-    eurSimulationPct,
+    data,
+    state,
+    selectedScenarioCode,
+    runState,
+    runResult,
+    previewState,
     setActiveTab,
-    setSelectedScenarioId,
-    setEurSimulationPct,
-    openAssetModal,
-  } = useXRay();
+    selectScenario,
+    previewAdjustment,
+    reload,
+  } = useXRay(dependencies);
 
   const handleNavigateToPlanner = () => {
     if (onNavigate) {
       onNavigate("planner");
     }
   };
+
+  if (state.status === "loading") {
+    return (
+      <ApiStateView
+        status="loading"
+        title="내 자산을 불러오는 중입니다"
+        message="통화 노출과 손익 분해를 함께 확인하고 있습니다."
+      />
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <ApiStateView
+        status="error"
+        title="내 자산을 불러오지 못했습니다"
+        message={state.message}
+        onRetry={reload}
+      />
+    );
+  }
+  if (data === null) {
+    return (
+      <ApiStateView
+        status="empty"
+        title="등록된 자산이 없습니다"
+        message="보유 종목과 외화 예금을 등록하면 통화 노출과 손익 분해를 볼 수 있습니다."
+      />
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -94,17 +106,16 @@ function XrayDemoScreen({ onNavigate }: Pick<XRayScreenProps, "onNavigate">) {
       {activeTab === "exposure" ? (
         <XRayExposureView
           data={data}
-          selectedScenarioId={selectedScenarioId}
-          activeScenario={activeScenario}
-          onSelectScenario={setSelectedScenarioId}
-          onNavigateToPlanner={handleNavigateToPlanner}
-          onOpenAssetEdit={openAssetModal}
+          selectedScenarioCode={selectedScenarioCode}
+          runState={runState}
+          runResult={runResult}
+          onSelectScenario={selectScenario}
         />
       ) : (
         <XRayFitnessView
           data={data}
-          eurSimulationPct={eurSimulationPct}
-          onSetEurSimulationPct={setEurSimulationPct}
+          previewState={previewState}
+          onPreviewAdjustment={previewAdjustment}
           onNavigateToPlanner={handleNavigateToPlanner}
         />
       )}

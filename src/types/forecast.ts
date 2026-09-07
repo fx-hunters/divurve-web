@@ -12,10 +12,13 @@ export interface FanChartDataPoint {
 }
 
 export interface ForecastRangeSummary {
-  readonly upper: number;
-  readonly lower: number;
+  /** 환율은 자릿수가 통화마다 달라 표시 문자열로 굳혀서 넘긴다. */
+  readonly upperLabel: string;
+  readonly lowerLabel: string;
+  /** 서버가 준 1% 변동 시 자산 영향액의 표시 문자열. */
   readonly impact: string;
   readonly percentile: string;
+  readonly isPercentileWarn: boolean;
 }
 
 export interface ForecastDriverItem {
@@ -32,7 +35,8 @@ export interface ForecastEventItem {
 
 export interface ModelPerformanceScore {
   readonly hitRatePct: number;
-  readonly maeKrw: number;
+  /** 서버의 mae는 금액이 아니라 비율이라 % 로 표시한다. */
+  readonly maePct: number;
   readonly inclusion80Pct: number;
   readonly randomWalkImprovementPct: number;
 }
@@ -42,5 +46,6 @@ export interface CurrencyForecastInfo {
   readonly drivers: readonly ForecastDriverItem[];
   readonly events: readonly ForecastEventItem[];
   readonly modelScore: ModelPerformanceScore;
-  readonly nextUpdateUtc: string;
+  readonly uncertaintyNote: string;
+  readonly asOfLabel: string;
 }

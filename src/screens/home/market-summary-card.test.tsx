@@ -1,25 +1,32 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MarketSummaryCard } from "./market-summary-card";
-import type { MarketSummaryData } from "../../types/home";
 
 describe("MarketSummaryCard", () => {
-  const sampleData: MarketSummaryData = {
-    pair: "USD/KRW",
-    currentPrice: 1382.4,
-    bandLower: 1378,
-    bandUpper: 1390,
-    sparkline: [
-      { time: "09:00", price: 1378.2 },
-      { time: "14:00", price: 1382.4 },
-    ],
-  };
+  it("현재 환율과 80% 범위를 렌더링한다", () => {
+    render(
+      <MarketSummaryCard
+        data={{
+          pairLabel: "USDKRW",
+          currentRateLabel: "1,382.40",
+          lowerLabel: "1,330.60",
+          upperLabel: "1,389.02",
+        }}
+      />,
+    );
 
-  it("통화쌍 제목, 현재가, 밴드 범위 및 차트를 렌더링한다", () => {
-    render(<MarketSummaryCard data={sampleData} />);
-
-    expect(screen.getByRole("heading", { name: "오늘의 시장 (USD/KRW)" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "오늘의 시장 (USDKRW)" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("1,382.40")).toBeInTheDocument();
-    expect(screen.getByText("하단 1,378 - 상단 1,390")).toBeInTheDocument();
+    expect(screen.getByText("80% 범위 1,330.60 - 1,389.02")).toBeInTheDocument();
+  });
+
+  it("현재 환율과 범위가 없으면 안내 문구만 보여준다", () => {
+    render(<MarketSummaryCard data={{ pairLabel: "-" }} />);
+    expect(
+      screen.getByText("현재 환율을 불러오지 못했습니다."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/80% 범위/)).not.toBeInTheDocument();
   });
 });

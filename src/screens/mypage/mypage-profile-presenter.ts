@@ -1,4 +1,3 @@
-import type { SettingsResponse } from "../../api/generated/divurve-api";
 import {
   getExplanationDomainLabel,
   getExplanationLevelLabel,
@@ -13,6 +12,7 @@ import type {
   RiskProfileKind,
 } from "../../types/diagnosis";
 import type { ServerDiagnosisSummary } from "../../components/diagnosis/diagnosis-status-card";
+import type { SettingsView } from "../../types/mypage";
 
 export interface ProfilePreferencesViewModel {
   readonly explanationDomain: ExplanationDomain;
@@ -54,7 +54,7 @@ function getDetailedLevel(
 }
 
 export function createProfilePreferencesViewModel(
-  settings: SettingsResponse,
+  settings: Pick<SettingsView, "explainDomain" | "explainLevel">,
   localPreferences: ProfileExplanationPreferences,
   progress: DiagnosisProgress,
 ): ProfilePreferencesViewModel {
@@ -98,13 +98,23 @@ const SERVER_RISK_KIND: Readonly<Record<string, RiskProfileKind>> = {
 
 export function createServerDiagnosisSummary(
   riskType: string,
+  details: Pick<
+    ServerDiagnosisSummary,
+    "scoreLabel" | "diagnosedOnLabel" | "limitationNote"
+  > = {
+    scoreLabel: null,
+    diagnosedOnLabel: null,
+    limitationNote: null,
+  },
 ): ServerDiagnosisSummary {
-  const kind = SERVER_RISK_KIND[riskType.trim().toLowerCase()];
+  const normalizedRiskType = riskType.trim().toLowerCase().replace(/\s+/g, "");
+  const kind = SERVER_RISK_KIND[normalizedRiskType];
   return {
     displayName: kind
       ? getRiskProfileDisplayName(kind)
       : "기존 진단 결과",
     description:
       "계정에 저장된 진단 결과입니다. 현재 접속에서 진행한 상세 답변과는 구분해 표시합니다.",
+    ...details,
   };
 }

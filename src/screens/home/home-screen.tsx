@@ -1,18 +1,17 @@
 import { useHomeDashboard, type HomeSummaryLoader } from "./use-home-dashboard";
 import { HomeDashboardView } from "./home-dashboard-view";
 import { HomeEmptyView } from "./home-empty-view";
-import { HomeApiSummaryView } from "./home-api-summary-view";
 import { ApiStateView } from "../../components/common/api-state-view";
+import { toHomeDashboardData } from "./home-presenter";
 import type { NavTabId } from "../../types/navigation";
 
 interface HomeScreenProps {
-  readonly isDemo: boolean;
   readonly onNavigate: (tab: NavTabId) => void;
   readonly loadSummary?: HomeSummaryLoader;
 }
 
-export function HomeScreen({ isDemo, onNavigate, loadSummary }: HomeScreenProps) {
-  const { state, recordRoundComplete, reload } = useHomeDashboard(isDemo, loadSummary);
+export function HomeScreen({ onNavigate, loadSummary }: HomeScreenProps) {
+  const { state, reload } = useHomeDashboard(loadSummary);
 
   if (state.status === "loading") {
     return (
@@ -39,16 +38,13 @@ export function HomeScreen({ isDemo, onNavigate, loadSummary }: HomeScreenProps)
     return <HomeEmptyView onNavigateToPlanner={() => onNavigate("planner")} />;
   }
 
-  if (state.source === "api") {
-    return <HomeApiSummaryView result={state.result} />;
-  }
-
   return (
     <HomeDashboardView
-      data={state.data}
-      onRecordComplete={recordRoundComplete}
+      data={toHomeDashboardData(state.result)}
       onNavigateToAssets={() => onNavigate("assets")}
       onNavigateToPlanner={() => onNavigate("planner")}
+      onNavigateToRange={() => onNavigate("range")}
+      onNavigateToMypage={() => onNavigate("mypage")}
     />
   );
 }

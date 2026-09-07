@@ -51,4 +51,11 @@
 | [0021](./0021-post-auth-initial-setup-shell.md) | 로그인 후 초기 설정 UI 골격 | 2026-09-07 |
 | [0022](./0022-decouple-route-loader-from-demo-flag.md) | Route 로더에서 데모 분기 결합 제거 | 2026-09-07 |
 | [0023](./0023-be-driven-demo-session.md) | 데모 여부 판단을 BE 세션으로 이관 | 2026-09-07 |
+| [0024](./0024-resync-api-contract.md) | 생성 API 타입을 실제 배포 계약과 재동기화 | 2026-09-07 |
+| [0025](./0025-mypage-api-integration.md) | 마이페이지를 실제 API 데이터로 통합 | 2026-09-07 |
+| [0026](./0026-forecast-api-integration.md) | 환율 범위 탭을 실제 API 데이터로 통합 | 2026-09-07 |
+| [0027](./0027-xray-api-integration.md) | 내 자산(X-Ray) 탭을 실제 API 데이터로 통합 | 2026-09-07 |
+| [0028](./0028-home-api-integration.md) | 홈 탭을 실제 API 데이터로 통합 | 2026-09-07 |
+| [0029](./0029-fix-sensitivity-key-casing.md) | 숫자 경계 응답 키 표기 교정 | 2026-09-07 |
+| [0030](./0030-session-expiry-and-401-recovery.md) | 세션 만료 판정과 401 자동 복구 | 2026-09-07 |
 | [0031](./0031-initial-setup-diagnosis-flow.md) | 초기 설정·위험성향 진단 UX와 결과 구조 구현 | 2026-09-07 |

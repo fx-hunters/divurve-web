@@ -6,7 +6,7 @@ import {
   writeDiagnosisProgress,
 } from "../../api/diagnosis-progress-store";
 import { readProfilePreferences } from "../../api/profile-preferences-store";
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/xray-dashboard";
+import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/initial-setup-assets";
 import { calculateQuickRiskResult } from "./risk-diagnosis";
 import { InitialSetupScreen } from "./initial-setup-screen";
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "./client";
 import {
   clearApiSession,
-  readApiSession,
+  readStoredApiSession,
   saveApiSession,
 } from "./session";
 import {
@@ -16,7 +16,7 @@ import {
 vi.mock("./client", () => ({ request: vi.fn() }));
 vi.mock("./session", () => ({
   clearApiSession: vi.fn(),
-  readApiSession: vi.fn(),
+  readStoredApiSession: vi.fn(),
   saveApiSession: vi.fn(),
 }));
 
@@ -25,6 +25,7 @@ const apiSession = {
   refreshToken: "refresh",
   expiresIn: 1800,
   isDemo: false,
+  onboarded: true,
 };
 
 beforeEach(() => {
@@ -58,8 +59,11 @@ describe("auth API", () => {
     expect(clearApiSession).toHaveBeenCalledOnce();
   });
 
-  it("현재 refresh token으로 토큰을 갱신한다", async () => {
-    vi.mocked(readApiSession).mockReturnValue(apiSession);
+  it("만료된 세션이라도 refresh token으로 갱신을 요청한다", async () => {
+    vi.mocked(readStoredApiSession).mockReturnValue({
+      ...apiSession,
+      expiresAt: 0,
+    });
     await refreshSession();
     expect(request).toHaveBeenCalledWith("/api/v1/auth/refresh", {
       method: "POST",
@@ -69,7 +73,7 @@ describe("auth API", () => {
   });
 
   it("세션이 없으면 갱신 요청을 보내지 않는다", async () => {
-    vi.mocked(readApiSession).mockReturnValue(null);
+    vi.mocked(readStoredApiSession).mockReturnValue(null);
     await expect(refreshSession()).rejects.toThrow("갱신할 API 세션이 없습니다.");
     expect(request).not.toHaveBeenCalled();
   });

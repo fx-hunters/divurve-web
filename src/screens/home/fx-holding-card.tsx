@@ -1,14 +1,14 @@
 import { Card } from "../../components/common/card";
 import { DonutChart } from "../../components/common/donut-chart";
-import type { FxHoldingData } from "../../types/home";
+import type { FxStatusData } from "../../types/home";
 
 interface FxHoldingCardProps {
-  readonly data: FxHoldingData;
+  readonly data: FxStatusData;
   readonly onNavigateToAssets?: () => void;
 }
 
 export function FxHoldingCard({ data, onNavigateToAssets }: FxHoldingCardProps) {
-  const isPositiveDiff = data.dayOverDayDiffPctPoints >= 0;
+  const ratioPct = data.fxRatioPct;
 
   return (
     <Card
@@ -31,110 +31,72 @@ export function FxHoldingCard({ data, onNavigateToAssets }: FxHoldingCardProps) 
       }
       className="fx-holding-card"
     >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "1.5rem",
-        }}
-      >
-        <DonutChart
-          percent={data.fxRatio * 100}
-          size={120}
-          strokeWidth={14}
-          color="var(--usd)"
-          trackColor="var(--border)"
-          label={`외화 비중 ${(data.fxRatio * 100).toFixed(0)}%`}
-        />
+      {ratioPct === undefined ? (
+        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-muted)" }}>
+          등록된 자산이 없어 외화 비중을 계산할 수 없습니다.
+        </p>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "1.5rem",
+          }}
+        >
+          <DonutChart
+            percent={ratioPct}
+            size={120}
+            strokeWidth={14}
+            color="var(--usd)"
+            trackColor="var(--border)"
+            label={`외화 비중 ${ratioPct}%`}
+          />
 
-        <div style={{ flex: 1, minWidth: "200px", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <div
             style={{
+              flex: 1,
+              minWidth: "200px",
               display: "flex",
-              justifyContent: "space-between",
-              fontSize: "0.8125rem",
-              color: "var(--text-muted)",
-              fontWeight: 500,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            <span>
-              어제 대비{" "}
-              <strong style={{ color: isPositiveDiff ? "var(--normal)" : "var(--danger)" }}>
-                {isPositiveDiff ? `+${data.dayOverDayDiffPctPoints.toFixed(1)}` : data.dayOverDayDiffPctPoints.toFixed(1)}%p
-              </strong>
-            </span>
-            <span style={{ color: "var(--primary)" }}>
-              1% 변동시 ±₩{data.sensitivity1PctKrw.toLocaleString()}
-            </span>
-          </div>
-
-          {/* 통화별 비중 바 */}
-          <div
-            style={{
-              height: "14px",
-              width: "100%",
-              backgroundColor: "var(--border)",
-              borderRadius: "var(--radius-full)",
-              display: "flex",
-              overflow: "hidden",
-            }}
-            aria-label="통화별 비중 바"
-          >
-            <div
-              style={{
-                width: `${data.breakdown.usd}%`,
-                backgroundColor: "var(--usd)",
-                transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
-              title={`USD ${data.breakdown.usd}%`}
-            />
-            <div
-              style={{
-                width: `${data.breakdown.jpy}%`,
-                backgroundColor: "var(--jpy)",
-                transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
-              title={`JPY ${data.breakdown.jpy}%`}
-            />
-            <div
-              style={{
-                width: `${data.breakdown.eur}%`,
-                backgroundColor: "var(--eur)",
-                transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
-              title={`EUR ${data.breakdown.eur}%`}
-            />
-          </div>
-
-          {/* 범례 */}
-          <div
-            style={{
-              display: "flex",
-              gap: "1rem",
-              fontSize: "0.75rem",
+              flexDirection: "column",
+              gap: "0.75rem",
+              fontSize: "0.875rem",
               fontWeight: 600,
-              color: "var(--text)",
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "2px", backgroundColor: "var(--usd)" }} />
-              <span>USD {data.breakdown.usd}%</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "2px", backgroundColor: "var(--jpy)" }} />
-              <span>JPY {data.breakdown.jpy}%</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "2px", backgroundColor: "var(--eur)" }} />
-              <span>EUR {data.breakdown.eur}%</span>
-            </div>
+            {data.topCurrencyCode !== undefined && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <span style={{ color: "var(--text-muted)" }}>주력 통화</span>
+                <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                  {data.topCurrencyCode}
+                </span>
+              </div>
+            )}
+            {data.dayChangeKrw !== undefined && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <span style={{ color: "var(--text-muted)" }}>어제 대비</span>
+                <span
+                  style={{
+                    color: data.dayChangeKrw >= 0 ? "var(--normal)" : "var(--danger)",
+                    fontWeight: 700,
+                  }}
+                >
+                  {data.dayChangeKrw >= 0 ? "+" : ""}₩ {data.dayChangeKrw.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {data.sensitivity1pctKrw !== undefined && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+                <span style={{ color: "var(--text-muted)" }}>1% 변동 시</span>
+                <span style={{ color: "var(--text)", fontWeight: 700 }}>
+                  ±₩ {data.sensitivity1pctKrw.toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </Card>
   );
 }

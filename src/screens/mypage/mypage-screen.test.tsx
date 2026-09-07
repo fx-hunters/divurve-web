@@ -1,321 +1,351 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../../api/client";
+import { writeDiagnosisProgress } from "../../api/diagnosis-progress-store";
+import {
+  readProfilePreferences,
+  writeProfilePreferences,
+} from "../../api/profile-preferences-store";
+import type { MyPageBundle } from "../../api/generated/divurve-api";
+import {
+  MY_PAGE_API_FIXTURE,
+  MY_PAGE_SETTINGS_FIXTURE,
+} from "../../test/api-fixtures";
+import { calculateQuickRiskResult } from "../initial-setup/risk-diagnosis";
 import { MyPageScreen } from "./mypage-screen";
-import { useMyPage, NOTIFICATION_OPTIONS } from "./use-mypage";
+import type { MyPageDependencies } from "./use-mypage";
 
-describe("useMyPage hook", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
+function makeDependencies(
+  overrides: Partial<MyPageDependencies> = {},
+): MyPageDependencies {
+  return {
+    load: vi.fn().mockResolvedValue(MY_PAGE_API_FIXTURE),
+    saveSettings: vi.fn().mockResolvedValue(MY_PAGE_SETTINGS_FIXTURE),
+    ...overrides,
+  };
+}
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("initializes with default demo profile and preferences", () => {
-    const { result } = renderHook(() => useMyPage());
-    expect(result.current.profile.name).toBe("김데모");
-    expect(result.current.profile.email).toBe("demo.kim@example.com");
-    expect(result.current.profile.riskProfile).toBe("안정항로형");
-    expect(result.current.bankPreferentialRate).toBe(80);
-    expect(result.current.effectiveSpread).toBe("0.2");
-    expect(result.current.notifications.budgetWarning).toBe(true);
-    expect(result.current.notifications.opportunityBucket).toBe(false);
-  });
-
-  it("updates bank preferential rate and clamps between 0 and 100", () => {
-    const { result } = renderHook(() => useMyPage());
-
-    act(() => {
-      result.current.setBankPreferentialRate(90);
-    });
-    expect(result.current.bankPreferentialRate).toBe(90);
-    expect(result.current.effectiveSpread).toBe("0.1");
-
-    act(() => {
-      result.current.setBankPreferentialRate(120);
-    });
-    expect(result.current.bankPreferentialRate).toBe(100);
-    expect(result.current.effectiveSpread).toBe("0.0");
-
-    act(() => {
-      result.current.setBankPreferentialRate(-10);
-    });
-    expect(result.current.bankPreferentialRate).toBe(0);
-    expect(result.current.effectiveSpread).toBe("1.0");
-  });
-
-  it("toggles notification flags properly", () => {
-    const { result } = renderHook(() => useMyPage());
-    expect(result.current.notifications.opportunityBucket).toBe(false);
-
-    act(() => {
-      result.current.toggleNotification("opportunityBucket");
-    });
-    expect(result.current.notifications.opportunityBucket).toBe(true);
-
-    act(() => {
-      result.current.toggleNotification("budgetWarning");
-    });
-    expect(result.current.notifications.budgetWarning).toBe(false);
-  });
-
-  it("handles password change toast and auto-clears after 3 seconds", () => {
-    const { result } = renderHook(() => useMyPage());
-    expect(result.current.toastMessage).toBeNull();
-
-    act(() => {
-      result.current.handlePasswordChange();
-    });
-    expect(result.current.toastMessage).toBe("비밀번호 변경 안내 메일이 발송되었습니다.");
-
-    act(() => {
-      vi.advanceTimersByTime(3100);
-    });
-    expect(result.current.toastMessage).toBeNull();
-  });
-
-  it("handles re-diagnosis and cycles through risk profiles", () => {
-    const { result } = renderHook(() => useMyPage());
-    expect(result.current.profile.riskProfile).toBe("안정항로형");
-
-    act(() => {
-      result.current.handleRediagnosis();
-    });
-    expect(result.current.profile.riskProfile).toBe("균형항로형");
-    expect(result.current.toastMessage).toBe("의사결정 성향이 재진단되었습니다.");
-
-    act(() => {
-      result.current.handleRediagnosis();
-    });
-    expect(result.current.profile.riskProfile).toBe("적극항로형");
-
-    act(() => {
-      result.current.handleRediagnosis();
-    });
-    expect(result.current.profile.riskProfile).toBe("도전항로형");
-
-    act(() => {
-      result.current.handleRediagnosis();
-    });
-    expect(result.current.profile.riskProfile).toBe("안정항로형");
-  });
-
-  it("handles consecutive toasts without premature clearance", () => {
-    const { result } = renderHook(() => useMyPage());
-    act(() => {
-      result.current.handlePasswordChange();
-    });
-    expect(result.current.toastMessage).toBe("비밀번호 변경 안내 메일이 발송되었습니다.");
-
-    // Advance 1s and trigger rediagnosis toast
-    act(() => {
-      vi.advanceTimersByTime(1000);
-      result.current.handleRediagnosis();
-    });
-    expect(result.current.toastMessage).toBe("의사결정 성향이 재진단되었습니다.");
-
-    // Advance 2.1s (total 3.1s since first toast, 2.1s since second toast)
-    act(() => {
-      vi.advanceTimersByTime(2100);
-    });
-    // Second toast should still be active
-    expect(result.current.toastMessage).toBe("의사결정 성향이 재진단되었습니다.");
-
-    // Advance remaining 1s
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(result.current.toastMessage).toBeNull();
-  });
-
-  it("handles logout and login toast feedback", () => {
-    const { result } = renderHook(() => useMyPage());
-    act(() => {
-      result.current.handleLogout();
-    });
-    expect(result.current.toastMessage).toBe("로그아웃되었습니다.");
-
-    act(() => {
-      result.current.handleLogin();
-    });
-    expect(result.current.toastMessage).toBe("로그인 페이지로 이동합니다.");
-  });
-
-  it("supports manual toast clear", () => {
-    const { result } = renderHook(() => useMyPage());
-    act(() => {
-      result.current.handlePasswordChange();
-    });
-    expect(result.current.toastMessage).toBeTruthy();
-
-    act(() => {
-      result.current.clearToast();
-    });
-    expect(result.current.toastMessage).toBeNull();
-  });
+const quickResult = calculateQuickRiskResult({
+  Q1: "B",
+  Q2: "B",
+  Q3: "B",
 });
 
-describe("MyPageScreen Component", () => {
-  it("renders user profile info correctly", () => {
-    render(<MyPageScreen />);
-    expect(screen.getByText("김데모")).toBeInTheDocument();
-    expect(screen.getByText("demo.kim@example.com")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "비밀번호 변경" })).toBeInTheDocument();
+describe("MyPageScreen", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
   });
 
-  it("renders risk decision profile and triggers re-diagnosis", () => {
-    render(<MyPageScreen />);
-    expect(screen.getByText("의사결정 프로필 (투자성향)")).toBeInTheDocument();
-    expect(screen.getByText(/안전 버킷 하한과 집중도 기준선/)).toBeInTheDocument();
-    expect(screen.getByText("안정항로형")).toBeInTheDocument();
-    expect(screen.getByText(/진단일:/)).toBeInTheDocument();
+  it("실제 API 프로필과 서버 진단을 출처가 구분된 사용자 문구로 표시한다", async () => {
+    render(<MyPageScreen dependencies={makeDependencies()} />);
 
-    const rediagnosisBtn = screen.getByRole("button", { name: "재진단" });
-    fireEvent.click(rediagnosisBtn);
+    expect(
+      screen.getByText("마이페이지를 불러오는 중입니다"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "마이페이지" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("플래너 사용자")).toBeInTheDocument();
+    expect(screen.getByText("planner@example.com")).toBeInTheDocument();
+    expect(screen.getByText("내 계정")).toBeInTheDocument();
     expect(screen.getByText("균형항로형")).toBeInTheDocument();
-  });
+    expect(screen.getByText("서버 결과")).toBeInTheDocument();
+    expect(screen.getByText("서버 점수 72")).toBeInTheDocument();
+    expect(screen.getByText(/진단일 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/해커톤 MVP용 가설/)).toBeInTheDocument();
+    expect(screen.getByText("회차 확인")).toBeInTheDocument();
+    expect(screen.getByText(/새 알림/)).toBeInTheDocument();
 
-  it("handles password change click feedback toast", () => {
-    render(<MyPageScreen />);
-    const pwdBtn = screen.getByRole("button", { name: "비밀번호 변경" });
-    fireEvent.click(pwdBtn);
-    expect(screen.getByText("비밀번호 변경 안내 메일이 발송되었습니다.")).toBeInTheDocument();
-  });
-
-  it("keeps calculation assumptions out of the basic profile settings", () => {
-    render(<MyPageScreen />);
+    expect(screen.getByLabelText("익숙한 설명 분야")).toHaveDisplayValue(
+      "일상적인 설명",
+    );
+    expect(screen.getByLabelText("설명 수준")).toHaveDisplayValue(
+      "핵심만 쉽게",
+    );
+    expect(screen.queryByText("plain")).not.toBeInTheDocument();
+    expect(screen.queryByText("simple")).not.toBeInTheDocument();
     expect(screen.queryByText("주거래 은행 우대율")).not.toBeInTheDocument();
     expect(screen.queryByText(/실효 스프레드/)).not.toBeInTheDocument();
   });
 
-  it("renders notification checkboxes and allows toggling", () => {
-    render(<MyPageScreen />);
-    expect(screen.getByText("알림 설정 (계획 변화 기준)")).toBeInTheDocument();
+  it("현재 세션의 상세 결과와 설명 설정을 서버 표시값보다 우선한다", async () => {
+    writeProfilePreferences({
+      explanationDomain: "marketing",
+      explanationLevel: "analytical",
+    });
+    writeDiagnosisProgress({
+      status: "detailComplete",
+      quickResult,
+      detailedAnswers: { Q4: "B", Q5: "C", Q6: "B" },
+    });
+    const onViewDetailedDiagnosis = vi.fn();
+    const onRestartDiagnosis = vi.fn();
+    const dependencies = makeDependencies();
 
-    for (const opt of NOTIFICATION_OPTIONS) {
-      expect(screen.getByText(opt.label)).toBeInTheDocument();
-    }
+    render(
+      <MyPageScreen
+        dependencies={dependencies}
+        onViewDetailedDiagnosis={onViewDetailedDiagnosis}
+        onRestartDiagnosis={onRestartDiagnosis}
+      />,
+    );
 
-    const budgetCheckbox = screen.getByLabelText("예산 부족 경고");
-    expect(budgetCheckbox).toBeChecked();
-    fireEvent.click(budgetCheckbox);
-    expect(budgetCheckbox).not.toBeChecked();
+    expect(await screen.findByText("상세 진단 완료")).toBeInTheDocument();
+    expect(screen.getAllByText("균형항로형")).toHaveLength(2);
+    expect(screen.getByLabelText("상세 진단 설명")).toHaveTextContent(
+      "생활비와 일부 함께 관리",
+    );
+    expect(screen.getByLabelText("익숙한 설명 분야")).toHaveDisplayValue(
+      "마케팅·브랜드",
+    );
+    expect(screen.getByLabelText("설명 수준")).toHaveDisplayValue(
+      "지표와 한계까지",
+    );
 
-    const opportunityCheckbox = screen.getByLabelText("기회 버킷 실행 알림");
-    expect(opportunityCheckbox).not.toBeChecked();
-    fireEvent.click(opportunityCheckbox);
-    expect(opportunityCheckbox).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "상세 결과 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "다시 진단" }));
+    expect(onViewDetailedDiagnosis).toHaveBeenCalledTimes(1);
+    expect(onRestartDiagnosis).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("익숙한 설명 분야"), {
+      target: { value: "finance" },
+    });
+    fireEvent.change(screen.getByLabelText("설명 수준"), {
+      target: { value: "reasoned" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "설명 설정 반영" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "이번 접속의 설명 설정에 반영했어요",
+    );
+    expect(readProfilePreferences()).toEqual({
+      explanationDomain: "finance",
+      explanationLevel: "reasoned",
+    });
+    expect(dependencies.saveSettings).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("설명 수준"), {
+      target: { value: "analytical" },
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("triggers navigation when shortcut buttons are clicked", () => {
-    const handleNavigate = vi.fn();
-    render(<MyPageScreen onNavigate={handleNavigate} />);
+  it.each([
+    ["quickComplete", "상세 진단 시작"],
+    ["detailInProgress", "상세 진단 이어서"],
+  ] as const)("%s 상태에서 상세 진단을 시작하거나 재개한다", async (status, label) => {
+    writeDiagnosisProgress(
+      status === "quickComplete"
+        ? { status, quickResult }
+        : {
+            status,
+            quickResult,
+            detailedAnswers: { Q4: "A" },
+          },
+    );
+    const onStartDetailedDiagnosis = vi.fn();
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies()}
+        onStartDetailedDiagnosis={onStartDetailedDiagnosis}
+      />,
+    );
 
-    const assetShortcutBtn = screen.getByRole("button", { name: /자산 내역 편집/ });
-    fireEvent.click(assetShortcutBtn);
-    expect(handleNavigate).toHaveBeenCalledWith("assets");
-
-    const plannerShortcutBtn = screen.getByRole("button", { name: /외화 목표 편집/ });
-    fireEvent.click(plannerShortcutBtn);
-    expect(handleNavigate).toHaveBeenCalledWith("planner");
+    fireEvent.click(await screen.findByRole("button", { name: label }));
+    expect(onStartDetailedDiagnosis).toHaveBeenCalledTimes(1);
   });
 
-  it("handles navigation click when onNavigate is not provided without crashing", () => {
-    render(<MyPageScreen />);
-    const assetShortcutBtn = screen.getByRole("button", { name: /자산 내역 편집/ });
-    expect(() => fireEvent.click(assetShortcutBtn)).not.toThrow();
+  it("미측정 데모 계정은 로그인과 빈 상태를 표시하고 진단을 강제하지 않는다", async () => {
+    const demoBundle: MyPageBundle = {
+      ...MY_PAGE_API_FIXTURE,
+      profile: { ...MY_PAGE_API_FIXTURE.profile, isDemo: true },
+      riskProfile: {
+        status: "not_measured",
+        simple: { answers: {} },
+        detail: { completed: false, answered: {} },
+      },
+      notifications: { notifications: [] },
+    };
+    const onLogin = vi.fn();
 
-    const plannerShortcutBtn = screen.getByRole("button", { name: /외화 목표 편집/ });
-    expect(() => fireEvent.click(plannerShortcutBtn)).not.toThrow();
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies({
+          load: vi.fn().mockResolvedValue(demoBundle),
+        })}
+        onLogin={onLogin}
+      />,
+    );
+
+    expect(await screen.findByText("데모 계정")).toBeInTheDocument();
+    expect(
+      screen.getByText("아직 참고 진단을 시작하지 않았어요"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("새 알림이 없습니다.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "간편 진단 시작" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "로그인" }));
+    expect(onLogin).toHaveBeenCalledTimes(1);
   });
 
-  it("handles login click when not logged in (isLoggedIn=false) with callback or fallback toast", () => {
-    const handleLogin = vi.fn();
-    const { unmount } = render(<MyPageScreen isLoggedIn={false} onLogin={handleLogin} />);
+  it("로컬·서버 진단이 모두 없으면 간편 진단 시작 동작을 제공한다", async () => {
+    const onStartQuickDiagnosis = vi.fn();
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies({
+          load: vi.fn().mockResolvedValue({
+            ...MY_PAGE_API_FIXTURE,
+            riskProfile: null,
+          }),
+        })}
+        onStartQuickDiagnosis={onStartQuickDiagnosis}
+      />,
+    );
 
-    const loginBtn = screen.getByRole("button", { name: "로그인" });
-    expect(screen.queryByRole("button", { name: "로그아웃" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "비밀번호 변경" })).not.toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "간편 진단 시작" }),
+    );
+    expect(onStartQuickDiagnosis).toHaveBeenCalledTimes(1);
+  });
 
-    fireEvent.click(loginBtn);
-    expect(handleLogin).toHaveBeenCalledTimes(1);
+  it("알림 변경값을 실제 설정 API 어댑터에 저장하고 응답을 반영한다", async () => {
+    const dependencies = makeDependencies();
+    render(<MyPageScreen dependencies={dependencies} />);
+
+    const targetZone = await screen.findByRole("checkbox", {
+      name: "목표 구간 도달 안내",
+    });
+    expect(targetZone).not.toBeChecked();
+    fireEvent.click(targetZone);
+    fireEvent.click(screen.getByRole("button", { name: "알림 설정 저장" }));
+
+    expect(dependencies.saveSettings).toHaveBeenCalledWith({
+      notifyStepDue: true,
+      notifyRegimeShift: true,
+      notifyDeadlineNear: true,
+      notifyTargetZone: true,
+      notifyConcentration: true,
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "서버에 저장했습니다",
+    );
+  });
+
+  it("설정 저장 오류를 표시한다", async () => {
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies({
+          saveSettings: vi
+            .fn()
+            .mockRejectedValue(new ApiError("설정 저장 실패", 500, "SERVER")),
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "알림 설정 저장" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "설정 저장 실패",
+    );
+  });
+
+  it("조회 오류를 표시하고 다시 시도한다", async () => {
+    const load = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("프로필 API 오류", 500, "SERVER"))
+      .mockResolvedValueOnce(MY_PAGE_API_FIXTURE);
+    render(<MyPageScreen dependencies={makeDependencies({ load })} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "프로필 API 오류",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(
+      await screen.findByRole("region", { name: "마이페이지" }),
+    ).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("바로가기와 로그아웃·투어 콜백을 연결한다", async () => {
+    const onNavigate = vi.fn();
+    const onLogout = vi.fn();
+    const onStartTour = vi.fn();
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies()}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+        onStartTour={onStartTour}
+      />,
+    );
+
+    await screen.findByText("플래너 사용자");
+    fireEvent.click(screen.getByRole("button", { name: /자산 내역 편집/ }));
+    fireEvent.click(screen.getByRole("button", { name: /외화 목표 편집/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /가이드 투어 다시보기/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "로그아웃" }));
+    expect(onNavigate).toHaveBeenNthCalledWith(1, "assets");
+    expect(onNavigate).toHaveBeenNthCalledWith(2, "planner");
+    expect(onStartTour).toHaveBeenCalledTimes(1);
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("선택 콜백이 없어도 회원·데모 보조 버튼을 안전하게 생략한다", async () => {
+    const { unmount } = render(
+      <MyPageScreen dependencies={makeDependencies()} />,
+    );
+    await screen.findByText("플래너 사용자");
+    expect(
+      screen.queryByRole("button", { name: "로그아웃" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /자산 내역 편집/ }));
+    fireEvent.click(screen.getByRole("button", { name: /외화 목표 편집/ }));
 
     unmount();
-    render(<MyPageScreen isLoggedIn={false} />);
-    const loginBtnFallback = screen.getByRole("button", { name: "로그인" });
-    fireEvent.click(loginBtnFallback);
-    expect(screen.getByText("로그인 페이지로 이동합니다.")).toBeInTheDocument();
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies({
+          load: vi.fn().mockResolvedValue({
+            ...MY_PAGE_API_FIXTURE,
+            profile: { ...MY_PAGE_API_FIXTURE.profile, isDemo: true },
+          }),
+        })}
+      />,
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "로그인" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it("handles logout click when logged in (isLoggedIn=true) with callback or fallback toast", () => {
-    const handleLogout = vi.fn();
-    const { unmount } = render(<MyPageScreen isLoggedIn={true} onLogout={handleLogout} />);
+  it("읽은 알림에는 새 알림 문구를 붙이지 않는다", async () => {
+    render(
+      <MyPageScreen
+        dependencies={makeDependencies({
+          load: vi.fn().mockResolvedValue({
+            ...MY_PAGE_API_FIXTURE,
+            notifications: {
+              notifications: [
+                {
+                  id: "read-notice",
+                  type: "plan",
+                  title: "지난 회차 안내",
+                  message: "이미 확인한 알림입니다.",
+                  createdAt: "2026-09-01T00:00:00Z",
+                  read: true,
+                },
+              ],
+            },
+          }),
+        })}
+      />,
+    );
 
-    const logoutBtn = screen.getByRole("button", { name: "로그아웃" });
-    expect(screen.getByRole("button", { name: "비밀번호 변경" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "로그인" })).not.toBeInTheDocument();
-
-    fireEvent.click(logoutBtn);
-    expect(handleLogout).toHaveBeenCalledTimes(1);
-
-    unmount();
-    render(<MyPageScreen isLoggedIn={true} />);
-    const logoutBtnFallback = screen.getByRole("button", { name: "로그아웃" });
-    fireEvent.click(logoutBtnFallback);
-    expect(screen.getByText("로그아웃되었습니다.")).toBeInTheDocument();
-  });
-
-  it("handles mouseEnter and mouseLeave interactions on buttons and labels", () => {
-    const { unmount } = render(<MyPageScreen isLoggedIn={true} />);
-    const pwdBtn = screen.getByRole("button", { name: "비밀번호 변경" });
-    fireEvent.mouseEnter(pwdBtn);
-    fireEvent.mouseLeave(pwdBtn);
-
-    const logoutBtn = screen.getByRole("button", { name: "로그아웃" });
-    fireEvent.mouseEnter(logoutBtn);
-    fireEvent.mouseLeave(logoutBtn);
-
-    const rediagnosisBtn = screen.getByRole("button", { name: "재진단" });
-    fireEvent.mouseEnter(rediagnosisBtn);
-    fireEvent.mouseLeave(rediagnosisBtn);
-
-    const assetShortcutBtn = screen.getByRole("button", { name: /자산 내역 편집/ });
-    fireEvent.mouseEnter(assetShortcutBtn);
-    fireEvent.mouseLeave(assetShortcutBtn);
-
-    const plannerShortcutBtn = screen.getByRole("button", { name: /외화 목표 편집/ });
-    fireEvent.mouseEnter(plannerShortcutBtn);
-    fireEvent.mouseLeave(plannerShortcutBtn);
-
-    const budgetCheckbox = screen.getByLabelText("예산 부족 경고");
-    const labelElem = budgetCheckbox.closest("label");
-    if (labelElem) {
-      fireEvent.mouseEnter(labelElem);
-      fireEvent.mouseLeave(labelElem);
-    }
-
-    unmount();
-
-    // Test mouseEnter/Leave on login button when logged out
-    render(<MyPageScreen isLoggedIn={false} />);
-    const loginBtn = screen.getByRole("button", { name: "로그인" });
-    fireEvent.mouseEnter(loginBtn);
-    fireEvent.mouseLeave(loginBtn);
-  });
-
-  it("handles onStartTour button click and hover in shortcuts section", () => {
-    const handleStartTour = vi.fn();
-    render(<MyPageScreen onStartTour={handleStartTour} />);
-
-    const tourBtn = screen.getByRole("button", { name: /가이드 투어 다시보기/ });
-    expect(tourBtn).toBeInTheDocument();
-
-    fireEvent.mouseEnter(tourBtn);
-    fireEvent.mouseLeave(tourBtn);
-
-    fireEvent.click(tourBtn);
-    expect(handleStartTour).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("지난 회차 안내")).toBeInTheDocument();
+    expect(screen.queryByText(/새 알림/)).not.toBeInTheDocument();
   });
 });

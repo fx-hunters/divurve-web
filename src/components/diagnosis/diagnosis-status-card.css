@@ -46,6 +46,12 @@
   border-left: 2px solid var(--border);
 }
 
+.diagnosis-status__server-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .diagnosis-status__actions {
   gap: 0.75rem;
   justify-content: flex-end;
