@@ -6,8 +6,8 @@ import type {
   MyPageBundle,
   SettingsResponse,
   StressRunResponse,
-  XrayBundle,
 } from "../api/generated/divurve-api";
+import type { XrayApiBundle } from "../api/xray";
 import type { PlannerApiOverview } from "../api/planner";
 import type { ImportedAssetSummary } from "../types/assets";
 
@@ -123,7 +123,7 @@ export const EMPTY_FORECAST_API_FIXTURE: ForecastBundle = {
   events: { events: [] },
 };
 
-export const XRAY_API_FIXTURE: XrayBundle = {
+export const XRAY_API_FIXTURE: XrayApiBundle = {
   overview: {
     totalAssetKrw: 20_000_000,
     krwAssetKrw: 12_000_000,
@@ -136,6 +136,7 @@ export const XRAY_API_FIXTURE: XrayBundle = {
     concentration: { topCurrencyCode: "USD", share: 0.75, status: "over" },
     dayChangeKrw: 30_000,
     sensitivity1pct: { totalKrw: 80_000, byCurrency: { USD: 60_000 } },
+    isSampleData: true,
   },
   attribution: {
     currencyCode: "USD",
@@ -192,10 +193,11 @@ export const XRAY_API_FIXTURE: XrayBundle = {
     ],
   },
   asOf: "2026-09-06T22:32:19.043Z",
+  isSampleData: true,
 };
 
 /** 위험성향 미측정 + 자산 없음 계정. 서버는 값이 없는 필드를 키째 생략한다. */
-export const NOT_MEASURED_XRAY_API_FIXTURE: XrayBundle = {
+export const NOT_MEASURED_XRAY_API_FIXTURE: XrayApiBundle = {
   ...XRAY_API_FIXTURE,
   overview: {
     ...XRAY_API_FIXTURE.overview,

@@ -5,18 +5,18 @@ import {
   previewFitAdjustment,
   runStressScenario,
 } from "../../api/xray";
+import type { XrayApiBundle } from "../../api/xray";
 import type {
   FitPreviewRequest,
   FitPreviewResponse,
   StressRunRequest,
   StressRunResponse,
-  XrayBundle,
 } from "../../api/generated/divurve-api";
 import type { XRayTabId } from "../../types/xray";
 import { toStressRunResult, toXRayDashboardData } from "./xray-presenter";
 
 export interface XRayDependencies {
-  readonly loadBundle: (currencyCode?: string) => Promise<XrayBundle>;
+  readonly loadBundle: (currencyCode?: string) => Promise<XrayApiBundle>;
   readonly runScenario: (input: StressRunRequest) => Promise<StressRunResponse>;
   readonly previewAdjustment: (
     input: FitPreviewRequest,
@@ -33,7 +33,7 @@ export type XRayState =
   | { readonly status: "loading" }
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "empty" }
-  | { readonly status: "success"; readonly data: XrayBundle };
+  | { readonly status: "success"; readonly data: XrayApiBundle };
 
 const FALLBACK_MESSAGE =
   "내 자산 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.";

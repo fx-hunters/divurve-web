@@ -28,7 +28,7 @@ describe("Sidebar", () => {
     render(<Sidebar {...defaultProps} onLogin={onLogin} />);
 
     expect(screen.getByText("데모 계정")).toBeInTheDocument();
-    expect(screen.getByText("데모 계정 데이터")).toBeInTheDocument();
+    expect(screen.getByText("데모 세션 · 화면별 출처 확인")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "로그인하고 내 자산 보기" }));
     expect(onLogin).toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe("Sidebar", () => {
     render(<Sidebar {...defaultProps} accountKind="member" onLogin={vi.fn()} />);
 
     expect(screen.getByText("내 계정")).toBeInTheDocument();
-    expect(screen.getByText("내 계정 데이터")).toBeInTheDocument();
+    expect(screen.getByText("계정 세션 · 화면별 출처 확인")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "로그인하고 내 자산 보기" }),
     ).not.toBeInTheDocument();

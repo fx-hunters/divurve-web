@@ -2,6 +2,11 @@ import { useXRay, type XRayDependencies } from "./use-xray";
 import { XRayExposureView } from "./xray-exposure-view";
 import { XRayFitnessView } from "./xray-fitness-view";
 import { ApiStateView } from "../../components/common/api-state-view";
+import {
+  DataSourceBadge,
+  getDataSourceCopy,
+  toApiDataSourceKind,
+} from "../../components/common/data-source-badge";
 import type { NavTabId } from "../../types/navigation";
 
 interface XRayScreenProps {
@@ -59,8 +64,15 @@ export function XRayScreen({ onNavigate, dependencies }: XRayScreenProps) {
     );
   }
 
+  const dataSourceKind = toApiDataSourceKind(data.isSampleData);
+  const dataSourceCopy = getDataSourceCopy(dataSourceKind);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div role="status" aria-label="자산 데이터 출처">
+        <DataSourceBadge kind={dataSourceKind} />
+        <span className="sr-only">{dataSourceCopy.description}</span>
+      </div>
       {/* 상단 서브 탭 네비게이션 */}
       <div
         style={{

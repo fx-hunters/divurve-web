@@ -20,7 +20,9 @@ export function Footer({ accountKind = "demo" }: FooterProps) {
       }}
     >
       이 정보는 투자 권유가 아니며 실제 거래 전 별도 확인이 필요합니다. | 데이터 출처:{" "}
-      {accountKind === "demo" ? "데모 계정 데이터" : "내 계정 데이터"}
+      {accountKind === "demo"
+        ? "데모 세션 · 화면별 출처 확인"
+        : "계정 세션 · 화면별 출처 확인"}
     </footer>
   );
 }

@@ -55,12 +55,16 @@ describe("screen API modules", () => {
   it("X-Ray 묶음 조회와 두 계산 요청을 전달한다", async () => {
     vi.mocked(request).mockImplementation(async (path) => ({ path }));
     vi.mocked(requestWithMeta).mockImplementation(async (path) => ({
-      data: { path },
-      meta: { asOf: "2026-09-06T22:32:19Z" },
+      data: { path, isSampleData: true },
+      meta: { asOf: "2026-09-06T22:32:19Z", isSampleData: false },
     }));
     const result = await fetchXrayBundle("USD");
-    expect(result.overview).toEqual({ path: "/api/v1/xray" });
+    expect(result.overview).toEqual({
+      path: "/api/v1/xray",
+      isSampleData: true,
+    });
     expect(result.asOf).toBe("2026-09-06T22:32:19Z");
+    expect(result.isSampleData).toBe(true);
     expect(result.attribution).toEqual({
       path: "/api/v1/xray/attribution?currency_code=USD",
     });

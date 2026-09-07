@@ -17,6 +17,12 @@ export interface XrayOverviewResponse extends XrayResponse {
   readonly isSampleData?: boolean;
 }
 
+export interface XrayApiBundle extends Omit<XrayBundle, "overview"> {
+  readonly overview: XrayOverviewResponse;
+  /** `isDemo`와 별개인, 현재 계정 자산의 샘플 여부. */
+  readonly isSampleData?: boolean;
+}
+
 /** X-Ray 개요만 조회한다. 기준 시각이 필요하므로 meta까지 함께 돌려준다. */
 export function fetchXrayOverview(): Promise<ApiResult<XrayOverviewResponse>> {
   return requestWithMeta<XrayOverviewResponse>("/api/v1/xray");
@@ -24,7 +30,7 @@ export function fetchXrayOverview(): Promise<ApiResult<XrayOverviewResponse>> {
 
 export async function fetchXrayBundle(
   currencyCode?: string,
-): Promise<XrayBundle> {
+): Promise<XrayApiBundle> {
   const [overview, attribution, fit, scenarios] = await Promise.all([
     fetchXrayOverview(),
     request<AttributionResponse>(
@@ -39,6 +45,7 @@ export async function fetchXrayBundle(
     fit,
     scenarios,
     asOf: overview.meta.asOf,
+    isSampleData: overview.data.isSampleData ?? overview.meta.isSampleData,
   };
 }
 

@@ -174,7 +174,9 @@ export function Sidebar({
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          {isDemoAccount ? "데모 계정 데이터" : "내 계정 데이터"}
+          {isDemoAccount
+            ? "데모 세션 · 화면별 출처 확인"
+            : "계정 세션 · 화면별 출처 확인"}
         </div>
       </div>
     </aside>
