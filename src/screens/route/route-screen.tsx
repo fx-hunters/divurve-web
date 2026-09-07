@@ -3,12 +3,11 @@ import {
   type RoutePlanLoader,
 } from "../../api/route";
 import type { NavTabId } from "../../types/navigation";
-import { RouteScreenView } from "./route-screen-view";
 import { RouteStatusView } from "./route-status-view";
-import { usePlannerInteraction } from "./use-planner-interaction";
 import { useRoutePlan } from "./use-route-plan";
 import "./route-screen.css";
 import { PlannerApiScreen } from "./planner-api-screen";
+import { PlannerDemoScreen } from "./planner-demo-screen";
 import type { PlannerApiDependencies } from "./use-planner-api";
 
 /** 데모 fixture 화면과 Swagger API 화면 중 무엇을 렌더할지 정한다. */
@@ -37,10 +36,9 @@ function RouteDemoScreen({
   loadPlan = loadRoutePlan,
 }: Pick<RouteScreenProps, "loadPlan">) {
   const { state, reload } = useRoutePlan(loadPlan);
-  const interaction = usePlannerInteraction();
 
   if (state.status === "success") {
-    return <RouteScreenView data={state.data} interaction={interaction} />;
+    return <PlannerDemoScreen data={state.data} />;
   }
 
   return <RouteStatusView state={state} onRetry={reload} />;

@@ -1,5 +1,10 @@
 import type { PlannerApiOverview } from "../../api/planner";
-import type { PlannerCostRange } from "../../api/planner-contract";
+import type {
+  PlannerCostRange,
+  PlannerPlanResponse,
+  PlannerScenarioPreviewResponse,
+  PlannerScenarioSide,
+} from "../../api/planner-contract";
 import {
   getDataSourceCopy,
   toApiDataSourceKind,
@@ -9,9 +14,54 @@ import type {
   PlannerCurveViewModel,
   PlannerNodeStatus,
   PlannerSourceItem,
+  PlannerScenarioComparisonViewModel,
+  PlannerScenarioOptionViewModel,
   PlannerStepViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+
+const API_SCENARIO_OPTIONS: readonly PlannerScenarioOptionViewModel[] = [
+  {
+    id: "expectedRange",
+    label: "현재 계획 유지",
+    description: "서버에 적용 중인 계획을 그대로 확인합니다.",
+    scenarioCode: null,
+    isCurrent: true,
+    requiresBudget: false,
+  },
+  {
+    id: "rapidRise",
+    label: "환율이 빠르게 상승하면",
+    description: "변화 조건을 서버에 전달해 대체 계획을 미리 봅니다.",
+    scenarioCode: "RATE_UP",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "decline",
+    label: "환율이 하락하면",
+    description: "변화 조건을 서버에 전달해 대체 계획을 미리 봅니다.",
+    scenarioCode: "RATE_DOWN",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "missedRound",
+    label: "이번 회차를 놓치면",
+    description: "다음 회차를 건너뛴 경우의 계획을 서버에서 비교합니다.",
+    scenarioCode: "STEP_SKIPPED",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "reducedBudget",
+    label: "사용할 예산이 줄면",
+    description: "입력한 새 예산 조건으로 계획을 서버에서 비교합니다.",
+    scenarioCode: "BUDGET_DECREASED",
+    isCurrent: false,
+    requiresBudget: true,
+  },
+];
 
 const numberFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
@@ -31,6 +81,13 @@ function formatKrw(value: number): string {
 function formatCostRange(range: PlannerCostRange | null): string | null {
   if (range === null) return null;
   return `${formatKrw(range.lowKrw)} ~ ${formatKrw(range.highKrw)}`;
+}
+
+function formatNullableAmount(
+  value: number | null,
+  currencyCode: string,
+): string {
+  return value === null ? "제공되지 않음" : formatAmount(value, currencyCode);
 }
 
 function progressPercent(heldAmount: number, targetAmount: number): number {
@@ -159,7 +216,14 @@ function toCurve(
     targetDateLabel: item.goal.targetDate ?? "미설정",
   };
   const points = ["2 78", ...nodes.map((node) => `${node.x} ${node.y}`), `${destination.x} ${destination.y}`];
-  return { path: `M ${points.join(" L ")}`, nodes, destination };
+  return {
+    viewBox: "0 0 100 100",
+    accessibleLabel:
+      "환율 차트가 아닌, 서버가 제공한 계획 회차의 진행 경로입니다.",
+    path: `M ${points.join(" L ")}`,
+    nodes,
+    destination,
+  };
 }
 
 function selectItem(
@@ -268,5 +332,100 @@ export function presentPlannerOverview(
       canApplyDraft: false,
     },
     unsupportedAreas: ["서버에 없는 AI 설명 생성"],
+    scenarioOptions: API_SCENARIO_OPTIONS,
+  };
+}
+
+export function replacePlannerPlan(
+  overview: PlannerApiOverview,
+  goalId: string,
+  plan: PlannerPlanResponse,
+): PlannerApiOverview {
+  return {
+    ...overview,
+    items: overview.items.map((item) =>
+      item.goal.id === goalId ? { ...item, activePlan: plan } : item,
+    ),
+  };
+}
+
+function sideRows(
+  before: PlannerScenarioSide,
+  after: PlannerScenarioSide,
+  currencyCode: string,
+) {
+  return [
+    {
+      label: "남은 목표 금액",
+      before: formatAmount(before.remainingAmount, currencyCode),
+      after: formatAmount(after.remainingAmount, currencyCode),
+    },
+    {
+      label: "목표일",
+      before: before.targetDate,
+      after: after.targetDate,
+    },
+    {
+      label: "남은 회차",
+      before: `${before.openRounds}회`,
+      after: `${after.openRounds}회`,
+    },
+    {
+      label: "회차 금액",
+      before: formatNullableAmount(before.perRoundAmount, currencyCode),
+      after: formatNullableAmount(after.perRoundAmount, currencyCode),
+    },
+  ];
+}
+
+function alternativeCurve(
+  view: PlannerViewModel,
+  response: PlannerScenarioPreviewResponse,
+): PlannerCurveViewModel | null {
+  if (view.curve === null) return null;
+  const changedSequences = new Set(response.changedSteps.map((step) => step.seq));
+  const nodes = view.curve.nodes.map((node, index) => ({
+    ...node,
+    y: changedSequences.has(node.sequence)
+      ? index % 2 === 0
+        ? Math.max(18, node.y - 14)
+        : Math.min(82, node.y + 14)
+      : node.y,
+  }));
+  const destination = view.curve.destination;
+  const points = [
+    "2 78",
+    ...nodes.map((node) => `${node.x} ${node.y}`),
+    ...(destination === null ? [] : [`${destination.x} ${destination.y}`]),
+  ];
+  return {
+    ...view.curve,
+    accessibleLabel:
+      "현재 계획에서 변경된 회차로 갈라지는 서버 대체 계획 경로입니다.",
+    path: `M ${points.join(" L ")}`,
+    nodes,
+  };
+}
+
+export function presentPlannerScenarioComparison(
+  response: PlannerScenarioPreviewResponse,
+  view: PlannerViewModel,
+  option: PlannerScenarioOptionViewModel,
+): PlannerScenarioComparisonViewModel {
+  const currencyCode = view.selectedGoal?.currencyCode ?? "외화";
+  const changedSequences = new Set(response.changedSteps.map((step) => step.seq));
+  return {
+    id: option.id,
+    label: option.label,
+    reason: `서버 변경 사유 코드: ${response.changeReasonCode}`,
+    nextAction:
+      "변경 전후 조건을 확인한 뒤 적용 여부를 직접 선택해 주세요.",
+    draftPlanId: response.draftPlanId,
+    rows: sideRows(response.before, response.after, currencyCode),
+    alternativeCurve: alternativeCurve(view, response),
+    changedNodeIds: view.curveNodes
+      .filter((node) => changedSequences.has(node.sequence))
+      .map((node) => node.id),
+    warnings: response.warnings,
   };
 }

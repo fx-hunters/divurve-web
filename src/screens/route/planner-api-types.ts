@@ -1,4 +1,5 @@
 import type { PlannerApiItem } from "../../api/planner";
+import type { PlannerScenarioCode } from "../../api/planner-contract";
 import type { DataSourceKind } from "../../types/data-source";
 
 export type PlannerNodeStatus =
@@ -22,8 +23,8 @@ export interface PlannerGoalSummaryViewModel {
   readonly id: string;
   readonly name: string;
   readonly currencyCode: string;
-  readonly targetAmount: number;
-  readonly heldAmount: number;
+  readonly targetAmount: number | null;
+  readonly heldAmount: number | null;
   readonly targetDate: string | null;
   readonly targetDateLabel: string;
   readonly targetAmountLabel: string;
@@ -48,6 +49,7 @@ export interface PlannerPlanSummaryViewModel {
   readonly disclaimer: string;
   readonly warnings: readonly string[];
   readonly isPreview: boolean;
+  readonly summaryText?: string;
 }
 
 export interface PlannerCurveNodeViewModel {
@@ -72,6 +74,8 @@ export interface PlannerDestinationNodeViewModel {
 }
 
 export interface PlannerCurveViewModel {
+  readonly viewBox?: string;
+  readonly accessibleLabel?: string;
   readonly path: string;
   readonly nodes: readonly PlannerCurveNodeViewModel[];
   readonly destination: PlannerDestinationNodeViewModel | null;
@@ -80,7 +84,7 @@ export interface PlannerCurveViewModel {
 export interface PlannerStepViewModel {
   readonly sequence: number;
   readonly scheduledDate: string;
-  readonly amount: number;
+  readonly amount: number | null;
   readonly amountLabel: string;
   readonly budgetLabel: string | null;
   readonly estimatedCostLabel: string | null;
@@ -94,8 +98,37 @@ export interface PlannerNextActionViewModel {
   readonly planId: string;
   readonly sequence: number;
   readonly scheduledDate: string;
-  readonly amount: number;
+  readonly amount: number | null;
   readonly amountLabel: string;
+  readonly title?: string;
+  readonly description?: string;
+}
+
+export interface PlannerScenarioOptionViewModel {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly scenarioCode: PlannerScenarioCode | null;
+  readonly isCurrent: boolean;
+  readonly requiresBudget: boolean;
+}
+
+export interface PlannerComparisonRowViewModel {
+  readonly label: string;
+  readonly before: string;
+  readonly after: string;
+}
+
+export interface PlannerScenarioComparisonViewModel {
+  readonly id: string;
+  readonly label: string;
+  readonly reason: string;
+  readonly nextAction: string;
+  readonly draftPlanId: string | null;
+  readonly rows: readonly PlannerComparisonRowViewModel[];
+  readonly alternativeCurve: PlannerCurveViewModel | null;
+  readonly changedNodeIds: readonly string[];
+  readonly warnings: readonly string[];
 }
 
 export interface PlannerViewModel {
@@ -116,6 +149,7 @@ export interface PlannerViewModel {
     readonly canApplyDraft: boolean;
   };
   readonly unsupportedAreas: readonly string[];
+  readonly scenarioOptions?: readonly PlannerScenarioOptionViewModel[];
 }
 
 export interface ExecutedStepInput {

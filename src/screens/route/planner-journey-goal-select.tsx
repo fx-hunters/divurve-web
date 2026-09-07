@@ -1,11 +1,7 @@
-interface PlannerJourneyGoal {
-  readonly id: string;
-  readonly name: string;
-  readonly currencyCode: string;
-}
+import type { PlannerGoalItemViewModel } from "./planner-api-types";
 
 interface PlannerJourneyGoalSelectProps {
-  readonly goals: readonly PlannerJourneyGoal[];
+  readonly goals: readonly PlannerGoalItemViewModel[];
   readonly selectedGoalId: string;
   readonly onSelect: (goalId: string) => void;
   readonly onContinue: () => void;
@@ -25,8 +21,12 @@ export function PlannerJourneyGoalSelect({
     <div className="planner-api-goal-select" role="list">
       {goals.map((goal) => (
         <button key={goal.id} type="button" className="planner-api-goal-select__item" aria-pressed={goal.id === selectedGoalId} onClick={() => onSelect(goal.id)}>
-          <span>{goal.name}</span>
-          <small>{goal.currencyCode}</small>
+          <span className="planner-api-goal-select__copy">
+            <strong>{goal.name}</strong>
+            <small>{goal.heldAmountLabel} · 목표 {goal.targetAmountLabel}</small>
+            <small>{goal.targetDateLabel}</small>
+          </span>
+          <span className="planner-api-goal-select__currency">{goal.currencyCode}</span>
         </button>
       ))}
     </div>

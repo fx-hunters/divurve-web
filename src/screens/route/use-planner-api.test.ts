@@ -2,14 +2,36 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import type { PlannerApiOverview } from "../../api/planner";
+import type {
+  PlannerPlanResponse,
+  PlannerScenarioPreviewResponse,
+} from "../../api/planner-contract";
+import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
 
 const overview = (): PlannerApiOverview => ({ items: [{ goal: { id: "goal", name: "목표", kind: "deadline", purpose: "travel", currencyCode: "USD", targetAmount: 100, isSpeculative: false, status: "active", heldAmount: 10 }, activePlan: null }] });
 const completeResult = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 90, nextActionSeq: 2, alreadyApplied: false };
 const skipResult = { seq: 1, applied: false as const, amountBefore: 10, amountAfter: 12, remainingAmount: 90, remainingRounds: 3, perRoundCostKrw: 16_800, exceedsBudget: false, adjustmentOptions: [] };
+const planResult: PlannerPlanResponse = PLANNER_API_FIXTURE.items[0]!.activePlan!;
+const scenarioResult: PlannerScenarioPreviewResponse = {
+  basePlanId: "plan",
+  baseVersion: 1,
+  draftPlanId: "draft",
+  draftVersion: 2,
+  changeReasonCode: "RATE_UP",
+  priorityConstraint: "budget",
+  before: { remainingAmount: 90, targetDate: "2026-12-01", totalRounds: 3, openRounds: 2, perRoundAmount: 45, roundBudgetKrw: null, costRange: null },
+  after: { remainingAmount: 90, targetDate: "2026-12-01", totalRounds: 4, openRounds: 3, perRoundAmount: 30, roundBudgetKrw: null, costRange: null },
+  changedSteps: [],
+  keptConstraints: [],
+  brokenConstraints: [],
+  budgetState: "within_budget",
+  adjustmentOptions: [],
+  warnings: [],
+};
 
 function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies {
-  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
+  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -142,5 +164,115 @@ describe("usePlannerApi", () => {
     act(() => result.current.reload());
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(result.current.actionState).toEqual({ status: "idle" });
+  });
+
+  it("계획 미리보기는 저장하지 않고 transient plan을 제공한다", async () => {
+    const deps = dependencies();
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    await act(async () => {
+      expect(await result.current.preview(goal)).toBe(true);
+    });
+    expect(deps.preview).toHaveBeenCalledWith(goal);
+    expect(deps.create).not.toHaveBeenCalled();
+    expect(result.current.planPreview).toEqual({ goalId: "goal", plan: planResult });
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("저장되지 않은"),
+    });
+    act(() => result.current.clearTransient());
+    expect(result.current.planPreview).toBeNull();
+    expect(result.current.scenarioPreview).toBeNull();
+    expect(result.current.actionState).toEqual({ status: "idle" });
+  });
+
+  it("계획 생성 성공은 응답을 즉시 반영하고 최신 개요를 다시 조회한다", async () => {
+    const refreshed: PlannerApiOverview = {
+      items: [{ ...overview().items[0]!, activePlan: planResult }],
+    };
+    const load = vi.fn().mockResolvedValueOnce(overview()).mockResolvedValue(refreshed);
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    await act(async () => {
+      expect(await result.current.create(goal)).toBe(true);
+    });
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.state).toMatchObject({
+        status: "success",
+        data: { items: [{ activePlan: planResult }] },
+      }),
+    );
+  });
+
+  it("scenario preview와 사용자 승인 apply를 분리하고 성공 뒤 재조회한다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    await act(async () => {
+      expect(
+        await result.current.previewScenario("plan", { scenarioCode: "RATE_UP" }),
+      ).toBe(true);
+    });
+    expect(result.current.scenarioPreview).toBe(scenarioResult);
+    expect(deps.apply).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(await result.current.apply("goal", "draft")).toBe(true);
+    });
+    expect(deps.apply).toHaveBeenCalledWith("draft");
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(result.current.scenarioPreview).toBeNull();
+  });
+
+  it("preview·create·scenario·apply 실패와 진행 중 중복 요청을 보존한다", async () => {
+    const pending = deferred<PlannerPlanResponse>();
+    const preview = vi.fn().mockReturnValue(pending.promise);
+    const deps = dependencies({ preview });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    act(() => {
+      void result.current.preview(goal);
+      void result.current.preview(goal);
+      void result.current.create(goal);
+      void result.current.previewScenario("plan", { scenarioCode: "RATE_UP" });
+      void result.current.apply("goal", "draft");
+    });
+    expect(preview).toHaveBeenCalledOnce();
+    expect(deps.create).not.toHaveBeenCalled();
+    expect(deps.previewScenario).not.toHaveBeenCalled();
+    expect(deps.apply).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(planResult));
+
+    for (const [method, invoke] of [
+      ["preview", () => result.current.preview(goal)],
+      ["create", () => result.current.create(goal)],
+      ["previewScenario", () => result.current.previewScenario("plan", { scenarioCode: "RATE_DOWN" })],
+      ["apply", () => result.current.apply("goal", "draft")],
+    ] as const) {
+      const failing = vi.fn().mockRejectedValue(new ApiError(`${method} 실패`, 500));
+      const failureDeps = dependencies({ [method]: failing });
+      const hook = renderHook(() => usePlannerApi(failureDeps));
+      await waitFor(() => expect(hook.result.current.state.status).toBe("success"));
+      const call =
+        method === "preview"
+          ? () => hook.result.current.preview(goal)
+          : method === "create"
+            ? () => hook.result.current.create(goal)
+            : method === "previewScenario"
+              ? () => hook.result.current.previewScenario("plan", { scenarioCode: "RATE_DOWN" })
+              : () => hook.result.current.apply("goal", "draft");
+      await act(async () => expect(await call()).toBe(false));
+      expect(hook.result.current.actionState).toEqual({
+        status: "error",
+        message: `${method} 실패`,
+      });
+      hook.unmount();
+      void invoke;
+    }
   });
 });
