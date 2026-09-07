@@ -1,4 +1,5 @@
 import { apiPath, request, requestWithMeta } from "./client";
+import type { ApiResult } from "./client";
 import type {
   AttributionResponse,
   FitPreviewRequest,
@@ -11,11 +12,16 @@ import type {
   XrayResponse,
 } from "./generated/divurve-api";
 
+/** X-Ray 개요만 조회한다. 기준 시각이 필요하므로 meta까지 함께 돌려준다. */
+export function fetchXrayOverview(): Promise<ApiResult<XrayResponse>> {
+  return requestWithMeta<XrayResponse>("/api/v1/xray");
+}
+
 export async function fetchXrayBundle(
   currencyCode?: string,
 ): Promise<XrayBundle> {
   const [overview, attribution, fit, scenarios] = await Promise.all([
-    requestWithMeta<XrayResponse>("/api/v1/xray"),
+    fetchXrayOverview(),
     request<AttributionResponse>(
       apiPath("/api/v1/xray/attribution", { currencyCode }),
     ),

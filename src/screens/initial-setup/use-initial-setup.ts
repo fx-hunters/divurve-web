@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearDiagnosisProgress,
   readDiagnosisProgress,
@@ -86,6 +86,9 @@ export function useInitialSetup(
   );
 
   const currentStep = INITIAL_SETUP_STEPS[controller.currentStepIndex]!;
+  const importAssets = dependencies.importAssets;
+  /** 조회가 겹치지 않게 막는다. 상태로 두면 effect가 다시 돌기 전에 겹칠 수 있다. */
+  const isImportingRef = useRef(false);
 
   const finishSetup = () => {
     onComplete(buildSubmission(controller));
@@ -106,8 +109,9 @@ export function useInitialSetup(
     }));
   };
 
-  const startAssetImport = async () => {
-    if (controller.assetImport.status === "loading") return;
+  const loadAssets = useCallback(async () => {
+    if (isImportingRef.current) return;
+    isImportingRef.current = true;
 
     setController((current) => ({
       ...current,
@@ -115,7 +119,7 @@ export function useInitialSetup(
     }));
 
     try {
-      const importedAssets = await dependencies.importAssets();
+      const importedAssets = await importAssets();
       setController((current) => ({
         ...current,
         assetImport: { status: "success", data: importedAssets },
@@ -130,11 +134,21 @@ export function useInitialSetup(
           message:
             error instanceof Error
               ? error.message
-              : "체험용 자산 데이터를 불러오지 못했습니다.",
+              : "보유 자산을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
         },
       }));
+    } finally {
+      isImportingRef.current = false;
     }
-  };
+  }, [importAssets]);
+
+  // 자산은 계정 생성 시점에 이미 채워져 있다. 사용자가 누를 "불러오기" 요청이
+  // 따로 없으므로 자산 단계에 들어오면 곧바로 조회한다(이슈 #33).
+  useEffect(() => {
+    if (currentStep !== "assets") return;
+    if (controller.assetImport.status !== "idle") return;
+    void loadAssets();
+  }, [currentStep, controller.assetImport.status, loadAssets]);
 
   const selectQuickAnswer = (choice: QuickChoiceCode) => {
     if (
@@ -395,7 +409,7 @@ export function useInitialSetup(
     },
     actions: {
       selectExplanationDomain,
-      startAssetImport,
+      retryAssetImport: loadAssets,
       selectQuickAnswer,
       selectDetailedAnswer,
       goBack,

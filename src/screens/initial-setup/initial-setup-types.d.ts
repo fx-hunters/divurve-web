@@ -66,7 +66,8 @@ export interface InitialSetupState {
 
 export interface InitialSetupActions {
   readonly selectExplanationDomain: (domain: ExplanationDomain) => void;
-  readonly startAssetImport: () => Promise<void>;
+  /** 조회 실패 뒤 다시 시도. 진입 시 조회는 화면이 자동으로 한다. */
+  readonly retryAssetImport: () => Promise<void>;
   readonly selectQuickAnswer: (choice: QuickChoiceCode) => void;
   readonly selectDetailedAnswer: (choice: DetailedChoiceCode) => void;
   readonly goBack: () => void;

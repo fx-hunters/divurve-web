@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/initial-setup-assets";
+import { IMPORTED_ASSET_SUMMARY_FIXTURE } from "../../test/api-fixtures";
+import type { ImportedAssetSummary } from "../../types/assets";
 import {
   readDiagnosisProgress,
   writeDiagnosisProgress,
@@ -28,10 +29,10 @@ describe("useInitialSetup", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("자산 불러오기 중 중복 요청을 막고 완료 값을 유지한다", async () => {
-    let resolveImport!: (value: typeof MOCK_IMPORTED_ASSET_SUMMARY) => void;
+  it("자산 단계에 들어오면 스스로 조회하고 중복 요청을 막는다", async () => {
+    let resolveImport!: (value: ImportedAssetSummary) => void;
     const importAssets = vi.fn(
-      () => new Promise<typeof MOCK_IMPORTED_ASSET_SUMMARY>((resolve) => {
+      () => new Promise<ImportedAssetSummary>((resolve) => {
         resolveImport = resolve;
       }),
     );
@@ -40,27 +41,31 @@ describe("useInitialSetup", () => {
     );
 
     act(() => result.current.actions.selectExplanationDomain("plain"));
-    act(() => result.current.actions.goNext());
+    expect(importAssets).not.toHaveBeenCalled();
+
     await act(async () => {
-      void result.current.actions.startAssetImport();
+      result.current.actions.goNext();
     });
     expect(result.current.state.assetImport.status).toBe("loading");
+
+    // 조회 중 다시 시도를 눌러도 요청이 겹치지 않는다.
     await act(async () => {
-      await result.current.actions.startAssetImport();
+      await result.current.actions.retryAssetImport();
     });
     expect(importAssets).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolveImport(MOCK_IMPORTED_ASSET_SUMMARY);
+      resolveImport(IMPORTED_ASSET_SUMMARY_FIXTURE);
       await Promise.resolve();
     });
     expect(result.current.state.assetImport).toEqual({
       status: "success",
-      data: MOCK_IMPORTED_ASSET_SUMMARY,
+      data: IMPORTED_ASSET_SUMMARY_FIXTURE,
     });
     expect(result.current.state.draft.importedAssets).toBe(
-      MOCK_IMPORTED_ASSET_SUMMARY,
+      IMPORTED_ASSET_SUMMARY_FIXTURE,
     );
+    expect(result.current.state.canContinue).toBe(true);
   });
 
   it("마이페이지의 미측정 진입은 Q1에서 시작하고 이전으로 온보딩 단계에 가지 않는다", () => {

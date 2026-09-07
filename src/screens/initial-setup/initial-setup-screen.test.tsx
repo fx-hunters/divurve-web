@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DIAGNOSIS_PROGRESS_STORAGE_KEY,
@@ -6,9 +6,15 @@ import {
   writeDiagnosisProgress,
 } from "../../api/diagnosis-progress-store";
 import { readProfilePreferences } from "../../api/profile-preferences-store";
-import { MOCK_IMPORTED_ASSET_SUMMARY } from "../../api/fixtures/initial-setup-assets";
+import { fetchImportedAssetSummary } from "../../api/asset-import";
+import { IMPORTED_ASSET_SUMMARY_FIXTURE } from "../../test/api-fixtures";
+import type { ImportedAssetSummary } from "../../types/assets";
 import { calculateQuickRiskResult } from "./risk-diagnosis";
 import { InitialSetupScreen } from "./initial-setup-screen";
+
+vi.mock("../../api/asset-import", () => ({
+  fetchImportedAssetSummary: vi.fn(),
+}));
 
 function enterRiskStep() {
   fireEvent.click(screen.getByRole("radio", { name: /금융·경제/ }));
@@ -34,7 +40,15 @@ function seedQuickResult() {
 }
 
 describe("InitialSetupScreen", () => {
-  beforeEach(() => sessionStorage.clear());
+  beforeEach(() => {
+    sessionStorage.clear();
+    // 기본값은 응답이 오지 않는 조회다. 자산 단계를 지나칠 뿐인 테스트가
+    // 예상 못 한 상태 전이를 만들지 않게 한다.
+    vi.mocked(fetchImportedAssetSummary).mockReset();
+    vi.mocked(fetchImportedAssetSummary).mockReturnValue(
+      new Promise<ImportedAssetSummary>(() => {}),
+    );
+  });
 
   it("첫 화면에는 설명 분야 한 단계만 표시한다", () => {
     render(<InitialSetupScreen onComplete={vi.fn()} />);
@@ -46,61 +60,78 @@ describe("InitialSetupScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1 / 3")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "33");
-    expect(screen.queryByText("보유 자산을 불러올까요?")).not.toBeInTheDocument();
+    expect(screen.queryByText("지금 보유한 자산이에요")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이전" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
   });
 
-  it("체험용 자산을 불러오고 요약을 확인한 뒤 입력값을 유지한다", async () => {
-    let resolveImport!: (value: typeof MOCK_IMPORTED_ASSET_SUMMARY) => void;
-    const importAssets = vi.fn(
-      () => new Promise<typeof MOCK_IMPORTED_ASSET_SUMMARY>((resolve) => {
+  it("자산 단계에 들어오면 조회 결과를 표시하고 입력값을 유지한다", async () => {
+    let resolveImport!: (value: ImportedAssetSummary) => void;
+    vi.mocked(fetchImportedAssetSummary).mockReturnValue(
+      new Promise<ImportedAssetSummary>((resolve) => {
         resolveImport = resolve;
       }),
     );
-    render(
-      <InitialSetupScreen
-        onComplete={vi.fn()}
-        dependencies={{ importAssets }}
-      />,
-    );
+    render(<InitialSetupScreen onComplete={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("radio", { name: /개발·기술/ }));
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
-    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
-    expect(screen.getByRole("status")).toHaveTextContent("체험용 자산을 불러오고 있어요");
-    resolveImport(MOCK_IMPORTED_ASSET_SUMMARY);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "보유 자산을 확인하고 있어요",
+    );
+    expect(
+      screen.queryByRole("button", { name: "자산 불러오기" }),
+    ).not.toBeInTheDocument();
 
-    expect(await screen.findByText("자산을 불러왔어요")).toBeInTheDocument();
-    expect(screen.getByText("64,000,000원")).toBeInTheDocument();
+    await act(async () => {
+      resolveImport(IMPORTED_ASSET_SUMMARY_FIXTURE);
+    });
+
+    expect(await screen.findByText("자산을 확인했어요")).toBeInTheDocument();
+    expect(screen.getByText("64,058,000원")).toBeInTheDocument();
+    expect(screen.getByText("36,000,000원")).toBeInTheDocument();
+    expect(screen.getByText("USD · JPY · EUR")).toBeInTheDocument();
     expect(screen.getByText("체험용 데이터")).toBeInTheDocument();
-    expect(screen.queryByText("MOCK · 실제 연결 아님")).not.toBeInTheDocument();
+    expect(fetchImportedAssetSummary).toHaveBeenCalledTimes(1);
+
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
     fireEvent.click(screen.getByRole("button", { name: "이전" }));
-    expect(screen.getByText("64,000,000원")).toBeInTheDocument();
+    expect(screen.getByText("64,058,000원")).toBeInTheDocument();
+    // 되돌아와도 이미 확인한 자산을 다시 조회하지 않는다.
+    expect(fetchImportedAssetSummary).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "이전" }));
     expect(screen.getByRole("radio", { name: /개발·기술/ })).toBeChecked();
     expect(readProfilePreferences()).toMatchObject({ explanationDomain: "dev" });
   });
 
-  it("자산 불러오기 오류를 표시하고 다시 시도할 수 있다", async () => {
-    const importAssets = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("fixture 오류"))
+  it("기준 시각을 못 받으면 출처만 표시한다", async () => {
+    vi.mocked(fetchImportedAssetSummary).mockResolvedValue({
+      ...IMPORTED_ASSET_SUMMARY_FIXTURE,
+      currencyCodes: [],
+      asOf: "",
+    });
+    render(<InitialSetupScreen onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /개발·기술/ }));
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+
+    expect(await screen.findByText("자산을 확인했어요")).toBeInTheDocument();
+    expect(screen.getByText("체험용 자산 데이터")).toBeInTheDocument();
+    expect(screen.getByText("보유한 외화 없음")).toBeInTheDocument();
+  });
+
+  it("자산 조회 오류를 표시하고 다시 시도할 수 있다", async () => {
+    vi.mocked(fetchImportedAssetSummary)
+      .mockRejectedValueOnce(new Error("조회 실패"))
       .mockRejectedValueOnce("unknown error");
-    render(
-      <InitialSetupScreen
-        onComplete={vi.fn()}
-        dependencies={{ importAssets }}
-      />,
-    );
+    render(<InitialSetupScreen onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("radio", { name: /일상적인 설명/ }));
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
-    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("fixture 오류");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("조회 실패");
+    expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "체험용 자산 데이터를 불러오지 못했습니다.",
+      "보유 자산을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
   });
 
