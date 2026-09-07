@@ -1,4 +1,4 @@
-# 0033. 온보딩 2단계 보유 자산을 X-Ray 응답으로 표시
+# 0034. 온보딩 2단계 보유 자산을 X-Ray 응답으로 표시
 
 | 항목 | 내용 |
 |---|---|
@@ -7,7 +7,7 @@
 | 변경 유형 | feat |
 | 영향 범위 | 화면(초기 설정 2단계) / API(`GET /api/v1/xray`) / 상태(초기 설정 훅) |
 | 관련 브랜치 | feat/onboarding-asset-xray |
-| 관련 커밋 | (커밋 후 기입) |
+| 관련 커밋 | 3270f31 |
 | 관련 이슈·PR | #33 · 백엔드 fx-hunters/divurve-api#110 (이슈 fx-hunters/divurve-api#108) |
 
 ## 변경 사유 (Why)
