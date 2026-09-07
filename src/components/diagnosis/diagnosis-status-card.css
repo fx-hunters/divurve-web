@@ -1,0 +1,97 @@
+.diagnosis-status {
+  display: grid;
+  gap: 1rem;
+}
+
+.diagnosis-status__heading,
+.diagnosis-status__result,
+.diagnosis-status__actions {
+  display: flex;
+  align-items: center;
+}
+
+.diagnosis-status__heading,
+.diagnosis-status__result {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.diagnosis-status__heading h3 {
+  color: var(--text);
+  font-size: 1.125rem;
+}
+
+.diagnosis-status__heading p,
+.diagnosis-status__copy,
+.diagnosis-status__server-copy {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.diagnosis-status__result {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.diagnosis-status__result strong {
+  color: var(--text);
+  font-size: 1.125rem;
+}
+
+.diagnosis-status__server-copy {
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+
+.diagnosis-status__server-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.diagnosis-status__actions {
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.diagnosis-status__button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-md);
+  background: var(--primary-subtle);
+  color: var(--primary);
+  font-weight: 800;
+  transition:
+    transform var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.diagnosis-status__button:hover { transform: translateY(-1px); }
+.diagnosis-status__button--quiet {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+.diagnosis-status__button:focus-visible {
+  outline: 3px solid var(--primary-border);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .diagnosis-status__heading,
+  .diagnosis-status__result {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .diagnosis-status__button { width: 100%; min-height: 3rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagnosis-status__button { transition: none; }
+  .diagnosis-status__button:hover { transform: none; }
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthPage, type AuthMode } from "../AuthPage";
 import { LandingPage } from "../LandingPage";
 import { OnboardingTour } from "../OnboardingTour";
@@ -16,15 +16,30 @@ import { RouteScreen } from "../screens/route/route-screen";
 import { XRayScreen } from "../screens/xray/xray-screen";
 import { InitialSetupScreen } from "../screens/initial-setup/initial-setup-screen";
 import { ApiStateView } from "../components/common/api-state-view";
+import { DetailedDiagnosisInvite } from "../components/diagnosis/detailed-diagnosis-invite";
 import { NAV_ITEMS } from "../types/navigation";
 import type { AuthSuccessResult } from "../types/auth";
+import type { InitialSetupEntryMode } from "../types/diagnosis";
 import { login, logout, signup } from "../api/auth";
+import {
+  clearDiagnosisProgress,
+  readDiagnosisProgress,
+} from "../api/diagnosis-progress-store";
 import { readApiSession } from "../api/session";
 import {
   INITIAL_SETUP_PATH,
   resolvePostAuthDestination,
 } from "./post-auth-routing";
 import { useSessionBootstrap, type SessionEnsurer } from "./use-session-bootstrap";
+import {
+  DETAILED_DIAGNOSIS_PATH,
+  DIAGNOSIS_RESULT_PATH,
+  QUICK_DIAGNOSIS_PATH,
+  resolveDiagnosisRoute,
+} from "./diagnosis-routing";
+import { DiagnosisResultScreen } from "../screens/mypage/diagnosis-result-screen";
+import type { InitialSetupSubmission } from "../screens/initial-setup/initial-setup-screen";
+import { getDetailedDiagnosisInviteDelayForEnvironment } from "./diagnosis-invite-timing";
 
 export const TOUR_STORAGE_KEY = "divurve_tour_done";
 export const TOUR_INACTIVITY_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -50,6 +65,10 @@ interface AppProps {
 
 export function App({ ensureSession }: AppProps = {}) {
   const { activeTab, navigate } = useTabNavigation();
+  const initialDiagnosisRoute = resolveDiagnosisRoute(
+    window.location.pathname,
+    readApiSession()?.isDemo === false,
+  );
   const [showLanding, setShowLanding] = useState<boolean>(
     () => window.location.pathname === "/",
   );
@@ -57,10 +76,19 @@ export function App({ ensureSession }: AppProps = {}) {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [showTour, setShowTour] = useState<boolean>(false);
   const [showInitialSetup, setShowInitialSetup] = useState<boolean>(
-    () =>
-      window.location.pathname === INITIAL_SETUP_PATH &&
-      readApiSession()?.isDemo === false,
+    () => initialDiagnosisRoute.kind === "input",
   );
+  const [initialSetupEntryMode, setInitialSetupEntryMode] =
+    useState<InitialSetupEntryMode>(() =>
+      initialDiagnosisRoute.kind === "input"
+        ? initialDiagnosisRoute.entryMode
+        : "onboarding",
+    );
+  const [showDiagnosisResult, setShowDiagnosisResult] = useState<boolean>(
+    () => initialDiagnosisRoute.kind === "result",
+  );
+  const [showDetailedInvite, setShowDetailedInvite] = useState(false);
+  const invitationTimerRef = useRef<number | null>(null);
   const { isDark, toggleTheme, setTheme } = useTheme("dark");
 
   const isDashboardVisible = !showLanding && !showAuth && !showInitialSetup;
@@ -71,6 +99,46 @@ export function App({ ensureSession }: AppProps = {}) {
 
   const currentTabItem = NAV_ITEMS.find((item) => item.id === activeTab);
   const activeTabTitle = currentTabItem!.label;
+
+  useEffect(() => {
+    const handleInitialSetupHistory = () => {
+      const isMemberSession = readApiSession()?.isDemo === false;
+      const diagnosisRoute = resolveDiagnosisRoute(
+        window.location.pathname,
+        isMemberSession,
+      );
+
+      if (diagnosisRoute.kind === "input") {
+        setInitialSetupEntryMode(diagnosisRoute.entryMode);
+        setShowLanding(false);
+        setShowAuth(false);
+        setShowTour(false);
+        setShowDetailedInvite(false);
+        setShowDiagnosisResult(false);
+        setShowInitialSetup(true);
+        return;
+      }
+
+      setShowInitialSetup(false);
+      setShowDiagnosisResult(diagnosisRoute.kind === "result");
+    };
+
+    window.addEventListener("popstate", handleInitialSetupHistory);
+    return () => window.removeEventListener("popstate", handleInitialSetupHistory);
+  }, []);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(invitationTimerRef.current ?? undefined);
+    },
+    [],
+  );
+
+  const handleNavigate = (tab: Parameters<typeof navigate>[0]) => {
+    setShowDiagnosisResult(false);
+    setShowDetailedInvite(false);
+    navigate(tab);
+  };
 
   const goToLogin = () => {
     setShowLanding(false);
@@ -85,7 +153,7 @@ export function App({ ensureSession }: AppProps = {}) {
   };
 
   const handleBackToLanding = () => {
-    navigate("home");
+    handleNavigate("home");
     setShowInitialSetup(false);
     setShowAuth(false);
     setShowLanding(true);
@@ -93,7 +161,7 @@ export function App({ ensureSession }: AppProps = {}) {
 
   const handleLogout = () => {
     logout();
-    navigate("home");
+    handleNavigate("home");
     setShowInitialSetup(false);
     setShowLanding(true);
     setShowAuth(false);
@@ -103,6 +171,8 @@ export function App({ ensureSession }: AppProps = {}) {
     setShowLanding(false);
     setShowAuth(false);
     setShowInitialSetup(false);
+    setShowDiagnosisResult(false);
+    setShowDetailedInvite(false);
     try {
       const stored = localStorage.getItem(TOUR_STORAGE_KEY);
       if (shouldShowTour(stored)) {
@@ -117,6 +187,7 @@ export function App({ ensureSession }: AppProps = {}) {
     const destination = resolvePostAuthDestination(result);
 
     if (destination === "initialSetup") {
+      setInitialSetupEntryMode("onboarding");
       setShowLanding(false);
       setShowAuth(false);
       setShowTour(false);
@@ -127,13 +198,77 @@ export function App({ ensureSession }: AppProps = {}) {
       return;
     }
 
-    navigate("home");
+    handleNavigate("home");
     handleEnterDashboard();
   };
 
-  const handleInitialSetupComplete = () => {
-    navigate("home");
-    handleEnterDashboard();
+  const handleInitialSetupComplete = (
+    submission: InitialSetupSubmission,
+  ) => {
+    setShowLanding(false);
+    setShowAuth(false);
+    setShowTour(false);
+    setShowInitialSetup(false);
+    setShowDetailedInvite(false);
+
+    if (initialSetupEntryMode === "onboarding") {
+      handleNavigate("home");
+      if (submission.draft.quickDiagnosis) {
+        window.clearTimeout(invitationTimerRef.current ?? undefined);
+        invitationTimerRef.current = window.setTimeout(() => {
+          setShowDetailedInvite(true);
+          invitationTimerRef.current = null;
+        }, getDetailedDiagnosisInviteDelayForEnvironment(window));
+      }
+      return;
+    }
+
+    if (
+      initialSetupEntryMode === "detailedDiagnosis" &&
+      readDiagnosisProgress().status === "detailComplete"
+    ) {
+      window.history.replaceState(null, "", DIAGNOSIS_RESULT_PATH);
+      setShowDiagnosisResult(true);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
+
+    window.history.replaceState(null, "", "/mypage");
+    setShowDiagnosisResult(false);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
+  const openDiagnosisInput = (
+    entryMode: InitialSetupEntryMode,
+    pathname: string,
+  ) => {
+    setInitialSetupEntryMode(entryMode);
+    setShowLanding(false);
+    setShowAuth(false);
+    setShowTour(false);
+    setShowDiagnosisResult(false);
+    setShowDetailedInvite(false);
+    setShowInitialSetup(true);
+    if (window.location.pathname !== pathname) {
+      window.history.pushState(null, "", pathname);
+    }
+  };
+
+  const handleStartQuickDiagnosis = () => {
+    clearDiagnosisProgress();
+    openDiagnosisInput("quickDiagnosis", QUICK_DIAGNOSIS_PATH);
+  };
+
+  const handleStartDetailedDiagnosis = () => {
+    openDiagnosisInput("detailedDiagnosis", DETAILED_DIAGNOSIS_PATH);
+  };
+
+  const handleViewDetailedDiagnosis = () => {
+    setShowDetailedInvite(false);
+    setShowDiagnosisResult(true);
+    if (window.location.pathname !== DIAGNOSIS_RESULT_PATH) {
+      window.history.pushState(null, "", DIAGNOSIS_RESULT_PATH);
+    }
   };
 
   const handleTourComplete = () => {
@@ -182,7 +317,13 @@ export function App({ ensureSession }: AppProps = {}) {
   }
 
   if (showInitialSetup) {
-    return <InitialSetupScreen onComplete={handleInitialSetupComplete} />;
+    return (
+      <InitialSetupScreen
+        key={initialSetupEntryMode}
+        entryMode={initialSetupEntryMode}
+        onComplete={handleInitialSetupComplete}
+      />
+    );
   }
 
   if (sessionState.status === "bootstrapping") {
@@ -206,8 +347,6 @@ export function App({ ensureSession }: AppProps = {}) {
     );
   }
 
-  // 화면들은 아직 계정 종류로 데모 fixture와 API 화면을 가른다.
-  // 도메인별 통합(PR-C~G)이 끝나면 이 분기 자체가 사라진다.
   const isDemoAccount = sessionState.accountKind === "demo";
 
   return (
@@ -215,7 +354,7 @@ export function App({ ensureSession }: AppProps = {}) {
       <Sidebar
         activeTab={activeTab}
         accountKind={sessionState.accountKind}
-        onSelectTab={navigate}
+        onSelectTab={handleNavigate}
         onLogin={goToLogin}
       />
 
@@ -224,7 +363,7 @@ export function App({ ensureSession }: AppProps = {}) {
           activeTabTitle={activeTabTitle}
           isDark={isDark}
           onToggleTheme={toggleTheme}
-          onNavigateToMypage={() => navigate("mypage")}
+          onNavigateToMypage={() => handleNavigate("mypage")}
         />
 
         <main className="app-scroll-content">
@@ -233,23 +372,43 @@ export function App({ ensureSession }: AppProps = {}) {
             className="app-content-container page-enter-animation"
           >
             {activeTab === "home" && (
-              <HomeScreen onNavigate={navigate} />
+              <HomeScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "planner" && (
-              <RouteScreen mode={isDemoAccount ? "demo" : "api"} onNavigate={navigate} />
+              <RouteScreen mode={isDemoAccount ? "demo" : "api"} onNavigate={handleNavigate} />
             )}
             {activeTab === "assets" && (
-              <XRayScreen onNavigate={navigate} />
+              <XRayScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "range" && (
-              <ForecastScreen onNavigate={navigate} />
+              <ForecastScreen onNavigate={handleNavigate} />
             )}
-            {activeTab === "mypage" && (
+            {activeTab === "mypage" && showDiagnosisResult && (
+              <DiagnosisResultScreen
+                progress={readDiagnosisProgress()}
+                onBack={() => handleNavigate("mypage")}
+                onChangeSettings={() => handleNavigate("mypage")}
+                onRestart={handleStartQuickDiagnosis}
+              />
+            )}
+            {activeTab === "mypage" && !showDiagnosisResult && (
               <MyPageScreen
-                onNavigate={navigate}
+                onNavigate={handleNavigate}
                 onLogin={goToLogin}
                 onLogout={handleLogout}
                 onStartTour={handleStartTour}
+                onStartQuickDiagnosis={
+                  isDemoAccount ? undefined : handleStartQuickDiagnosis
+                }
+                onStartDetailedDiagnosis={
+                  isDemoAccount ? undefined : handleStartDetailedDiagnosis
+                }
+                onViewDetailedDiagnosis={
+                  isDemoAccount ? undefined : handleViewDetailedDiagnosis
+                }
+                onRestartDiagnosis={
+                  isDemoAccount ? undefined : handleStartQuickDiagnosis
+                }
               />
             )}
             {activeTab === "connectivity" && <ConnectivityCheckPanel />}
@@ -259,12 +418,19 @@ export function App({ ensureSession }: AppProps = {}) {
         <Footer accountKind={sessionState.accountKind} />
       </div>
 
-      <MobileNav activeTab={activeTab} onSelectTab={navigate} />
+      <MobileNav activeTab={activeTab} onSelectTab={handleNavigate} />
+
+      {showDetailedInvite && !isDemoAccount && (
+        <DetailedDiagnosisInvite
+          onStart={handleStartDetailedDiagnosis}
+          onDismiss={() => setShowDetailedInvite(false)}
+        />
+      )}
 
       {showTour && (
         <OnboardingTour
           onComplete={handleTourComplete}
-          onNavigate={navigate}
+          onNavigate={handleNavigate}
         />
       )}
     </div>

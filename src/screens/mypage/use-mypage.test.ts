@@ -53,6 +53,26 @@ describe("useMyPage", () => {
     );
   });
 
+  it("ApiError가 아닌 저장 실패에는 기본 안내 문구를 쓴다", async () => {
+    const { result } = renderHook(() =>
+      useMyPage(
+        makeDependencies({
+          saveSettings: vi.fn().mockRejectedValue(new Error("boom")),
+        }),
+      ),
+    );
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    act(() => result.current.saveSettings({ notifyStepDue: false }));
+
+    await waitFor(() =>
+      expect(result.current.saveState).toEqual({
+        status: "error",
+        message: "설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      }),
+    );
+  });
+
   it("저장 도중 재조회가 시작되면 늦게 도착한 설정으로 덮어쓰지 않는다", async () => {
     let resolveSave!: (value: typeof MY_PAGE_SETTINGS_FIXTURE) => void;
     const savePromise = new Promise<typeof MY_PAGE_SETTINGS_FIXTURE>(
