@@ -17,7 +17,7 @@ describe("useMyPage hook", () => {
     const { result } = renderHook(() => useMyPage());
     expect(result.current.profile.name).toBe("김데모");
     expect(result.current.profile.email).toBe("demo.kim@example.com");
-    expect(result.current.profile.riskProfile).toBe("안정 추구형");
+    expect(result.current.profile.riskProfile).toBe("안정항로형");
     expect(result.current.bankPreferentialRate).toBe(80);
     expect(result.current.effectiveSpread).toBe("0.2");
     expect(result.current.notifications.budgetWarning).toBe(true);
@@ -78,23 +78,28 @@ describe("useMyPage hook", () => {
 
   it("handles re-diagnosis and cycles through risk profiles", () => {
     const { result } = renderHook(() => useMyPage());
-    expect(result.current.profile.riskProfile).toBe("안정 추구형");
+    expect(result.current.profile.riskProfile).toBe("안정항로형");
 
     act(() => {
       result.current.handleRediagnosis();
     });
-    expect(result.current.profile.riskProfile).toBe("위험 중립형");
+    expect(result.current.profile.riskProfile).toBe("균형항로형");
     expect(result.current.toastMessage).toBe("의사결정 성향이 재진단되었습니다.");
 
     act(() => {
       result.current.handleRediagnosis();
     });
-    expect(result.current.profile.riskProfile).toBe("적극 투자형");
+    expect(result.current.profile.riskProfile).toBe("적극항로형");
 
     act(() => {
       result.current.handleRediagnosis();
     });
-    expect(result.current.profile.riskProfile).toBe("안정 추구형");
+    expect(result.current.profile.riskProfile).toBe("도전항로형");
+
+    act(() => {
+      result.current.handleRediagnosis();
+    });
+    expect(result.current.profile.riskProfile).toBe("안정항로형");
   });
 
   it("handles consecutive toasts without premature clearance", () => {
@@ -164,12 +169,12 @@ describe("MyPageScreen Component", () => {
     render(<MyPageScreen />);
     expect(screen.getByText("의사결정 프로필 (투자성향)")).toBeInTheDocument();
     expect(screen.getByText(/안전 버킷 하한과 집중도 기준선/)).toBeInTheDocument();
-    expect(screen.getByText("안정 추구형")).toBeInTheDocument();
+    expect(screen.getByText("안정항로형")).toBeInTheDocument();
     expect(screen.getByText(/진단일:/)).toBeInTheDocument();
 
     const rediagnosisBtn = screen.getByRole("button", { name: "재진단" });
     fireEvent.click(rediagnosisBtn);
-    expect(screen.getByText("위험 중립형")).toBeInTheDocument();
+    expect(screen.getByText("균형항로형")).toBeInTheDocument();
   });
 
   it("handles password change click feedback toast", () => {
@@ -179,17 +184,10 @@ describe("MyPageScreen Component", () => {
     expect(screen.getByText("비밀번호 변경 안내 메일이 발송되었습니다.")).toBeInTheDocument();
   });
 
-  it("renders and updates bank preferential rate slider", () => {
+  it("keeps calculation assumptions out of the basic profile settings", () => {
     render(<MyPageScreen />);
-    expect(screen.getByText("주거래 은행 우대율")).toBeInTheDocument();
-    expect(screen.getByText("80%")).toBeInTheDocument();
-    expect(screen.getByText(/실효 스프레드: 약 0.2%/)).toBeInTheDocument();
-
-    const slider = screen.getByLabelText("주거래 은행 우대율");
-    fireEvent.change(slider, { target: { value: "90" } });
-
-    expect(screen.getByText("90%")).toBeInTheDocument();
-    expect(screen.getByText(/실효 스프레드: 약 0.1%/)).toBeInTheDocument();
+    expect(screen.queryByText("주거래 은행 우대율")).not.toBeInTheDocument();
+    expect(screen.queryByText(/실효 스프레드/)).not.toBeInTheDocument();
   });
 
   it("renders notification checkboxes and allows toggling", () => {

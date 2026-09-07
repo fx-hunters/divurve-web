@@ -1,0 +1,157 @@
+@keyframes detailInviteEnter {
+  from { opacity: 0; transform: translateY(1.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes detailInviteCurveDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+.detail-invite {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: 1rem;
+}
+
+.detail-invite__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+  opacity: 0.78;
+  backdrop-filter: blur(3px);
+}
+
+.detail-invite__sheet {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 46rem);
+  gap: 0.75rem;
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: detailInviteEnter 480ms var(--ease-out-smooth) both;
+}
+
+.detail-invite__handle {
+  width: 3rem;
+  height: 0.25rem;
+  margin: -0.5rem auto 0.25rem;
+  border-radius: var(--radius-full);
+  background: var(--border);
+}
+
+.detail-invite__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+}
+
+.detail-invite__close:hover { background: var(--surface-hover); }
+
+.detail-invite__curve {
+  width: min(100%, 34rem);
+  height: 4.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.detail-invite__curve svg { width: 100%; height: 100%; overflow: visible; }
+.detail-invite__curve path {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 650;
+  stroke-dashoffset: 650;
+  animation: detailInviteCurveDraw 760ms 120ms var(--ease-out-smooth) forwards;
+}
+.detail-invite__curve circle {
+  fill: var(--surface);
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.detail-invite__sheet h2 {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  line-height: 1.15;
+}
+
+.detail-invite__lead,
+.detail-invite__notice {
+  max-width: 38rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.detail-invite__lead { font-size: clamp(1rem, 2vw, 1.125rem); }
+.detail-invite__notice { font-size: 0.8125rem; }
+
+.detail-invite__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.detail-invite__button {
+  min-height: 3rem;
+  padding: 0.75rem 1.125rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-weight: 750;
+}
+
+.detail-invite__button--quiet { background: var(--surface-subtle); }
+.detail-invite__button--primary {
+  border-color: var(--primary-border);
+  background: var(--primary);
+  color: var(--primary-content);
+}
+
+.detail-invite__button:focus-visible,
+.detail-invite__close:focus-visible,
+.detail-invite__backdrop:focus-visible {
+  outline: 3px solid var(--primary-border);
+  outline-offset: 2px;
+}
+
+.detail-invite__button:disabled { cursor: wait; opacity: 0.6; }
+
+@media (min-width: 900px) {
+  .detail-invite { align-items: center; }
+  .detail-invite__sheet { border-radius: var(--radius-lg); }
+  .detail-invite__handle { display: none; }
+}
+
+@media (max-width: 600px) {
+  .detail-invite { padding: 0; }
+  .detail-invite__actions { flex-direction: column-reverse; }
+  .detail-invite__button { width: 100%; min-height: 3.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-invite__sheet,
+  .detail-invite__curve path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

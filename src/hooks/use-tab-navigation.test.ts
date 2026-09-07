@@ -13,6 +13,7 @@ describe("getTabFromPathname", () => {
     ["/xray", "assets"],
     ["/forecast", "range"],
     ["/mypage", "mypage"],
+    ["/mypage/diagnosis", "mypage"],
     ["/connectivity", "connectivity"],
     ["/", "home"],
     ["/unknown", "home"],

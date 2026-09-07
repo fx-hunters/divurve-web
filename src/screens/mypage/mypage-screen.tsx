@@ -11,6 +11,10 @@ export interface MyPageScreenProps {
   readonly onLogin?: () => void;
   readonly onLogout?: () => void;
   readonly onStartTour?: () => void;
+  readonly onStartQuickDiagnosis?: () => void;
+  readonly onStartDetailedDiagnosis?: () => void;
+  readonly onViewDetailedDiagnosis?: () => void;
+  readonly onRestartDiagnosis?: () => void;
   readonly apiDependencies?: MyPageApiDependencies;
 }
 
@@ -21,6 +25,10 @@ export function MyPageScreen({
   onLogin,
   onLogout,
   onStartTour,
+  onStartQuickDiagnosis,
+  onStartDetailedDiagnosis,
+  onViewDetailedDiagnosis,
+  onRestartDiagnosis,
   apiDependencies,
 }: MyPageScreenProps) {
   if (!isDemo) {
@@ -29,6 +37,10 @@ export function MyPageScreen({
         onNavigate={onNavigate}
         onLogout={onLogout}
         onStartTour={onStartTour}
+        onStartQuickDiagnosis={onStartQuickDiagnosis}
+        onStartDetailedDiagnosis={onStartDetailedDiagnosis}
+        onViewDetailedDiagnosis={onViewDetailedDiagnosis}
+        onRestartDiagnosis={onRestartDiagnosis}
         dependencies={apiDependencies}
       />
     );
@@ -54,11 +66,8 @@ function MyPageDemoScreen({
 }: MyPageScreenProps) {
   const {
     profile,
-    bankPreferentialRate,
     notifications,
     toastMessage,
-    effectiveSpread,
-    setBankPreferentialRate,
     toggleNotification,
     handlePasswordChange,
     handleLogout,
@@ -153,7 +162,7 @@ function MyPageDemoScreen({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+            boxShadow: 'var(--shadow-sm)',
             flexShrink: 0,
           }}
         >
@@ -339,19 +348,19 @@ function MyPageDemoScreen({
             style={{
               fontSize: '0.875rem',
               fontWeight: 600,
-              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              backgroundColor: 'var(--primary-subtle)',
               color: 'var(--primary)',
-              border: '1px solid rgba(56, 189, 248, 0.2)',
+              border: '1px solid var(--primary-border)',
               padding: '0.5rem 1rem',
               borderRadius: 'var(--radius-lg)',
               cursor: 'pointer',
               transition: 'background-color 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.2)';
+              e.currentTarget.style.backgroundColor = 'var(--primary-border)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.1)';
+              e.currentTarget.style.backgroundColor = 'var(--primary-subtle)';
             }}
           >
             재진단
@@ -424,72 +433,6 @@ function MyPageDemoScreen({
         >
           기본 설정
         </h2>
-
-        {/* 주거래 은행 우대율 슬라이더 */}
-        <div
-          style={{
-            backgroundColor: 'var(--bg)',
-            border: '1px solid var(--border)',
-            padding: '1.5rem',
-            borderRadius: 'var(--radius-xl)',
-          }}
-        >
-          <label
-            htmlFor="bank-rate-slider"
-            style={{
-              display: 'block',
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              marginBottom: '1.25rem',
-              color: 'var(--text)',
-            }}
-          >
-            주거래 은행 우대율
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            <input
-              id="bank-rate-slider"
-              type="range"
-              min={0}
-              max={100}
-              value={bankPreferentialRate}
-              onChange={(e) => setBankPreferentialRate(Number(e.target.value))}
-              style={{
-                flex: 1,
-                accentColor: 'var(--primary)',
-                cursor: 'pointer',
-              }}
-            />
-            <span
-              style={{
-                width: '5rem',
-                textAlign: 'center',
-                backgroundColor: 'var(--surface)',
-                border: '1px solid var(--border)',
-                padding: '0.5rem 0.75rem',
-                borderRadius: 'var(--radius-lg)',
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: 'var(--text)',
-                fontVariantNumeric: 'tabular-nums',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              {bankPreferentialRate}%
-            </span>
-          </div>
-          <p
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              color: 'var(--text-muted)',
-              marginTop: '1.25rem',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            실효 스프레드: 약 {effectiveSpread}% (자동 계산됨)
-          </p>
-        </div>
 
         {/* 알림 설정 */}
         <div

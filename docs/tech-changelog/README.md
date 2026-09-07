@@ -49,3 +49,6 @@
 | [0019](./0019-fix-responsive-ui-and-deduplicate-theme-button.md) | 반응형 UI 개선 및 테마 버튼 중복 제거 | 2026-09-06 |
 | [0020](./0020-connect-swagger-api.md) | Swagger API 경계 및 실데이터 화면 연동 | 2026-09-07 |
 | [0021](./0021-post-auth-initial-setup-shell.md) | 로그인 후 초기 설정 UI 골격 | 2026-09-07 |
+| [0022](./0022-decouple-route-loader-from-demo-flag.md) | Route 로더에서 데모 분기 결합 제거 | 2026-09-07 |
+| [0023](./0023-be-driven-demo-session.md) | 데모 여부 판단을 BE 세션으로 이관 | 2026-09-07 |
+| [0031](./0031-initial-setup-diagnosis-flow.md) | 초기 설정·위험성향 진단 UX와 결과 구조 구현 | 2026-09-07 |

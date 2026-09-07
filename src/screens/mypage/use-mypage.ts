@@ -16,14 +16,15 @@ export const NOTIFICATION_OPTIONS: readonly NotificationOption[] = [
 export const INITIAL_USER_PROFILE: UserProfile = {
   name: '김데모',
   email: 'demo.kim@example.com',
-  riskProfile: '안정 추구형',
+  riskProfile: '안정항로형',
   diagnosisDate: '2026.08.15',
 };
 
 const RISK_PROFILES: readonly RiskProfileType[] = [
-  '안정 추구형',
-  '위험 중립형',
-  '적극 투자형',
+  '안정항로형',
+  '균형항로형',
+  '적극항로형',
+  '도전항로형',
 ];
 
 export function useMyPage() {

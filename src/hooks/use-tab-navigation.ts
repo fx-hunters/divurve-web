@@ -22,6 +22,7 @@ export function getTabFromPathname(pathname: string): NavTabId {
     case NAV_PATHS.range:
       return "range";
     case NAV_PATHS.mypage:
+    case "/mypage/diagnosis":
       return "mypage";
     case NAV_PATHS.connectivity:
       return "connectivity";

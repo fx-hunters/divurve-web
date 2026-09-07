@@ -1,11 +1,24 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { fetchConnectivityChecks } from "../api/connectivity";
-import { App, shouldShowTour, TOUR_STORAGE_KEY } from "./app";
+import {
+  App,
+  shouldShowTour,
+  TOUR_STORAGE_KEY,
+} from "./app";
+import {
+  DETAIL_INVITE_DELAY_MS,
+  getDetailedDiagnosisInviteDelay,
+  getDetailedDiagnosisInviteDelayForEnvironment,
+} from "./diagnosis-invite-timing";
 import { login, startDemoSession } from "../api/auth";
 import { fetchHomeSummary } from "../api/home";
 import { ApiError } from "../api/client";
 import { readApiSession } from "../api/session";
+import { fetchMyPageBundle, updateSettings } from "../api/mypage";
+import { MY_PAGE_API_FIXTURE, MY_PAGE_SETTINGS_FIXTURE } from "../test/api-fixtures";
+import { writeDiagnosisProgress } from "../api/diagnosis-progress-store";
+import { calculateQuickRiskResult } from "../screens/initial-setup/risk-diagnosis";
 
 const STANDARD_AUTH_SESSION = {
   accessToken: "access",
@@ -40,6 +53,11 @@ vi.mock("../api/home", () => ({
   }),
 }));
 
+vi.mock("../api/mypage", () => ({
+  fetchMyPageBundle: vi.fn(),
+  updateSettings: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
@@ -58,8 +76,9 @@ beforeEach(() => {
     data: { notice: { message: "API 연결됨" } },
     meta: { timestamp: "2026-09-06T00:00:00Z" },
   });
+  vi.mocked(fetchMyPageBundle).mockResolvedValue(MY_PAGE_API_FIXTURE);
+  vi.mocked(updateSettings).mockResolvedValue(MY_PAGE_SETTINGS_FIXTURE);
 });
-
 function submitLogin() {
   fireEvent.click(screen.getByRole("button", { name: "로그인" }));
   fireEvent.change(screen.getByLabelText("이메일"), {
@@ -69,6 +88,21 @@ function submitLogin() {
     target: { value: "Password123!" },
   });
   fireEvent.click(screen.getByRole("button", { name: "로그인" }));
+}
+
+function completeQuickInitialSetup() {
+  fireEvent.click(screen.getByRole("radio", { name: /금융·경제/ }));
+  fireEvent.click(screen.getByRole("button", { name: "다음" }));
+  fireEvent.click(screen.getByRole("button", { name: "건너뛰기" }));
+  for (const [label, nextLabel] of [
+    [/일부를 줄이고/, "다음 질문"],
+    [/작은 변동까지/, "다음 질문"],
+    [/여러 번 나누어/, "결과 보기"],
+  ] as const) {
+    fireEvent.click(screen.getByRole("radio", { name: label }));
+    fireEvent.click(screen.getByRole("button", { name: nextLabel }));
+  }
+  fireEvent.click(screen.getByRole("button", { name: "홈 시작하기" }));
 }
 
 afterEach(() => {
@@ -93,6 +127,21 @@ describe("shouldShowTour helper", () => {
     const now = Date.now();
     const dormant = (now - 8 * 24 * 60 * 60 * 1000).toString(); // 8일 전
     expect(shouldShowTour(dormant, now)).toBe(true);
+  });
+});
+
+describe("detailed diagnosis invitation timing", () => {
+  it("일반 환경은 홈을 먼저 보여주고 reduced-motion은 대기하지 않는다", () => {
+    expect(getDetailedDiagnosisInviteDelay(false)).toBe(DETAIL_INVITE_DELAY_MS);
+    expect(getDetailedDiagnosisInviteDelay(true)).toBe(0);
+    expect(getDetailedDiagnosisInviteDelayForEnvironment({})).toBe(
+      DETAIL_INVITE_DELAY_MS,
+    );
+    expect(
+      getDetailedDiagnosisInviteDelayForEnvironment({
+        matchMedia: () => ({ matches: true }),
+      }),
+    ).toBe(0);
   });
 });
 
@@ -418,7 +467,6 @@ describe("App", () => {
   });
 
   it("로그인 결과가 onboarded=false이면 초기 설정 경로로 이동한다", async () => {
-    localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     const initialSetupSession = {
       ...STANDARD_AUTH_SESSION,
       onboarded: false,
@@ -439,13 +487,199 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "건너뛰기" }));
     fireEvent.click(screen.getByRole("button", { name: "건너뛰기" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "이 단계 건너뛰고 마치기" }),
+      screen.getByRole("button", { name: "진단 건너뛰고 홈으로" }),
     );
 
     expect(
       await screen.findByRole("heading", { name: "DIVURVE" }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe("/");
+    expect(screen.queryByRole("dialog", { name: "온보딩 웰컴" })).not.toBeInTheDocument();
+  });
+
+  it("회원 마이페이지에서 저장된 간편 결과로 상세 진단을 시작하고 History와 동기화한다", async () => {
+    const quickResult = calculateQuickRiskResult({ Q1: "B", Q2: "B", Q3: "B" });
+    writeDiagnosisProgress({ status: "quickComplete", quickResult });
+    window.history.replaceState(null, "", "/mypage");
+
+    render(<App ensureSession={async () => STANDARD_AUTH_SESSION} />);
+
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "상세 진단 시작" }));
+    expect(window.location.pathname).toBe("/diagnosis/detail");
+    expect(screen.getByRole("heading", { name: /생활비나 비상금/ })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "상세 진단 진행률" })).toHaveTextContent("1 / 3");
+
+    window.history.replaceState(null, "", "/mypage");
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/initial-setup");
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(
+      await screen.findByRole("heading", {
+        name: "어떤 분야의 설명이 가장 익숙한가요?",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("간편 진단 완료 뒤 홈을 먼저 보여주고 상세 진단 안내를 한 번만 표시한다", async () => {
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/initial-setup");
+    render(<App />);
+
+    completeQuickInitialSetup();
+    expect(window.location.pathname).toBe("/");
+    expect(await screen.findByText("API 연결됨")).toBeInTheDocument();
+
+    const invite = await screen.findByRole("dialog", {
+      name: "3문항만 더 답하면",
+    });
+    expect(invite).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog", { name: "3문항만 더 답하면" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "나중에 할게요" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "마이페이지 → 의사결정 프로필에서 언제든 이어갈 수 있어요",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "확인했어요" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "마이페이지" })[0]!);
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "상세 진단 시작" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "홈" })[0]!);
+    expect(await screen.findByText("API 연결됨")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("홈 안내에서 상세 진단을 시작하고 미루면 마이페이지 진행 상태로 돌아간다", async () => {
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/initial-setup");
+    render(<App />);
+    completeQuickInitialSetup();
+
+    await screen.findByText("API 연결됨");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "지금 맞춤 설정하기" }),
+    );
+    expect(window.location.pathname).toBe("/diagnosis/detail");
+    expect(screen.getByRole("heading", { name: /생활비나 비상금/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /일부는 분리/ }));
+    fireEvent.click(screen.getByRole("button", { name: "다음 질문" }));
+    fireEvent.click(screen.getByRole("button", { name: "나중에 이어서" }));
+
+    expect(window.location.pathname).toBe("/mypage");
+    expect(await screen.findByText("상세 진단 진행 중")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "상세 진단 이어서" }));
+    expect(screen.getByRole("heading", { name: /어느 정도 깊이/ })).toBeInTheDocument();
+  });
+
+  it("상세 진단 완료 후 앱 레이아웃 안의 읽기 전용 결과로 이동한다", async () => {
+    const quickResult = calculateQuickRiskResult({ Q1: "C", Q2: "C", Q3: "C" });
+    writeDiagnosisProgress({ status: "quickComplete", quickResult });
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/mypage");
+    render(<App />);
+
+    await screen.findByRole("region", { name: "마이페이지" });
+    fireEvent.click(screen.getByRole("button", { name: "상세 진단 시작" }));
+    for (const [label, nextLabel] of [
+      [/일부는 분리/, "다음 질문"],
+      [/핵심만 쉽게/, "다음 질문"],
+      [/몇 차례 경험/, "상세 결과 보기"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("radio", { name: label }));
+      fireEvent.click(screen.getByRole("button", { name: nextLabel }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "상세 결과 확인하기" }));
+
+    expect(window.location.pathname).toBe("/mypage/diagnosis");
+    expect(await screen.findByRole("heading", { name: "적극항로형" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "마이페이지", level: 2 })).toBeInTheDocument();
+    expect(screen.queryByText("초기 설정")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "초기 설정 마치기" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "설정 변경" }));
+    expect(window.location.pathname).toBe("/mypage");
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+  });
+
+  it("마이페이지에서 간편 진단을 다시 시작하고 결과 뒤 마이페이지로 돌아간다", async () => {
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/mypage");
+    render(<App />);
+    await screen.findByRole("region", { name: "마이페이지" });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "간편 진단 다시 하기" }),
+    );
+    expect(window.location.pathname).toBe("/diagnosis/quick");
+    for (const [label, nextLabel] of [
+      [/대부분 줄인다/, "다음 질문"],
+      [/변동이 작은 편/, "다음 질문"],
+      [/빨리 필요한 금액/, "결과 보기"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("radio", { name: label }));
+      fireEvent.click(screen.getByRole("button", { name: nextLabel }));
+    }
+    expect(screen.getByRole("heading", { name: /안정항로형/ })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "마이페이지로 돌아가기" }),
+    );
+    expect(window.location.pathname).toBe("/mypage");
+    expect(await screen.findByText("간편 진단 완료")).toBeInTheDocument();
+  });
+
+  it("상세 결과 URL 직접 진입과 브라우저 History 복귀를 지원한다", async () => {
+    const quickResult = calculateQuickRiskResult({ Q1: "B", Q2: "B", Q3: "B" });
+    writeDiagnosisProgress({
+      status: "detailComplete",
+      quickResult,
+      detailedAnswers: { Q4: "A", Q5: "B", Q6: "C" },
+    });
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/mypage/diagnosis");
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "균형항로형" })).toBeInTheDocument();
+    window.history.replaceState(null, "", "/mypage");
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+  });
+
+  it("마이페이지의 상세 결과 보기로 전용 결과 경로를 연다", async () => {
+    const quickResult = calculateQuickRiskResult({ Q1: "B", Q2: "B", Q3: "B" });
+    writeDiagnosisProgress({
+      status: "detailComplete",
+      quickResult,
+      detailedAnswers: { Q4: "B", Q5: "B", Q6: "B" },
+    });
+    vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
+    window.history.replaceState(null, "", "/mypage");
+    render(<App />);
+
+    await screen.findByRole("region", { name: "마이페이지" });
+    fireEvent.click(screen.getByRole("button", { name: "상세 결과 보기" }));
+    expect(window.location.pathname).toBe("/mypage/diagnosis");
+    expect(await screen.findByRole("heading", { name: "균형항로형" })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "마이페이지로 돌아가기" }),
+    );
+    expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
+  });
+
+  it("데모 사용자는 진단 전용 URL에서도 상세 진단으로 강제되지 않는다", async () => {
+    vi.mocked(readApiSession).mockReturnValue({
+      ...STANDARD_AUTH_SESSION,
+      isDemo: true,
+    });
+    window.history.replaceState(null, "", "/diagnosis/detail");
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "DIVURVE" })).toBeInTheDocument();
+    expect(screen.queryByText("상세 진단 1 / 3")).not.toBeInTheDocument();
   });
 
   it("인증된 사용자가 초기 설정 URL을 다시 열면 입력 화면을 복원한다", async () => {

@@ -1,0 +1,27 @@
+.diagnosis-narrative {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 43rem;
+}
+
+.diagnosis-narrative__sentence {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1rem, 2.2vw, 1.12rem);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.diagnosis-narrative__profile {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.diagnosis-narrative__detail {
+  color: var(--normal);
+  font-weight: 750;
+  text-decoration: underline;
+  text-decoration-color: var(--normal-border);
+  text-decoration-thickness: 0.14em;
+  text-underline-offset: 0.2em;
+}

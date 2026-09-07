@@ -1,4 +1,8 @@
-﻿export type RiskProfileType = '안정 추구형' | '위험 중립형' | '적극 투자형';
+export type RiskProfileType =
+  | "안정항로형"
+  | "균형항로형"
+  | "적극항로형"
+  | "도전항로형";
 
 export interface UserProfile {
   readonly name: string;
@@ -8,10 +12,10 @@ export interface UserProfile {
 }
 
 export type NotificationKey =
-  | 'budgetWarning'
-  | 'highVolatility'
-  | 'opportunityBucket'
-  | 'safetyMode';
+  | "budgetWarning"
+  | "highVolatility"
+  | "opportunityBucket"
+  | "safetyMode";
 
 export interface NotificationOption {
   readonly id: NotificationKey;
@@ -19,6 +23,6 @@ export interface NotificationOption {
 }
 
 export interface MyPageSettings {
-  readonly bankPreferentialRate: number; // 0 ~ 100 (%)
+  readonly bankPreferentialRate: number;
   readonly notifications: Record<NotificationKey, boolean>;
 }
