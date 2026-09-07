@@ -14,7 +14,7 @@
 
 로그인 후 초기 설정이 직접 자산 입력과 진단 placeholder에 머물러 있어 사용자가 실제 흐름을 끝까지 진행하기 어려웠다. 초기 설정 안에 상세 진단까지 이어 붙인 구조는 홈 진입을 늦추고, 마이페이지의 결과 보기에서도 초기 설정 Shell을 다시 보여주는 문제가 있었다. 위험성향 이름과 상세 답변도 하나의 유형처럼 단순 연결되어 각 데이터의 역할을 오해할 수 있었다.
 
-현재 Swagger 계약에는 초기 설정 완료, 마이데이터 자산 불러오기, 진단 진행·결과, 설명 설정 저장 API가 없다. 따라서 존재하지 않는 계약을 추정하지 않고 회원·데모 세션 판정은 기존 백엔드 세션에 맡긴 채, 이번 프로토타입의 입력과 진단 상태만 명시적인 브라우저 임시 저장 모듈로 격리했다.
+현재 Swagger 계약에는 초기 설정 완료, 마이데이터 자산 불러오기, 진단 진행·결과 저장 API가 없다. 설명 설정 필드는 서버 설정 계약에 있지만 초기 설정·진단 완료와의 영속화 정책이 확정되지 않았다. 따라서 존재하지 않는 계약을 추정하지 않고 회원·데모 세션 판정은 기존 백엔드 세션에 맡긴 채, 이번 프로토타입의 입력과 진단 상태만 명시적인 브라우저 임시 저장 모듈로 격리했다.
 
 ## 변경 내용 (What)
 
@@ -28,7 +28,7 @@
 - `/mypage/diagnosis` 읽기 전용 결과 화면을 추가해 초기 설정 헤더·진행률·완료 CTA 없이 결과를 확인하고 마이페이지 복귀, 설정 변경, 재진단을 수행할 수 있게 했다.
 - 설명 분야와 설명 수준은 내부 코드를 노출하지 않고 한국어 표시명으로 보여준다. 현재 세션의 선택값을 우선하고, 값이 없을 때만 기존 서버 설정을 표시한다.
 - 마이페이지에서 개발자용 환전 우대율·실효 스프레드 입력 및 raw enum 노출을 제거했다. 기존 계산 계약과 API 응답 타입은 변경하지 않았다.
-- 기존 X-Ray 데모 fixture를 공용 fixture로 분리해 자산 불러오기와 중복 하드코딩하지 않았다.
+- 초기 설정 자산 불러오기 fixture를 실제 X-Ray API 흐름과 분리해 출처가 섞이지 않게 했다.
 
 ## 위험성향 계산 규칙
 
@@ -54,7 +54,7 @@ Q1~Q3만 A=0, B=1, C=2, D=3으로 합산한다.
 - 진단 상태는 `sessionStorage`의 `divurve_initial_setup_diagnosis_progress`에 저장한다.
 - 설명 분야·수준은 `sessionStorage`의 `divurve.profile-explanation-preferences.v1`에 저장한다.
 - 현재 세션의 값이 없으면 마이페이지의 기존 서버 설정을 표시하지만, 두 출처를 서버에 저장된 하나의 값처럼 취급하지 않는다.
-- `src/api/generated/**`, Swagger 계약, 패키지 파일, Planner 로더와 계산 로직은 변경하지 않았다.
+- 기능 구현에서 `src/api/generated/**`, Swagger 계약, 패키지 파일, Planner 로더와 계산 로직을 손으로 수정하지 않았다. 이후 develop 동기화로 생성 API의 최신 정본을 그대로 가져왔다.
 
 ## 영향 / 리스크
 
@@ -67,8 +67,9 @@ Q1~Q3만 A=0, B=1, C=2, D=3으로 합산한다.
 ## 검증
 
 - [x] `npx tsc --noEmit` 통과
-- [x] `npm run lint` 통과 — 오류 0개, 기존 Fast Refresh 경고 9개
-- [x] `npm run test` 통과 — 74개 파일, 469개 테스트
+- [x] `npm run lint` 통과 — 오류 0개, Fast Refresh 경고 11개(기존 9개 + develop 유입 2개)
+- [x] `npm run test` 통과 — develop 동기화 후 71개 파일, 540개 테스트
+- [x] `npm run test -- --coverage` 통과 — statements/branches/functions/lines 100%
 - [x] `npm run test -- --coverage` 통과 — statements / branches / functions / lines 100%
 - [x] `npm run build` 통과 — 기존 500kB 초과 청크 경고 유지
 - [x] `git diff --check` 통과 — Windows LF→CRLF 안내만 출력

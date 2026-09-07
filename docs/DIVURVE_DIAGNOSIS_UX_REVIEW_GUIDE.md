@@ -103,7 +103,7 @@ Q4, Q5, Q6에 서로 다른 색을 쓰지 않는다. `strong`, semantic `data-se
 
 ### 이번 작업의 임시 영역
 
-- 자산 불러오기: 공용 체험용 fixture, `AssetSource="mock_import"`
+- 자산 불러오기: 실제 X-Ray API와 분리한 초기 설정 전용 fixture, `AssetSource="mock_import"`
 - 진단 진행·결과: `sessionStorage`의 `divurve_initial_setup_diagnosis_progress`
 - 설명 분야·수준: `sessionStorage`의 `divurve.profile-explanation-preferences.v1`
 
@@ -124,7 +124,8 @@ Q4, Q5, Q6에 서로 다른 색을 쓰지 않는다. `strong`, semantic `data-se
 - `src/api/asset-import.ts`, `src/api/asset-import.test.ts`: 체험용 자산 불러오기 경계
 - `src/api/diagnosis-progress-store.ts`, `src/api/diagnosis-progress-store.test.ts`: 진단 세션 상태 저장
 - `src/api/profile-preferences-store.ts`, `src/api/profile-preferences-store.test.ts`: 설명 설정 세션 저장
-- `src/api/fixtures/xray-dashboard.ts`, `src/screens/xray/use-xray.ts`: 자산 fixture 단일화
+- `src/api/fixtures/initial-setup-assets.ts`, `src/api/asset-import.ts`: 초기 설정 전용 체험 자산 fixture
+- `src/screens/xray/use-xray.ts`: develop의 실제 X-Ray API 흐름 유지
 - `src/components/diagnosis/*`: 상태 카드, 항로형 presenter, 연결형 문장, 홈 상세 안내 및 테스트·스타일
 
 ### 초기 설정
@@ -134,11 +135,12 @@ Q4, Q5, Q6에 서로 다른 색을 쓰지 않는다. `strong`, semantic `data-se
 
 ### 마이페이지
 
-- `src/screens/mypage/mypage-api-screen.tsx`, CSS·테스트: 회원 마이페이지 상태와 사용자용 설정
+- `src/screens/mypage/mypage-screen.tsx`, CSS·테스트: 통합 API 마이페이지의 진단 상태와 사용자용 설정
+- `src/screens/mypage/use-mypage.ts`, `mypage-presenter.ts`: develop의 프로필·설정·위험성향·알림 API 조회 구조
 - `src/screens/mypage/mypage-profile-presenter.ts`, 테스트: 로컬·서버 우선순위와 표시 모델
 - `src/screens/mypage/profile-explanation-settings.tsx`: 한국어 설명 분야·수준 변경 UI
 - `src/screens/mypage/diagnosis-result-screen.tsx`, CSS·테스트: 읽기 전용 상세 결과
-- `src/screens/mypage/mypage-screen.tsx`, 테스트, `use-mypage.ts`: 데모 화면 항로형 명칭과 개발자용 설정 정리
+- `src/screens/mypage/mypage-settings-form.tsx`: 개발자용 계산값을 노출하지 않으면서 실제 알림 설정 API 저장 유지
 
 ### 문서
 
@@ -204,10 +206,10 @@ Q4, Q5, Q6에 서로 다른 색을 쓰지 않는다. `strong`, semantic `data-se
 | 명령 | 결과 |
 |---|---|
 | `npx tsc --noEmit` | 통과 |
-| `npm run lint` | 통과, 오류 0개·기존 Fast Refresh 경고 9개 |
-| `npm run test` | 통과, 74개 파일·469개 테스트 |
+| `npm run lint` | 통과, 오류 0개·Fast Refresh 경고 11개(기존 9개 + develop 유입 2개) |
+| `npm run test` | 통과, 71개 파일·540개 테스트 |
 | `npm run test -- --coverage` | 통과, statements·branches·functions·lines 100% |
-| `npm run build` | 통과, 740개 모듈·기존 500kB 초과 청크 경고 |
+| `npm run build` | 통과, 732개 모듈·기존 500kB 초과 청크 경고 |
 | `git diff --check` | 통과, Windows LF→CRLF 안내만 출력 |
 | 신규 진단 코드 `any` 검색 | 명시적 `any` 없음 |
 | 신규 스타일 리터럴 색상 검색 | 추가된 리터럴 색상 없음 |

@@ -238,7 +238,7 @@ Q4~Q6은 하나의 secondary/info 계열만 사용한다. 의미 구분은 색�
 | `src/api/diagnosis-progress-store.test.ts` | 추가 | 정상·빈 값·손상 값·저장 실패 경로 테스트 |
 | `src/api/profile-preferences-store.ts` | 추가 | 설명 분야·설명 수준의 sessionStorage 경계 |
 | `src/api/profile-preferences-store.test.ts` | 추가 | 값 검증, 우선순위 입력, 손상 데이터 처리 테스트 |
-| `src/api/fixtures/xray-dashboard.ts` | 추가 | 자산 불러오기와 X-Ray가 공유하는 체험 데이터 |
+| `src/api/fixtures/initial-setup-assets.ts` | 추가 | 실제 X-Ray API와 분리한 초기 설정 전용 체험 자산 데이터 |
 | `src/screens/xray/use-xray.ts` | 수정 | 중복 fixture 대신 공용 X-Ray fixture 사용 |
 
 ### 공통 진단 컴포넌트
@@ -287,18 +287,18 @@ Q4~Q6은 하나의 secondary/info 계열만 사용한다. 의미 구분은 색�
 
 | 파일 | 상태 | 역할 |
 |---|---|---|
-| `src/screens/mypage/mypage-api-screen.tsx` | 수정 | 서버 조회 결과와 로컬 진단·설명 설정을 출처별 표시 |
-| `src/screens/mypage/mypage-api-screen.css` | 추가 | 회원 마이페이지 설정·링크 반응형 스타일 |
-| `src/screens/mypage/mypage-api-screen.test.tsx` | 수정 | 상태, 한국어 설정, 로컬 우선순위, raw enum 비노출 테스트 |
+| `src/screens/mypage/mypage-screen.tsx` | 수정 | develop 통합 API 화면에 로컬 진단·설명 설정을 출처별 표시 |
+| `src/screens/mypage/mypage-screen.css` | 추가 | 통합 마이페이지 설정·링크 반응형 스타일 |
+| `src/screens/mypage/mypage-screen.test.tsx` | 수정 | API 상태, 한국어 설정, 로컬 우선순위, raw enum 비노출 테스트 |
 | `src/screens/mypage/mypage-profile-presenter.ts` | 추가 | 로컬·Q5·서버 설정 우선순위와 서버 결과 매핑 |
 | `src/screens/mypage/mypage-profile-presenter.test.ts` | 추가 | 모든 상태·라벨·fallback 조합 테스트 |
 | `src/screens/mypage/profile-explanation-settings.tsx` | 추가 | 설명 분야·수준 확인 및 세션 변경 UI |
 | `src/screens/mypage/diagnosis-result-screen.tsx` | 추가 | 초기 설정 Shell과 분리된 읽기 전용 상세 결과 |
 | `src/screens/mypage/diagnosis-result-screen.css` | 추가 | 결과 Curve, 정보 위계, 모바일·reduced-motion 스타일 |
 | `src/screens/mypage/diagnosis-result-screen.test.tsx` | 추가 | 완료·빈 결과, 세 동작, 초기 설정 문구 부재 테스트 |
-| `src/screens/mypage/mypage-screen.tsx` | 수정 | 회원용 진단 callback 연결과 데모 개발자 설정 정리 |
-| `src/screens/mypage/mypage-screen.test.tsx` | 수정 | 회원·데모 분기와 항로형 명칭 회귀 테스트 |
-| `src/screens/mypage/use-mypage.ts` | 수정 | 데모 위험성향 표시명을 항로형으로 통일 |
+| `src/screens/mypage/mypage-settings-form.tsx` | 수정 | 계산 가정 노출 없이 실제 서버 알림 설정 저장 유지 |
+| `src/screens/mypage/use-mypage.ts` | develop 정본 유지 | 프로필·설정·위험성향·알림 API 상태 관리 |
+| `src/screens/mypage/mypage-presenter.ts` | develop 정본 유지 | 서버 응답을 통합 화면 표시 모델로 변환 |
 
 ### 타입
 
@@ -331,20 +331,20 @@ Q4~Q6은 하나의 secondary/info 계열만 사용한다. 의미 구분은 색�
 | 명령 | 종료 상태 | 실제 결과 |
 |---|---:|---|
 | `npx tsc --noEmit` | 0 | TypeScript 오류 없음 |
-| `npm run lint` | 0 | ESLint 오류 0개, 기존 Fast Refresh 경고 9개 |
-| `npm run test` | 0 | 74개 테스트 파일, 469개 테스트 통과 |
-| `npm run test -- --coverage` | 0 | 74개 파일, 469개 테스트 통과, 전 지표 100% |
-| `npm run build` | 0 | 740개 모듈 변환, production build 성공 |
+| `npm run lint` | 0 | ESLint 오류 0개, Fast Refresh 경고 11개(기존 9개 + develop 유입 2개) |
+| `npm run test` | 0 | 71개 테스트 파일, 540개 테스트 통과 |
+| `npm run test -- --coverage` | 0 | 71개 파일, 540개 테스트 통과, 전 지표 100% |
+| `npm run build` | 0 | 732개 모듈 변환, production build 성공 |
 | `git diff --check` | 0 | 공백 오류 없음, Windows LF→CRLF 안내만 출력 |
 | 신규 코드 리터럴 색상 검색 | 해당 없음 | 새 hex/rgb/hsl 없음 |
 | 신규 코드 명시적 `any` 검색 | 해당 없음 | 명시적 `any` 없음 |
 
-공통으로 npm의 `Unknown env config "min-release-age"` 안내가 출력됐다. 린트의 9개 `react-refresh/only-export-components` 경고와 빌드의 500kB 초과 청크 경고는 이번 변경으로 새로 생긴 실패가 아니다. 최종 검증을 막는 오류는 없다.
+공통으로 npm의 `Unknown env config "min-release-age"` 안내가 출력됐다. 린트의 11개 `react-refresh/only-export-components` 경고 중 9개는 기능 브랜치에 이미 있었고 2개는 develop 통합 화면에서 유입됐다. 빌드의 500kB 초과 청크 경고도 실패는 아니다.
 
 ## 17. 전체 테스트 개수와 커버리지
 
-- 테스트 파일: **74개 통과 / 74개**
-- 테스트 케이스: **469개 통과 / 469개**
+- 테스트 파일: **71개 통과 / 71개**
+- 테스트 케이스: **540개 통과 / 540개**
 - Statements: **100%**
 - Branches: **100%**
 - Functions: **100%**
@@ -426,7 +426,7 @@ Vite가 출력한 로컬 주소를 브라우저에서 연다. `node_modules`가 
 ## 21. 백엔드 API가 추가되어야 하는 부분
 
 - 초기 설정 제출과 `onboarded=true` 갱신 API
-- 설명 분야와 설명 수준 조회·저장 API의 확정 계약
+- 서버 설정의 설명 분야·수준을 초기 설정·진단 완료와 연결하는 영속화 정책
 - Q1~Q6 답변, 점수, 대표 유형, 상세 설명 속성의 저장·조회 API
 - 상세 진단 진행 중 문항별 임시 저장과 기기 간 재개 API
 - 실제 마이데이터 또는 금융기관 자산 연결 API
@@ -443,101 +443,22 @@ Vite가 출력한 로컬 주소를 브라우저에서 연다. `node_modules`가 
 - 자산 요약은 실제 보유 자산이 아니다.
 - 결정론적 문장은 사용자의 자유 입력 맥락을 반영하지 않는다.
 - 실제 Chrome 1440px·390px·360px의 최종 육안 판정은 이번 자동 검증에 포함하지 않았으며 18장의 절차로 사용자가 확인해야 한다.
-- ESLint에는 기존 Fast Refresh 경고 9개가 남아 있다.
-- production build에는 기존 500kB 초과 청크 경고가 남아 있다. 최종 JS 출력은 약 786.44kB, gzip 약 223.13kB였다.
+- ESLint에는 Fast Refresh 경고 11개가 남아 있다. 기능 브랜치에 있던 9개와 develop에서 추가된 동일 유형 2개이며 오류는 0개다.
+- production build에는 기존 500kB 초과 청크 경고가 남아 있다. 최종 JS 출력은 764.94kB, gzip 220.51kB였다.
 - 이번 범위에서 수정한 마이페이지와 신규 진단 스타일은 기존 CSS 색상·그림자 토큰만 사용한다.
 
-## 23. `git diff --stat`
+## 23. develop 동기화 이후 변경 통계
 
-`git diff --stat`은 Git이 추적 중인 수정·삭제 파일만 집계하며 아직 추적되지 않은 신규 파일은 포함하지 않는다.
-
-```text
- docs/tech-changelog/README.md                      |   3 +
- src/app/app.test.tsx                               | 244 +++++++++++-
- src/app/app.tsx                                    | 210 +++++++++-
- src/hooks/use-tab-navigation.test.ts               |   1 +
- src/hooks/use-tab-navigation.ts                    |   1 +
- src/screens/initial-setup/initial-setup-screen.css | 438 ++++++++++++++++++++-
- .../initial-setup/initial-setup-screen.test.tsx    | 261 +++++++++---
- src/screens/initial-setup/initial-setup-screen.tsx |  19 +-
- src/screens/initial-setup/initial-setup-steps.tsx  | 153 +------
- src/screens/initial-setup/initial-setup-types.ts   |  46 ---
- src/screens/initial-setup/initial-setup-view.tsx   | 243 +++++++++---
- .../initial-setup/use-initial-setup.test.ts        | 110 ++++--
- src/screens/initial-setup/use-initial-setup.ts     | 431 ++++++++++++++++----
- src/screens/mypage/mypage-api-screen.test.tsx      | 173 +++++---
- src/screens/mypage/mypage-api-screen.tsx           | 212 ++++------
- src/screens/mypage/mypage-screen.test.tsx          |  32 +-
- src/screens/mypage/mypage-screen.tsx               |  91 +----
- src/screens/mypage/use-mypage.ts                   |   9 +-
- src/screens/xray/use-xray.ts                       | 102 +----
- src/types/mypage.ts                                |  16 +-
- 20 files changed, 1999 insertions(+), 796 deletions(-)
-```
+`origin/develop...HEAD` 기준 진단 기능 변경은 동기화 검수 문서 작성 전 63개 파일, 6,460줄 추가, 1,068줄 삭제였다. 최신 상세 통계와 충돌 판단은 `DIVURVE_DEVELOP_SYNC_REVIEW_GUIDE.md`를 기준으로 확인한다.
 
 ## 24. `git status --short --branch`
 
-아래 상태에는 기존부터 이어온 커밋 전 구현과 이번 검수 문서가 모두 포함된다.
+develop 병합과 자동 검증 직후 작업 트리는 깨끗했다.
 
 ```text
 ## feat/initial-setup-diagnosis-flow
- M docs/tech-changelog/README.md
- M src/app/app.test.tsx
- M src/app/app.tsx
- M src/hooks/use-tab-navigation.test.ts
- M src/hooks/use-tab-navigation.ts
- M src/screens/initial-setup/initial-setup-screen.css
- M src/screens/initial-setup/initial-setup-screen.test.tsx
- M src/screens/initial-setup/initial-setup-screen.tsx
- M src/screens/initial-setup/initial-setup-steps.tsx
- D src/screens/initial-setup/initial-setup-types.ts
- M src/screens/initial-setup/initial-setup-view.tsx
- M src/screens/initial-setup/use-initial-setup.test.ts
- M src/screens/initial-setup/use-initial-setup.ts
- M src/screens/mypage/mypage-api-screen.test.tsx
- M src/screens/mypage/mypage-api-screen.tsx
- M src/screens/mypage/mypage-screen.test.tsx
- M src/screens/mypage/mypage-screen.tsx
- M src/screens/mypage/use-mypage.ts
- M src/screens/xray/use-xray.ts
- M src/types/mypage.ts
-?? DIVURVE_DIAGNOSIS_UX_IMPLEMENTATION_REVIEW_GUIDE.md
-?? docs/DIVURVE_DIAGNOSIS_UX_REVIEW_GUIDE.md
-?? docs/tech-changelog/0031-initial-setup-diagnosis-flow.md
-?? src/api/asset-import.test.ts
-?? src/api/asset-import.ts
-?? src/api/diagnosis-progress-store.test.ts
-?? src/api/diagnosis-progress-store.ts
-?? src/api/fixtures/xray-dashboard.ts
-?? src/api/profile-preferences-store.test.ts
-?? src/api/profile-preferences-store.ts
-?? src/app/diagnosis-invite-timing.ts
-?? src/app/diagnosis-routing.test.ts
-?? src/app/diagnosis-routing.ts
-?? src/components/diagnosis/
-?? src/screens/initial-setup/asset-import-step.tsx
-?? src/screens/initial-setup/detailed-diagnosis.test.ts
-?? src/screens/initial-setup/detailed-diagnosis.ts
-?? src/screens/initial-setup/diagnosis-question-step.tsx
-?? src/screens/initial-setup/diagnosis-result-steps.tsx
-?? src/screens/initial-setup/explanation-domain-step.tsx
-?? src/screens/initial-setup/initial-setup-state.test.ts
-?? src/screens/initial-setup/initial-setup-state.ts
-?? src/screens/initial-setup/initial-setup-types.d.ts
-?? src/screens/initial-setup/risk-diagnosis-questions.ts
-?? src/screens/initial-setup/risk-diagnosis.test.ts
-?? src/screens/initial-setup/risk-diagnosis.ts
-?? src/screens/mypage/diagnosis-result-screen.css
-?? src/screens/mypage/diagnosis-result-screen.test.tsx
-?? src/screens/mypage/diagnosis-result-screen.tsx
-?? src/screens/mypage/mypage-api-screen.css
-?? src/screens/mypage/mypage-profile-presenter.test.ts
-?? src/screens/mypage/mypage-profile-presenter.ts
-?? src/screens/mypage/profile-explanation-settings.tsx
-?? src/types/assets.ts
-?? src/types/diagnosis.ts
 ```
 
 ## 25. 커밋과 push 수행 여부
 
-이번 작업에서는 **commit, push, merge를 수행하지 않았다.** 사용자가 위 자동 결과와 수동 화면 검수를 확인한 뒤 직접 Git 작업을 진행할 수 있도록 현재 작업 트리를 그대로 유지했다.
+후속 동기화 요청에 따라 기능 체크포인트와 develop merge commit을 로컬에 생성했다. 원격 push, PR 생성, develop 브랜치 전환 및 develop으로의 최종 merge는 수행하지 않았다.
