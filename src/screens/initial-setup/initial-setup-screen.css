@@ -236,7 +236,6 @@
   font-size: 0.8125rem;
 }
 
-.initial-setup__import-ready,
 .initial-setup__import-loading,
 .initial-setup__import-error,
 .initial-setup__import-result {
@@ -245,7 +244,6 @@
   background: var(--surface-subtle);
 }
 
-.initial-setup__import-ready,
 .initial-setup__import-error {
   display: flex;
   align-items: center;
@@ -253,20 +251,17 @@
   padding: 1.25rem;
 }
 
-.initial-setup__import-ready > svg,
 .initial-setup__import-error > svg {
   flex: 0 0 auto;
   color: var(--primary);
 }
 
-.initial-setup__import-ready > div,
 .initial-setup__import-error > div {
   display: grid;
   flex: 1;
   gap: 0.25rem;
 }
 
-.initial-setup__import-ready span,
 .initial-setup__import-error span,
 .initial-setup__import-result > p {
   color: var(--text-muted);
@@ -701,7 +696,6 @@
     grid-template-columns: 1fr;
   }
 
-  .initial-setup__import-ready,
   .initial-setup__import-error {
     align-items: stretch;
     flex-direction: column;

@@ -1,4 +1,4 @@
-import { loadMockImportedAssets } from "../../api/asset-import";
+import { fetchImportedAssetSummary } from "../../api/asset-import";
 import type { DiagnosisProgress } from "../../types/diagnosis";
 import type {
   CompletedDetailedDiagnosisAnswers,
@@ -23,7 +23,7 @@ export const INITIAL_SETUP_STEPS: readonly InitialSetupStepId[] = [
 ] as const;
 
 export const DEFAULT_INITIAL_SETUP_DEPENDENCIES: InitialSetupDependencies = {
-  importAssets: loadMockImportedAssets,
+  importAssets: fetchImportedAssetSummary,
 };
 
 export interface InitialSetupControllerState {

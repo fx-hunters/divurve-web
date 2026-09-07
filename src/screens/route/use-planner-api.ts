@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import type {
   StepCompleteResponse,
@@ -10,6 +10,7 @@ import {
   skipPlanStep,
   type PlannerApiOverview,
 } from "../../api/planner";
+import { validateExecutedStepInput } from "./planner-api-types";
 
 export type PlannerApiState =
   | { readonly status: "loading" }
@@ -17,7 +18,7 @@ export type PlannerApiState =
   | { readonly status: "empty" }
   | { readonly status: "success"; readonly data: PlannerApiOverview };
 
-type PlannerActionState =
+export type PlannerActionState =
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | {
@@ -53,6 +54,7 @@ export function usePlannerApi(
     status: "idle",
   });
   const [reloadKey, setReloadKey] = useState(0);
+  const isActionPendingRef = useRef(false);
 
   useEffect(() => {
     let isActive = true;
@@ -82,11 +84,20 @@ export function usePlannerApi(
       executedAmount: number,
       executedRate: number,
     ) => {
+      if (isActionPendingRef.current) return;
+      const validation = validateExecutedStepInput({
+        executedAmount,
+        executedRate,
+      });
+      if (!validation.isValid) {
+        setActionState({ status: "error", message: validation.message });
+        return;
+      }
+      isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
         const result = await dependencies.complete(planId, sequence, {
-          executedAmount,
-          executedRate,
+          ...validation.value,
         });
         setActionState({
           status: "success",
@@ -96,6 +107,8 @@ export function usePlannerApi(
         setReloadKey((key) => key + 1);
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
+      } finally {
+        isActionPendingRef.current = false;
       }
     },
     [dependencies],
@@ -103,6 +116,8 @@ export function usePlannerApi(
 
   const skip = useCallback(
     async (planId: string, sequence: number) => {
+      if (isActionPendingRef.current) return;
+      isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
         const result = await dependencies.skip(planId, sequence);
@@ -114,15 +129,22 @@ export function usePlannerApi(
         setReloadKey((key) => key + 1);
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
+      } finally {
+        isActionPendingRef.current = false;
       }
     },
     [dependencies],
   );
 
+  const reload = useCallback(() => {
+    setActionState({ status: "idle" });
+    setReloadKey((key) => key + 1);
+  }, []);
+
   return {
     state,
     actionState,
-    reload: () => setReloadKey((key) => key + 1),
+    reload,
     complete,
     skip,
   };

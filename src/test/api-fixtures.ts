@@ -9,6 +9,15 @@ import type {
   XrayBundle,
 } from "../api/generated/divurve-api";
 import type { PlannerApiOverview } from "../api/planner";
+import type { ImportedAssetSummary } from "../types/assets";
+
+/** 온보딩 2단계가 표시하는 자산 요약. 금액은 환율에 따라 달라지므로 예시일 뿐이다. */
+export const IMPORTED_ASSET_SUMMARY_FIXTURE: ImportedAssetSummary = {
+  fxAssetKrw: 64_058_000,
+  krwAssetKrw: 36_000_000,
+  currencyCodes: ["USD", "JPY", "EUR"],
+  asOf: "2026-09-07T09:30:00Z",
+};
 
 export const FORECAST_API_FIXTURE: ForecastBundle = {
   forecast: {

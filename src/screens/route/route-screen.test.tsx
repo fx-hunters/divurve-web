@@ -8,7 +8,9 @@ import {
 } from "vitest";
 import { ApiError } from "../../api/client";
 import { loadRoutePlan } from "../../api/route";
+import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import { RouteScreen } from "./route-screen";
+import type { PlannerApiDependencies } from "./use-planner-api";
 
 const PLAN_IDS = {
   "미국 ETF 정기 투자": "usd-etf-recurring-demo",
@@ -346,6 +348,28 @@ describe("RouteScreen", () => {
     expect(
       await screen.findByText("표시할 목표 또는 계획 데이터가 없습니다."),
     ).toBeInTheDocument();
+  });
+
+  it("회원용 API 모드에서는 서버 목표만 단계형 플래너에 표시한다", async () => {
+    const apiDependencies: PlannerApiDependencies = {
+      load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+      complete: vi.fn(),
+      skip: vi.fn(),
+    };
+
+    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+
+    expect(
+      await screen.findByRole("region", { name: "API 플래너" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /미국 ETF 준비/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "어떤 외화 목표를 준비하고 있나요?",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("API 오류를 표시하고 다시 불러온다", async () => {

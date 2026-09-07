@@ -80,7 +80,7 @@ function CurrentStep({ state, actions }: InitialSetupViewProps) {
       return (
         <AssetImportStep
           state={state.assetImport}
-          onImport={actions.startAssetImport}
+          onRetry={actions.retryAssetImport}
         />
       );
     case "riskProfile":

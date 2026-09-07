@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { IMPORTED_ASSET_SUMMARY_FIXTURE } from "../../test/api-fixtures";
 import { calculateQuickRiskResult } from "./risk-diagnosis";
 import {
   addSkippedStep,
@@ -41,16 +42,7 @@ describe("initial setup state helpers", () => {
   it("각 단계의 초안만 제거한다", () => {
     const draft = {
       explanationDomain: "dev" as const,
-      importedAssets: {
-        assetSource: "mock_import" as const,
-        sourceLabel: "mock",
-        foreignAssetLabel: "foreign",
-        foreignAssetValue: "1원",
-        krwAssetLabel: "krw",
-        krwAssetValue: "2원",
-        currenciesLabel: "USD",
-        importedAtLabel: "now",
-      },
+      importedAssets: IMPORTED_ASSET_SUMMARY_FIXTURE,
       quickAnswers: quickResult.answers,
       quickDiagnosis: quickResult,
       detailedAnswers: { Q4: "A" as const },
