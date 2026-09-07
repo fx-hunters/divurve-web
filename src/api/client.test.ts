@@ -355,3 +355,60 @@ describe("request", () => {
     ).resolves.toEqual({ data: "ok", meta: { asOf: "" } });
   });
 });
+
+describe("에러 봉투의 field", () => {
+  it("서버가 지목한 field를 ApiError에 담고, 없으면 null로 둔다", async () => {
+    vi.stubEnv("VITE_API_URL", "https://api.test");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "VALIDATION_FAILED",
+              message: "기간이 올바르지 않습니다.",
+              field: "from",
+            },
+          },
+          400,
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "NOT_FOUND", message: "없습니다." } }, 404),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      request("/api/v1/admin/fx-rates", { requiresAuth: false }),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: "기간이 올바르지 않습니다.",
+      field: "from",
+    });
+
+    await expect(
+      request("/api/v1/admin/users/9/data", { requiresAuth: false }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", field: null });
+  });
+});
+
+describe("isRawBody", () => {
+  it("켜면 바디 키를 snake_case로 바꾸지 않는다", async () => {
+    vi.stubEnv("VITE_API_URL", "https://api.test");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: {}, meta: { as_of: "" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await request("/api/v1/ai/explain", {
+      method: "POST",
+      requiresAuth: false,
+      isRawBody: true,
+      body: { surface: "s", facts: { camelKey: 1, snake_key: 2 } },
+    });
+
+    expect(
+      JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string),
+    ).toEqual({ surface: "s", facts: { camelKey: 1, snake_key: 2 } });
+  });
+});

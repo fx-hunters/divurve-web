@@ -27,12 +27,20 @@ interface ApiErrorEnvelope {
   readonly error?: {
     readonly code?: unknown;
     readonly message?: unknown;
+    readonly field?: unknown;
   };
 }
 
 export interface ApiRequestInit extends Omit<RequestInit, "body"> {
   readonly body?: unknown;
   readonly requiresAuth?: boolean;
+  /**
+   * 바디를 snake_case로 바꾸지 않고 그대로 보낸다.
+   *
+   * 운영자가 직접 입력한 JSON처럼 키를 손대면 안 되는 요청에만 쓴다.
+   * 도메인 모델을 보내는 일반 요청은 기본값(변환)을 쓴다.
+   */
+  readonly isRawBody?: boolean;
 }
 
 export class ApiError extends Error {
@@ -40,6 +48,8 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string = "HTTP_ERROR",
+    /** VALIDATION_FAILED에서 어떤 필드가 문제인지 백엔드가 지목한 값. */
+    readonly field: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -133,12 +143,14 @@ function toApiError(payload: unknown, status: number): ApiError {
     : undefined;
   const code = errorValue?.code;
   const message = errorValue?.message;
+  const field = errorValue?.field;
   return new ApiError(
     typeof message === "string"
       ? message
       : `요청이 실패했습니다 (HTTP ${status}).`,
     status,
     typeof code === "string" ? code : "HTTP_ERROR",
+    typeof field === "string" ? field : null,
   );
 }
 
@@ -202,6 +214,7 @@ async function sendRequest<T>(
   const {
     body,
     requiresAuth = true,
+    isRawBody = false,
     headers: suppliedHeaders,
     ...requestInit
   } = init;
@@ -226,7 +239,10 @@ async function sendRequest<T>(
     response = await fetch(apiUrl(path, env), {
       ...requestInit,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(toSnakeCase(body)),
+      body:
+        body === undefined
+          ? undefined
+          : JSON.stringify(isRawBody ? body : toSnakeCase(body)),
     });
   } catch {
     throw new ApiError(
