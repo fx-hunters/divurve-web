@@ -1,227 +1,45 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { ApiStateView } from "../../components/common/api-state-view";
 import { Badge } from "../../components/common/badge";
-import { Card } from "../../components/common/card";
+import { presentPlannerOverview } from "./planner-api-presenter";
+import { PlannerJourneyAction } from "./planner-journey-action";
+import { PlannerJourneyCurve } from "./planner-journey-curve";
+import { PlannerJourneyDetail } from "./planner-journey-detail";
+import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
+import { PlannerJourneyStatus } from "./planner-journey-status";
 import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import "./planner-api-screen.css";
 
-function ratioLabel(value: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
-interface PlannerApiScreenProps {
-  readonly dependencies?: PlannerApiDependencies;
-}
+type JourneyStage = "goal" | "status" | "curve" | "action" | "noPlan";
+interface PlannerApiScreenProps { readonly dependencies?: PlannerApiDependencies; }
 
 export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
-  const { state, actionState, reload, complete, skip } =
-    usePlannerApi(dependencies);
+  const { state, actionState, reload, complete, skip } = usePlannerApi(dependencies);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [executedAmount, setExecutedAmount] = useState("");
-  const [executedRate, setExecutedRate] = useState("");
+  const [stage, setStage] = useState<JourneyStage>("goal");
+  const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
+  const [isDetailOpen, setDetailOpen] = useState(false);
+  const detailTrigger = useRef<HTMLButtonElement>(null);
+  if (state.status === "loading") return <ApiStateView status="loading" title="플래너를 불러오는 중입니다" message="목표와 활성 계획을 서버에서 확인하고 있습니다." />;
+  if (state.status === "error") return <ApiStateView status="error" title="플래너를 불러오지 못했습니다" message={state.message} onRetry={reload} />;
+  if (state.status === "empty") return <ApiStateView status="empty" title="등록된 외화 목표가 없습니다" message="외화 목표를 등록한 뒤 이곳에서 계획을 확인할 수 있습니다." />;
 
-  useEffect(() => {
-    if (state.status !== "success" || selectedGoalId !== null) return;
-    setSelectedGoalId(state.data.items[0]!.goal.id);
-  }, [selectedGoalId, state]);
-
-  if (state.status === "loading") {
-    return (
-      <ApiStateView
-        status="loading"
-        title="플래너를 불러오는 중입니다"
-        message="목표와 활성 계획을 서버에서 확인하고 있습니다."
-      />
-    );
-  }
-  if (state.status === "error") {
-    return (
-      <ApiStateView
-        status="error"
-        title="플래너를 불러오지 못했습니다"
-        message={state.message}
-        onRetry={reload}
-      />
-    );
-  }
-  if (state.status === "empty") {
-    return (
-      <ApiStateView
-        status="empty"
-        title="등록된 외화 목표가 없습니다"
-        message="목표 생성 API가 연결되면 이곳에서 계획을 확인할 수 있습니다."
-      />
-    );
-  }
-
-  const selected =
-    state.data.items.find((item) => item.goal.id === selectedGoalId) ??
-    state.data.items[0]!;
-  const nextStep = selected.activePlan?.steps.find(
-    (step) => step.status !== "completed" && step.status !== "skipped",
-  );
-
-  return (
-    <section aria-label="API 플래너" style={{ display: "grid", gap: "1.5rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
-        <div>
-          <h2 style={{ color: "var(--text)", fontSize: "1.75rem", fontWeight: 800 }}>
-            내 외화 플래너
-          </h2>
-          <p style={{ color: "var(--text-muted)", marginTop: "0.5rem" }}>
-            목표와 회차 값은 서버 응답을 그대로 표시합니다.
-          </p>
-        </div>
-        <Badge variant="primary">Swagger API</Badge>
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-        {state.data.items.map((item) => (
-          <button
-            key={item.goal.id}
-            type="button"
-            aria-pressed={item.goal.id === selected.goal.id}
-            onClick={() => setSelectedGoalId(item.goal.id)}
-            style={{
-              padding: "0.75rem 1rem",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border)",
-              backgroundColor:
-                item.goal.id === selected.goal.id
-                  ? "var(--primary-subtle)"
-                  : "var(--surface)",
-              color: "var(--text)",
-              fontWeight: 700,
-            }}
-          >
-            {item.goal.name}
-          </button>
-        ))}
-      </div>
-
-      <Card title={selected.goal.name} highlight>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          <div>
-            <span style={{ color: "var(--text-muted)" }}>목표</span>
-            <strong style={{ display: "block", color: "var(--text)", fontSize: "1.5rem" }}>
-              {selected.goal.targetAmount.toLocaleString()} {selected.goal.currencyCode}
-            </strong>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-muted)" }}>현재 확보</span>
-            <strong style={{ display: "block", color: "var(--primary)", fontSize: "1.5rem" }}>
-              {selected.goal.heldAmount.toLocaleString()} {selected.goal.currencyCode}
-            </strong>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-muted)" }}>목표일</span>
-            <strong style={{ display: "block", color: "var(--text)" }}>
-              {selected.goal.targetDate || "미설정"}
-            </strong>
-          </div>
-        </div>
-      </Card>
-
-      {!selected.activePlan ? (
-        <Card title="활성 계획">
-          <p style={{ color: "var(--text-muted)", lineHeight: 1.6 }}>
-            이 목표에 저장된 활성 계획이 없습니다. Curve와 대체 시나리오는 현재
-            Swagger 응답에 좌표·시나리오 계약이 없어 목 데이터 체험에서만 제공합니다.
-          </p>
-        </Card>
-      ) : (
-        <>
-          <Card
-            title={`활성 계획 v${selected.activePlan.version}`}
-            action={<Badge variant="normal">{selected.activePlan.isActive ? "활성" : "비활성"}</Badge>}
-          >
-            <p style={{ color: "var(--text)", lineHeight: 1.6 }}>
-              {selected.activePlan.reason}
-            </p>
-            <p style={{ color: "var(--text-muted)", marginTop: "0.75rem" }}>
-              안전 비율 {ratioLabel(selected.activePlan.safeRatio)} · 분할 회차 {selected.activePlan.splitCount}
-            </p>
-          </Card>
-
-          <Card title="회차 계획">
-            <ol style={{ display: "grid", gap: "0.75rem", paddingLeft: "1.25rem" }}>
-              {selected.activePlan.steps.map((step) => (
-                <li key={step.seq} style={{ color: "var(--text)" }}>
-                  {step.scheduledDate} · {step.amount.toLocaleString()} {selected.goal.currencyCode}
-                  {" · "}{step.status}
-                </li>
-              ))}
-            </ol>
-          </Card>
-
-          {nextStep && (
-            <Card title={`${nextStep.seq}회차 실행 기록`}>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void complete(
-                    selected.activePlan!.id,
-                    nextStep.seq,
-                    Number(executedAmount),
-                    Number(executedRate),
-                  );
-                }}
-                style={{ display: "grid", gap: "0.75rem" }}
-              >
-                <label style={{ display: "grid", gap: "0.375rem", color: "var(--text-muted)" }}>
-                  실행 외화 금액
-                  <input
-                    required
-                    type="number"
-                    value={executedAmount}
-                    onChange={(event) => setExecutedAmount(event.target.value)}
-                    style={{ padding: "0.75rem", color: "var(--text)", background: "var(--surface)", border: "1px solid var(--border)" }}
-                  />
-                </label>
-                <label style={{ display: "grid", gap: "0.375rem", color: "var(--text-muted)" }}>
-                  실행 환율
-                  <input
-                    required
-                    type="number"
-                    value={executedRate}
-                    onChange={(event) => setExecutedRate(event.target.value)}
-                    style={{ padding: "0.75rem", color: "var(--text)", background: "var(--surface)", border: "1px solid var(--border)" }}
-                  />
-                </label>
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                  <button
-                    type="submit"
-                    disabled={actionState.status === "loading"}
-                    style={{ padding: "0.75rem 1rem", background: "var(--primary)", color: "var(--primary-content)", borderRadius: "var(--radius-md)", fontWeight: 700 }}
-                  >
-                    이번 회차 기록
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionState.status === "loading"}
-                    onClick={() => void skip(selected.activePlan!.id, nextStep.seq)}
-                    style={{ padding: "0.75rem 1rem", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", fontWeight: 700 }}
-                  >
-                    이번 회차 건너뛰기
-                  </button>
-                </div>
-              </form>
-            </Card>
-          )}
-        </>
-      )}
-
-      {actionState.status === "loading" && <p role="status">서버에 반영 중…</p>}
-      {actionState.status === "error" && <p role="alert">{actionState.message}</p>}
-      {actionState.status === "success" && <p role="status">{actionState.message}</p>}
-    </section>
-  );
+  const view = presentPlannerOverview(state.data, selectedGoalId);
+  const goal = view.selectedGoal!;
+  const action = view.nextAction;
+  const selectGoal = (goalId: string) => { setSelectedGoalId(goalId); setStage("status"); setSelectedSequence(null); };
+  const showCurve = () => { if (view.plan === null) { setStage("noPlan"); return; } setSelectedSequence(view.nextAction?.sequence ?? null); setStage("curve"); };
+  return <section className="planner-api" aria-label="API 플래너">
+    <header className="planner-api__header"><div><h1>내 외화 플래너</h1><p>{view.dataSource.label}의 목표와 계획을 표시합니다.</p></div><Badge variant="primary">서버 연결</Badge></header>
+    <div className="planner-api-journey">
+      {stage === "goal" && <PlannerJourneyGoalSelect goals={view.goalItems} selectedGoalId={goal.id} onSelect={selectGoal} onContinue={() => setStage("status")} />}
+      {stage === "status" && <PlannerJourneyStatus goal={goal} onBack={() => setStage("goal")} onContinue={showCurve} />}
+      {stage === "curve" && view.curve !== null && <PlannerJourneyCurve curve={view.curve} steps={view.steps} selectedSequence={selectedSequence} onSelect={setSelectedSequence} onBack={() => setStage("status")} onContinue={() => setStage("action")} />}
+      {stage === "action" && action !== null && <PlannerJourneyAction step={view.steps.find((step) => step.sequence === action.sequence)!} detailButtonRef={detailTrigger} isPending={actionState.status === "loading"} onComplete={(amount, rate) => void complete(action.planId, action.sequence, amount, rate)} onSkip={() => void skip(action.planId, action.sequence)} onBack={() => setStage("curve")} onDetail={() => setDetailOpen(true)} />}
+      {stage === "noPlan" && <div className="planner-api-journey__scene"><p className="planner-api-journey__eyebrow">활성 계획</p><h2>이 목표에는 활성 계획이 없습니다</h2><p className="planner-api__no-plan">현재 서버에 저장된 활성 계획이 없어 Curve와 다음 행동을 표시할 수 없습니다.</p><div className="planner-api-journey__buttons"><button type="button" className="planner-api-journey__secondary" onClick={() => setStage("status")}>현재 상태</button><button type="button" className="planner-api-journey__secondary" onClick={() => setStage("goal")}>다른 목표 보기</button></div></div>}
+      {view.plan !== null && action === null && stage === "action" && <div className="planner-api-journey__scene"><p className="planner-api-journey__eyebrow">다음 행동</p><h2>남은 회차가 없습니다</h2><button ref={detailTrigger} type="button" className="planner-api-journey__secondary" onClick={() => setDetailOpen(true)}>전체 계획 상세 보기</button></div>}
+      {actionState.status !== "idle" && <div className="planner-api__notice" role={actionState.status === "error" ? "alert" : "status"}>{actionState.status === "loading" ? "서버에 반영 중…" : actionState.message}{actionState.status === "error" && <button type="button" onClick={reload}>현재 상태 다시 확인</button>}</div>}
+    </div>
+    {isDetailOpen && view.plan !== null && <PlannerJourneyDetail plan={view.plan} steps={view.steps} returnFocus={detailTrigger.current} onClose={() => setDetailOpen(false)} />}
+  </section>;
 }
