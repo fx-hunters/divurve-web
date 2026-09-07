@@ -1,0 +1,454 @@
+/*
+ * 관리자 콘솔 스타일.
+ *
+ * 임시 운영 도구다. 색은 전부 tokens.css의 변수만 쓰고(AGENTS.md 6장),
+ * 표와 폼이 읽히는 수준까지만 손댄다.
+ */
+
+.admin-shell {
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.admin-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.admin-shell__brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.admin-shell__nav {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.admin-shell__main {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-nav-item {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.admin-nav-item--active {
+  border-color: var(--primary-border);
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.admin-section {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-section__title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.admin-section__description,
+.admin-pager__label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.admin-section__action {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-subtitle {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+/* --- 폼 --- */
+
+.admin-toolbar,
+.admin-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.admin-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.admin-field--block {
+  width: 100%;
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.admin-field textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.admin-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+}
+
+.admin-fieldset legend {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 0.35rem;
+}
+
+.admin-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.admin-checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-button {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-button--primary {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-content);
+}
+
+.admin-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- 표 --- */
+
+.admin-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  background-color: var(--surface-subtle);
+  color: var(--text-muted);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+}
+
+.admin-table__row--clickable {
+  cursor: pointer;
+}
+
+.admin-table__row--clickable:hover {
+  background-color: var(--surface-hover);
+}
+
+.admin-table__row--muted {
+  color: var(--text-muted);
+}
+
+.admin-table__row--danger {
+  background-color: var(--danger-bg);
+}
+
+.admin-reject-reason {
+  color: var(--danger);
+}
+
+/* --- 값·상태 패널 --- */
+
+.admin-empty {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0;
+}
+
+.admin-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.admin-panel--idle {
+  color: var(--text-muted);
+}
+
+.admin-panel--danger {
+  border-color: var(--danger-border);
+  background-color: var(--danger-bg);
+  color: var(--danger);
+}
+
+.admin-panel--warn {
+  border-color: var(--warn-border);
+  background-color: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.admin-panel--result {
+  border-color: var(--primary-border);
+}
+
+.admin-panel__message {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.admin-kv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+.admin-kv dt {
+  color: var(--text-muted);
+}
+
+.admin-kv dd {
+  color: var(--text);
+}
+
+.admin-kv__pair {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.admin-badge {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background-color: var(--surface-subtle);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-badge--demo {
+  border-color: var(--warn-border);
+  background-color: var(--warn-bg);
+  color: var(--warn);
+}
+
+.admin-badge--sample {
+  border-color: var(--primary-border);
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+}
+
+.admin-badge--ok {
+  border-color: var(--normal-border);
+  background-color: var(--normal-bg);
+  color: var(--normal);
+}
+
+.admin-badge--off {
+  border-color: var(--danger-border);
+  background-color: var(--danger-bg);
+  color: var(--danger);
+}
+
+.admin-badge--unknown {
+  color: var(--text-muted);
+}
+
+.admin-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.admin-raw__body {
+  overflow-x: auto;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre;
+}
+
+.admin-raw summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.admin-sentences {
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.admin-chart {
+  width: 100%;
+}
+
+.admin-domain {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-domain__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background-color: var(--surface-subtle);
+  border: none;
+  color: var(--text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.admin-domain__name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  flex: 1;
+  text-align: left;
+}
+
+.admin-domain__count {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.admin-pager {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* --- 로그인 --- */
+
+.admin-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  padding: 1.5rem;
+}
+
+.admin-login__form {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+}
+
+.admin-login__title {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.admin-login__subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
