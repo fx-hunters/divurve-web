@@ -7,13 +7,21 @@ import { PlannerJourneyCurve } from "./planner-journey-curve";
 import { PlannerJourneyDetail } from "./planner-journey-detail";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
 import { PlannerJourneyStatus } from "./planner-journey-status";
+import { PlannerPlanHistory } from "./planner-plan-history";
+import { toPlanSummaryFacts } from "./planner-plan-facts";
 import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
+import type { PlanVersionDependencies } from "./use-plan-versions";
 import "./planner-api-screen.css";
 
-type JourneyStage = "goal" | "status" | "curve" | "action" | "noPlan";
-interface PlannerApiScreenProps { readonly dependencies?: PlannerApiDependencies; }
+type JourneyStage = "goal" | "status" | "curve" | "action" | "noPlan" | "history";
+interface PlannerApiScreenProps {
+  readonly dependencies?: PlannerApiDependencies;
+  readonly planVersionDependencies?: PlanVersionDependencies;
+  readonly explanationRequester?: ExplanationRequester;
+}
 
-export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
+export function PlannerApiScreen({ dependencies, planVersionDependencies, explanationRequester }: PlannerApiScreenProps) {
   const { state, actionState, reload, complete, skip } = usePlannerApi(dependencies);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [stage, setStage] = useState<JourneyStage>("goal");
@@ -33,7 +41,8 @@ export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
     <header className="planner-api__header"><div><h1>내 외화 플래너</h1><p>{view.dataSource.label}의 목표와 계획을 표시합니다.</p></div><Badge variant="primary">서버 연결</Badge></header>
     <div className="planner-api-journey">
       {stage === "goal" && <PlannerJourneyGoalSelect goals={view.goalItems} selectedGoalId={goal.id} onSelect={selectGoal} onContinue={() => setStage("status")} />}
-      {stage === "status" && <PlannerJourneyStatus goal={goal} onBack={() => setStage("goal")} onContinue={showCurve} />}
+      {stage === "status" && <PlannerJourneyStatus goal={goal} onBack={() => setStage("goal")} onContinue={showCurve} onHistory={() => setStage("history")} />}
+      {stage === "history" && <PlannerPlanHistory goalId={goal.id} goalName={goal.name} currencyCode={goal.currencyCode} facts={toPlanSummaryFacts(view)} dependencies={planVersionDependencies} explanationRequester={explanationRequester} onBack={() => setStage("status")} />}
       {stage === "curve" && view.curve !== null && <PlannerJourneyCurve curve={view.curve} steps={view.steps} selectedSequence={selectedSequence} onSelect={setSelectedSequence} onBack={() => setStage("status")} onContinue={() => setStage("action")} />}
       {stage === "action" && action !== null && <PlannerJourneyAction step={view.steps.find((step) => step.sequence === action.sequence)!} detailButtonRef={detailTrigger} isPending={actionState.status === "loading"} onComplete={(amount, rate) => void complete(action.planId, action.sequence, amount, rate)} onSkip={() => void skip(action.planId, action.sequence)} onBack={() => setStage("curve")} onDetail={() => setDetailOpen(true)} />}
       {stage === "noPlan" && <div className="planner-api-journey__scene"><p className="planner-api-journey__eyebrow">활성 계획</p><h2>이 목표에는 활성 계획이 없습니다</h2><p className="planner-api__no-plan">현재 서버에 저장된 활성 계획이 없어 Curve와 다음 행동을 표시할 수 없습니다.</p><div className="planner-api-journey__buttons"><button type="button" className="planner-api-journey__secondary" onClick={() => setStage("status")}>현재 상태</button><button type="button" className="planner-api-journey__secondary" onClick={() => setStage("goal")}>다른 목표 보기</button></div></div>}

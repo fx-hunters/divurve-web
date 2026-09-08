@@ -6,6 +6,7 @@ import {
   STRESS_RUN_FIXTURE,
   XRAY_API_FIXTURE,
 } from "../../test/api-fixtures";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDependencies } from "./use-xray";
 import { XRayScreen } from "./xray-screen";
 
@@ -20,11 +21,14 @@ function makeDependencies(
   };
 }
 
+// 화면 흐름만 보는 테스트에서는 AI 설명을 로딩 상태로 묶어 둔다.
+const PENDING_REQUESTER: ExplanationRequester = () => new Promise(() => {});
+
 describe("XRayScreen", () => {
   it("서브 탭 전환 인터랙션을 정상적으로 처리한다", async () => {
     const onNavigate = vi.fn();
     render(
-      <XRayScreen onNavigate={onNavigate} dependencies={makeDependencies()} />,
+      <XRayScreen explanationRequester={PENDING_REQUESTER} onNavigate={onNavigate} dependencies={makeDependencies()} />,
     );
 
     expect(
@@ -42,7 +46,7 @@ describe("XRayScreen", () => {
   });
 
   it("onNavigate prop 없이도 에러 없이 렌더링되고 동작한다", async () => {
-    render(<XRayScreen dependencies={makeDependencies()} />);
+    render(<XRayScreen explanationRequester={PENDING_REQUESTER} dependencies={makeDependencies()} />);
     expect(
       await screen.findByRole("heading", { name: "외화 비중" }),
     ).toBeInTheDocument();
@@ -54,7 +58,7 @@ describe("XRayScreen", () => {
 
   it("시나리오를 고르면 서버가 계산한 결과를 보여준다", async () => {
     const runScenario = vi.fn().mockResolvedValue(STRESS_RUN_FIXTURE);
-    render(<XRayScreen dependencies={makeDependencies({ runScenario })} />);
+    render(<XRayScreen explanationRequester={PENDING_REQUESTER} dependencies={makeDependencies({ runScenario })} />);
     await screen.findByRole("heading", { name: "외화 비중" });
 
     fireEvent.click(screen.getByRole("button", { name: "주가 하락 + 원화 약세" }));
@@ -68,7 +72,7 @@ describe("XRayScreen", () => {
 
   it("비중 조정 결과를 요청해 보여준다", async () => {
     const previewAdjustment = vi.fn().mockResolvedValue(FIT_PREVIEW_FIXTURE);
-    render(<XRayScreen dependencies={makeDependencies({ previewAdjustment })} />);
+    render(<XRayScreen explanationRequester={PENDING_REQUESTER} dependencies={makeDependencies({ previewAdjustment })} />);
     await screen.findByRole("heading", { name: "외화 비중" });
 
     fireEvent.click(screen.getByRole("button", { name: "통화 적합도" }));
@@ -83,6 +87,7 @@ describe("XRayScreen", () => {
   it("불러오는 중에는 로딩 안내를 보여준다", () => {
     render(
       <XRayScreen
+        explanationRequester={PENDING_REQUESTER}
         dependencies={makeDependencies({
           loadBundle: vi.fn().mockReturnValue(new Promise(() => {})),
         })}
@@ -96,7 +101,7 @@ describe("XRayScreen", () => {
       .fn()
       .mockRejectedValueOnce(new ApiError("점검 중입니다.", 503, "UNAVAILABLE"))
       .mockResolvedValue(XRAY_API_FIXTURE);
-    render(<XRayScreen dependencies={makeDependencies({ loadBundle })} />);
+    render(<XRayScreen explanationRequester={PENDING_REQUESTER} dependencies={makeDependencies({ loadBundle })} />);
 
     expect(await screen.findByText("점검 중입니다.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /다시/ }));
@@ -108,6 +113,7 @@ describe("XRayScreen", () => {
   it("등록된 자산이 없으면 빈 상태를 보여준다", async () => {
     render(
       <XRayScreen
+        explanationRequester={PENDING_REQUESTER}
         dependencies={makeDependencies({
           loadBundle: vi.fn().mockResolvedValue({
             ...XRAY_API_FIXTURE,

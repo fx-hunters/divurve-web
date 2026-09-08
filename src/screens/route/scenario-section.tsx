@@ -62,12 +62,9 @@ export function ScenarioSwitcher({
       aria-labelledby="scenario-switcher-title"
       data-comparison-open={state.isComparisonOpen}
     >
-      <div className="scenario-switcher__branch" aria-hidden="true" />
       <div className="scenario-switcher__heading">
         <div>
-          <p className="route-eyebrow">3막 · 상황별 대체 경로</p>
           <h3 id="scenario-switcher-title">상황이 달라졌다면</h3>
-          <span>현재 Curve에서 필요한 경로만 갈라서 비교합니다.</span>
         </div>
         <button
           type="button"
@@ -128,8 +125,7 @@ export function ScenarioSwitcher({
 
         {isAlternative && !state.isComparisonOpen && (
           <p className="scenario-switcher__compare-hint">
-            기존 Curve는 흐리게 남아 있습니다. 두 경로를 확인한 뒤 아래의
-            “기존 계획과 비교”를 선택해 주세요.
+            기존 계획은 흐리게 남아 있습니다.
           </p>
         )}
 
@@ -153,8 +149,7 @@ export function ScenarioSwitcher({
 
         {!isAlternative && (
           <p className="scenario-switcher__current">
-            현재 이 계획이 적용되어 있습니다. 다른 상황을 선택해 대체
-            Curve를 확인할 수 있습니다.
+            현재 이 계획이 적용되어 있습니다.
           </p>
         )}
       </div>
@@ -168,7 +163,6 @@ export function ScenarioSwitcher({
           aria-describedby="planner-confirm-description"
         >
           <div>
-            <p className="route-eyebrow">사용자 승인</p>
             <h4 id="planner-confirm-title">대체 계획을 적용할까요?</h4>
             <p id="planner-confirm-description">
               {selectedScenario.label} mock 응답으로 현재 계획 표시를

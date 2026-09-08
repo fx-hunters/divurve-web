@@ -7,9 +7,9 @@ import {
   Line,
   XAxis,
   YAxis,
-  Tooltip,
 } from "recharts";
 import { Icon } from "./components/common/icon";
+import { useScrollSpy } from "./hooks/use-scroll-spy";
 
 export interface LandingPageProps {
   readonly onEnter: () => void;
@@ -17,10 +17,6 @@ export interface LandingPageProps {
   readonly setIsDark: (v: boolean) => void;
   readonly onLogin?: () => void;
   readonly onSignup?: () => void;
-}
-
-export function formatLandingTooltipValue(v: unknown): [string] {
-  return [typeof v === "number" ? `₩${v.toLocaleString()}` : String(v)];
 }
 
 // 스크롤 진입 애니메이션용 커스텀 훅
@@ -85,21 +81,33 @@ export function Spark({ data, color }: SparkProps) {
   );
 }
 
-// 히어로 팬 차트 목 데이터
+// 장식용 더미 곡선 — 실제 시세가 아니다.
+// 히어로 팬 차트는 "관측 구간 + 신뢰밴드"라는 형태만 보여주는 장식 요소라
+// 값은 손으로 적은 상수이며 굴곡만 실제 환율처럼 오르내리도록 잡았다.
+// 실제 시세로 오인되지 않도록 Y축은 hide 상태를 유지하고,
+// 수치 라벨(축 눈금·툴팁)은 붙이지 않는다.
 const HERO_FAN_DATA = [
-  { t: "1월", price: 1312 },
-  { t: "2월", price: 1324 },
-  { t: "3월", price: 1318 },
-  { t: "4월", price: 1335 },
-  { t: "5월", price: 1342 },
-  { t: "6월", price: 1338 },
-  { t: "7월", price: 1350 },
-  { t: "8월", price: 1348, p_hi: 1348, p_lo: 1348, p_mid: 1348 },
-  { t: "9월", p_hi: 1385, p_lo: 1325, p_mid: 1355 },
-  { t: "10월", p_hi: 1410, p_lo: 1310, p_mid: 1362 },
-  { t: "11월", p_hi: 1435, p_lo: 1295, p_mid: 1368 },
-  { t: "12월", p_hi: 1460, p_lo: 1280, p_mid: 1375 },
+  { t: "1월", price: 1296 },
+  { t: "2월", price: 1338 },
+  { t: "3월", price: 1312 },
+  { t: "4월", price: 1356 },
+  { t: "5월", price: 1326 },
+  { t: "6월", price: 1372 },
+  { t: "7월", price: 1340 },
+  { t: "8월", price: 1352, p_hi: 1352, p_lo: 1352, p_mid: 1352 },
+  { t: "9월", p_hi: 1386, p_lo: 1330, p_mid: 1358 },
+  { t: "10월", p_hi: 1406, p_lo: 1316, p_mid: 1365 },
+  { t: "11월", p_hi: 1424, p_lo: 1300, p_mid: 1370 },
+  { t: "12월", p_hi: 1440, p_lo: 1290, p_mid: 1376 },
 ];
+
+// 상단 네비 탭 ↔ 스크롤 스파이 대상 섹션 매핑
+const NAV_SECTIONS = [
+  { id: "features", label: "기능" },
+  { id: "how-it-works", label: "작동 방식" },
+] as const;
+
+const NAV_SECTION_IDS = NAV_SECTIONS.map((section) => section.id);
 
 // 미니 티커 데이터
 const TICKER_DATA = [
@@ -137,7 +145,7 @@ const FEATURES = [
   {
     id: "forecast",
     icon: "trendingUp" as const,
-    title: "몬테카를로 팬 차트 예측",
+    title: "몬테카를로 팬 차트 전망",
     eyebrow: "PROBABILISTIC FORECAST",
     desc: "과거 변동성과 거시 경제 지표를 학습한 확률 모델로 50% 및 80% 신뢰구간 환율 범위를 동적으로 산출합니다.",
     tag: "80% 신뢰구간",
@@ -171,13 +179,13 @@ const STEPS = [
   {
     num: "02",
     title: "몬테카를로 확률 범위 분석",
-    desc: "엔진이 수만 번의 시뮬레이션을 수행해 기한 내 환율의 예상 경로와 상·하단 범위를 계산합니다.",
+    desc: "엔진이 수만 번의 시뮬레이션을 수행해 기한 내 환율의 투영 경로와 상·하단 범위를 계산합니다.",
     details: ["50% 및 80% 신뢰구간 도출", "단기·중기 변동성 백분위 측정", "시장 거시 동인 실시간 반영"],
   },
   {
     num: "03",
     title: "스마트 분할 환전 경로 생성",
-    desc: "안전 비율과 유리한 환율 구간에 맞추어 최적의 분할 매수 타이밍과 회차별 추천 수량을 수립합니다.",
+    desc: "안전 비율과 유리한 환율 구간에 맞추어 최적의 분할 매수 타이밍과 회차별 제안 수량을 수립합니다.",
     details: ["시장 국면별 safeRatio 조정", "회차별 목표 매수가 제안", "평균 매입 단가 방어 최적화"],
   },
   {
@@ -188,23 +196,16 @@ const STEPS = [
   },
 ];
 
-// 통계 데이터
-const STATS = [
-  { label: "목표 환전 단가 방어율", value: "94.8%", sub: "랜덤워크 대비 평균 +3.8%" },
-  { label: "시뮬레이션 누적 연산", value: "1,200만+", sub: "몬테카를로 시나리오 경로" },
-  { label: "리스크 노출 방어 효율", value: "4.2배", sub: "일시 환전 대비 손실 완충" },
-  { label: "실시간 업데이트 지연", value: "< 0.1s", sub: "초저지연 데이터 파이프라인" },
-];
-
 export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: LandingPageProps) {
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
 
   const handleLoginClick = onLogin ?? onEnter;
   const handleSignupClick = onSignup ?? onEnter;
 
+  // 현재 스크롤 위치에 해당하는 네비 탭
+  const { activeSectionId } = useScrollSpy(NAV_SECTION_IDS);
+
   // 섹션별 useInView 설정
-  const etymologySection = useInView(0.2);
-  const statsSection = useInView(0.15);
   const featuresSection = useInView(0.15);
   const stepsSection = useInView(0.15);
   const ctaSection = useInView(0.15);
@@ -217,7 +218,10 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
         color: "var(--text)",
         fontFamily: "var(--font-sans)",
         position: "relative",
-        overflowX: "hidden",
+        // overflow-x: hidden 이면 overflow-y 가 auto 로 계산돼 이 div 가 스크롤
+        // 컨테이너가 되고, 안쪽 헤더의 position: sticky 가 뷰포트가 아닌 이 div
+        // 기준으로 잡혀 고정이 풀린다. clip 은 스크롤 컨테이너를 만들지 않는다.
+        overflowX: "clip",
       }}
     >
       {/* 배경 장식 그리드 & 라디얼 글로우 */}
@@ -319,23 +323,30 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
             </span>
           </div>
 
-          {/* 중앙 네비 메뉴 */}
+          {/* 중앙 네비 메뉴 — 현재 스크롤 위치의 섹션을 강조한다 */}
           <nav className="landing-nav">
-            <a href="#features" style={{ transition: "color 0.15s ease" }}>
-              기능
-            </a>
-            <a href="#etymology" style={{ transition: "color 0.15s ease" }}>
-              어원
-            </a>
-            <a href="#how-it-works" style={{ transition: "color 0.15s ease" }}>
-              작동 방식
-            </a>
-            <a href="#stats" style={{ transition: "color 0.15s ease" }}>
-              성과 지표
-            </a>
+            {NAV_SECTIONS.map((section) => {
+              const isActive = activeSectionId === section.id;
+              return (
+                <a
+                  key={section.id}
+                  href={`#${section.id}`}
+                  aria-current={isActive ? "true" : undefined}
+                  style={{
+                    color: isActive ? "var(--primary)" : "var(--text-muted)",
+                    fontWeight: isActive ? 700 : 500,
+                    paddingBottom: "0.25rem",
+                    borderBottom: `2px solid ${isActive ? "var(--primary)" : "transparent"}`,
+                    transition: "color 0.15s ease, border-color 0.15s ease",
+                  }}
+                >
+                  {section.label}
+                </a>
+              );
+            })}
           </nav>
 
-          {/* 우측 컨트롤 바 (테마 토글 & 로그인 & 무료 시작 CTA) */}
+          {/* 우측 컨트롤 바 (테마 토글 & 로그인 & 회원가입 CTA) */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <button
               type="button"
@@ -402,7 +413,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
                 e.currentTarget.style.transform = "none";
               }}
             >
-              <span>무료 시작</span>
+              <span>회원가입</span>
               <Icon name="arrowRight" size={14} />
             </button>
           </div>
@@ -467,7 +478,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
               WebkitTextFillColor: "transparent",
             }}
           >
-            가장 지능적인 환전 타이밍
+            가장 지능적인 환전 가이드
           </span>
         </h1>
 
@@ -481,7 +492,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
             marginBottom: "2.5rem",
           }}
         >
-          단순한 환율 조회가 아닌, 몬테카를로 시뮬레이션 기반의 <strong>환율 범위 예측</strong>과
+          단순한 환율 조회가 아닌, 몬테카를로 시뮬레이션 기반의 <strong>환율 전망</strong>과
           맞춤형 <strong>분할 환전 경로</strong>를 제안하여 환리스크를 방어합니다.
         </p>
 
@@ -520,7 +531,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
               e.currentTarget.style.boxShadow = "0 0 30px rgba(0,255,170,0.35)";
             }}
           >
-            <span>대시보드 체험하기</span>
+            <span>무료로 시작하기</span>
             <Icon name="arrowRight" size={16} />
           </button>
 
@@ -631,16 +642,19 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
           >
             <div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)" }}>
-                LIVE PREVIEW
+                SAMPLE PREVIEW
               </div>
               <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 700, color: "var(--text)" }}>
                 USD/KRW 80% 신뢰구간 팬 차트
               </h2>
+              <p style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                화면 구성을 보여주는 표시용 샘플 곡선입니다. 실제 시세가 아닙니다.
+              </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.75rem", color: "var(--text-muted)" }}>
               <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                 <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "var(--primary)" }} />
-                실제 환율
+                관측 구간
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                 <span style={{ width: "8px", height: "2px", backgroundColor: "var(--primary)" }} />
@@ -664,166 +678,14 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
                 </defs>
                 <XAxis dataKey="t" stroke="var(--text-muted)" tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
                 <YAxis domain={["dataMin - 20", "dataMax + 20"]} stroke="var(--text-muted)" tick={{ fontSize: 12, fill: "var(--text-muted)" }} hide />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--surface)",
-                    borderColor: "var(--border)",
-                    color: "var(--text)",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                  formatter={formatLandingTooltipValue}
-                />
+                {/* 장식용 곡선이라 수치를 노출하는 툴팁은 두지 않는다 */}
                 <Area dataKey="p_hi" fill="rgba(0,255,170,0.07)" stroke="none" />
                 <Area dataKey="p_lo" fill="var(--bg)" stroke="none" />
-                <Area dataKey="price" stroke="var(--primary)" strokeWidth={2} fill="url(#hero-price-gradient)" dot={false} />
+                <Area type="monotone" dataKey="price" stroke="var(--primary)" strokeWidth={2} fill="url(#hero-price-gradient)" dot={false} />
                 <Line dataKey="p_mid" stroke="var(--primary)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </section>
-
-      {/* --- 어원(Etymology) 섹션 --- */}
-      <section
-        id="etymology"
-        ref={etymologySection.ref}
-        style={{
-          maxWidth: "1000px",
-          margin: "0 auto",
-          padding: "6rem 1.5rem",
-          textAlign: "center",
-          opacity: etymologySection.inView ? 1 : 0,
-          transform: etymologySection.inView ? "none" : "translateY(20px)",
-          transition: "opacity 0.7s ease, transform 0.7s ease",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.75rem",
-            fontWeight: 700,
-            color: "var(--primary)",
-            marginBottom: "0.75rem",
-            letterSpacing: "0.05em",
-          }}
-        >
-          NAME ORIGIN
-        </div>
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "2rem",
-            fontWeight: 800,
-            color: "var(--text)",
-            marginBottom: "3rem",
-          }}
-        >
-          DIVURVE의 의미
-        </h2>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "1.5rem",
-            marginBottom: "2.5rem",
-          }}
-        >
-          {/* DIVISA 블록 */}
-          <div
-            style={{
-              flex: "1 1 240px",
-              maxWidth: "280px",
-              backgroundColor: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.75rem 1.5rem",
-              boxShadow: "var(--shadow-sm)",
-              transform: etymologySection.inView ? "none" : "translateX(-24px)",
-              transition: "transform 0.7s ease 0.1s, opacity 0.7s ease 0.1s",
-            }}
-          >
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)", marginBottom: "0.5rem" }}>
-              DIVISA
-            </div>
-            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
-              스페인어로 <strong>외화·외환</strong>을 의미하며 목표 달성을 위한 외화 자산을 상징합니다.
-            </div>
-          </div>
-
-          {/* + 기호 */}
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "2rem",
-              fontWeight: 800,
-              color: "var(--text-muted)",
-              opacity: etymologySection.inView ? 1 : 0,
-              transition: "opacity 0.5s ease 0.25s",
-            }}
-          >
-            +
-          </div>
-
-          {/* CURVE 블록 */}
-          <div
-            style={{
-              flex: "1 1 240px",
-              maxWidth: "280px",
-              backgroundColor: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.75rem 1.5rem",
-              boxShadow: "var(--shadow-sm)",
-              transform: etymologySection.inView ? "none" : "translateX(24px)",
-              transition: "transform 0.7s ease 0.1s, opacity 0.7s ease 0.1s",
-            }}
-          >
-            <div style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 800, color: "#00c8ff", marginBottom: "0.5rem" }}>
-              CURVE
-            </div>
-            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
-              확률적 <strong>환율 곡선</strong>과 변동성 궤적을 분석하는 예측 엔진을 뜻합니다.
-            </div>
-          </div>
-        </div>
-
-        {/* = DIVURVE 결과 행 */}
-        <div
-          style={{
-            transform: etymologySection.inView ? "none" : "translateY(12px)",
-            opacity: etymologySection.inView ? 1 : 0,
-            transition: "all 0.6s ease 0.4s",
-            display: "inline-block",
-            padding: "1rem 2.5rem",
-            borderRadius: "var(--radius-lg)",
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--primary-border)",
-            boxShadow: "0 0 30px rgba(0,255,170,0.1)",
-          }}
-        >
-          <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-muted)", marginRight: "0.75rem" }}>
-            =
-          </span>
-          <span
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "2rem",
-              fontWeight: 900,
-              letterSpacing: "-0.02em",
-              background: "linear-gradient(90deg, var(--primary) 0%, #00c8ff 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            DIVURVE
-          </span>
-          <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "var(--text-muted)" }}>
-            외화(Divisa)의 흐름과 확률 궤적(Curve)을 결합한 스마트 외환 플래너
-          </p>
         </div>
       </section>
 
@@ -1100,58 +962,6 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
         </div>
       </section>
 
-      {/* --- 성과 통계(Stats) 섹션 --- */}
-      <section
-        id="stats"
-        ref={statsSection.ref}
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "5rem 1.5rem",
-          borderTop: "1px solid var(--border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "2rem",
-            textAlign: "center",
-          }}
-        >
-          {STATS.map((st, i) => (
-            <div
-              key={st.label}
-              style={{
-                opacity: statsSection.inView ? 1 : 0,
-                transform: statsSection.inView ? "none" : "translateY(16px)",
-                transition: `opacity 0.5s ease ${i * 0.08}s, transform 0.5s ease ${i * 0.08}s`,
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "clamp(2rem, 3.5vw, 2.75rem)",
-                  fontWeight: 800,
-                  color: "var(--primary)",
-                  letterSpacing: "-0.03em",
-                  marginBottom: "0.375rem",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {st.value}
-              </div>
-              <div style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text)", marginBottom: "0.25rem" }}>
-                {st.label}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                {st.sub}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* --- 하단 CTA 섹션 --- */}
       <section
         ref={ctaSection.ref}
@@ -1203,7 +1013,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
             lineHeight: 1.6,
           }}
         >
-          복잡한 환율 예측과 리스크 분석은 DIVURVE 엔진에 맡기고, 여러분의 소중한 외화 목표를 가장 효율적으로 달성해보세요.
+          복잡한 환율 전망과 리스크 분석은 DIVURVE 엔진에 맡기고, 여러분의 소중한 외화 목표를 가장 효율적으로 달성해보세요.
         </p>
 
         <button
@@ -1231,7 +1041,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
             e.currentTarget.style.boxShadow = "0 0 30px rgba(0,255,170,0.4)";
           }}
         >
-          <span>대시보드로 바로가기</span>
+          <span>무료로 시작하기</span>
           <Icon name="arrowRight" size={18} />
         </button>
       </section>

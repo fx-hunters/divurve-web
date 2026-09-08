@@ -71,6 +71,24 @@
   gap: 0.75rem;
 }
 
+/*
+ * 입력과 결과를 좌우 1:1로 세우는 배치.
+ *
+ * 좁은 화면에서는 두 카드가 다 눌리므로 한 열로 접는다.
+ */
+.admin-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .admin-split {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-section__head {
   display: flex;
   justify-content: space-between;
@@ -93,6 +111,12 @@
 .admin-section__action {
   display: flex;
   gap: 0.5rem;
+}
+
+/* 부가 정보 한 줄. 갱신 자체를 막는 값이 아니므로 조용히 둔다. */
+.admin-last-refresh {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .admin-subtitle {
@@ -321,12 +345,6 @@
   border-color: var(--warn-border);
   background-color: var(--warn-bg);
   color: var(--warn);
-}
-
-.admin-badge--sample {
-  border-color: var(--primary-border);
-  background-color: var(--primary-subtle);
-  color: var(--primary);
 }
 
 .admin-badge--ok {

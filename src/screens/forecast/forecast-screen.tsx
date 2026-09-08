@@ -1,31 +1,69 @@
 import { useForecast, type ForecastLoader } from "./use-forecast";
 import { FanChart } from "./fan-chart";
+import { AiExplanation } from "../../components/ai/ai-explanation";
 import { ApiStateView } from "../../components/common/api-state-view";
 import { Badge } from "../../components/common/badge";
 import { Icon } from "../../components/common/icon";
+import { Spinner } from "../../components/common/spinner";
+import {
+  useAiExplanation,
+  type AiExplanationState,
+  type ExplanationRequester,
+} from "../../hooks/use-ai-explanation";
 import type { NavTabId } from "../../types/navigation";
-import type {
-  CurrencyForecastInfo,
-  FanChartDataPoint,
-  ForecastCurrency,
-  ForecastPeriod,
+import {
+  FORECAST_HORIZON_DAYS,
+  FORECAST_PAIRS,
+  type FanChartDataPoint,
+  type ForecastPair,
+  type ForecastPeriod,
+  type PairForecastInfo,
 } from "../../types/forecast";
 import {
-  toCurrencyForecastInfo,
+  currencyColor,
+  toExplanationFacts,
+  toPair,
+  toPairForecastInfo,
+  toPairLabel,
   toFanChartData,
+  toPeriodLabel,
+  toRegimeBadge,
 } from "./forecast-presenter";
 
 interface ForecastScreenProps {
   readonly onNavigate?: (tab: NavTabId) => void;
   readonly loader?: ForecastLoader;
+  /** 테스트에서 AI 설명 호출을 대체하기 위한 주입점. 기본은 실제 API다. */
+  readonly explanationRequester?: ExplanationRequester;
 }
 
-const CURRENCIES: readonly ForecastCurrency[] = ["USD", "JPY", "EUR"];
-const PERIODS: readonly ForecastPeriod[] = ["30D", "90D"];
+/** AI 자연어 설명이 붙는 지면. 백엔드가 문장 톤을 이 값으로 가른다. */
+const EXPLANATION_SURFACE = "forecast_summary";
 
-export function ForecastScreen({ onNavigate, loader }: ForecastScreenProps) {
-  const { currency, period, state, setCurrency, setPeriod, reload } =
+const PAIR_SELECT_ID = "forecast-pair-select";
+
+/** 기간 컨트롤 문구. "무엇에 대한 기간"인지 컨트롤 자체가 말하게 한다. */
+const PERIOD_GROUP_LABEL = "전망 기간";
+const PERIOD_HELP_TEXT =
+  "선택한 기간만큼 앞으로의 환율 범위를 팬 차트와 요약 카드에 표시합니다.";
+const PERIOD_HELP_ID = "forecast-period-help";
+
+export function ForecastScreen({
+  onNavigate,
+  loader,
+  explanationRequester,
+}: ForecastScreenProps) {
+  const { pair, period, state, setPair, setPeriod, reload } =
     useForecast(loader);
+
+  // 근거 수치가 없으면(로딩·에러·빈 상태) 훅이 요청하지 않고 idle로 둔다.
+  const facts =
+    state.status === "success" ? toExplanationFacts(state.data) : null;
+  const explanation = useAiExplanation({
+    surface: EXPLANATION_SURFACE,
+    facts,
+    requester: explanationRequester,
+  });
 
   if (state.status === "loading") {
     return (
@@ -51,18 +89,20 @@ export function ForecastScreen({ onNavigate, loader }: ForecastScreenProps) {
       <ApiStateView
         status="empty"
         title="표시할 환율 범위가 없습니다"
-        message="선택한 통화와 기간의 데이터가 준비되면 이곳에 표시됩니다."
+        message="선택한 통화쌍과 전망 기간의 데이터가 준비되면 이곳에 표시됩니다."
       />
     );
   }
 
   return (
     <ForecastView
-      currency={currency}
+      pair={pair}
       period={period}
       chartData={toFanChartData(state.data)}
-      currencyInfo={toCurrencyForecastInfo(state.data, currency)}
-      onSelectCurrency={setCurrency}
+      pairInfo={toPairForecastInfo(state.data, pair)}
+      explanationState={explanation.state}
+      onReloadExplanation={explanation.reload}
+      onSelectPair={setPair}
       onSelectPeriod={setPeriod}
       onNavigate={onNavigate}
     />
@@ -70,24 +110,35 @@ export function ForecastScreen({ onNavigate, loader }: ForecastScreenProps) {
 }
 
 interface ForecastViewProps {
-  readonly currency: ForecastCurrency;
+  readonly pair: ForecastPair;
   readonly period: ForecastPeriod;
   readonly chartData: readonly FanChartDataPoint[];
-  readonly currencyInfo: CurrencyForecastInfo;
-  readonly onSelectCurrency: (currency: ForecastCurrency) => void;
+  readonly pairInfo: PairForecastInfo;
+  readonly explanationState: AiExplanationState;
+  readonly onReloadExplanation: () => void;
+  readonly onSelectPair: (pair: ForecastPair) => void;
   readonly onSelectPeriod: (period: ForecastPeriod) => void;
   readonly onNavigate?: (tab: NavTabId) => void;
 }
 
 function ForecastView({
-  currency,
+  pair,
   period,
   chartData,
-  currencyInfo,
-  onSelectCurrency,
+  pairInfo,
+  explanationState,
+  onReloadExplanation,
+  onSelectPair,
   onSelectPeriod,
   onNavigate,
 }: ForecastViewProps) {
+  const pairLabel = toPairLabel(pair);
+  const accentColor = currencyColor(pair.baseCode);
+  const periodLabel = toPeriodLabel(period);
+  const regimeBadge =
+    explanationState.status === "success"
+      ? toRegimeBadge(explanationState.meta.regime)
+      : null;
 
   const handleNavigateToPlanner = () => {
     if (onNavigate) {
@@ -95,7 +146,7 @@ function ForecastView({
     }
   };
 
-  const { isPercentileWarn } = currencyInfo.summary;
+  const { isPercentileWarn } = pairInfo.summary;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -114,57 +165,101 @@ function ForecastView({
           boxShadow: "var(--shadow-sm)",
         }}
       >
-        {/* 통화 선택 버튼 그룹 */}
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          {CURRENCIES.map((c) => {
-            const isSelected = currency === c;
-            return (
-              <button
-                key={c}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelectCurrency(c)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  fontWeight: 700,
-                  fontSize: "0.875rem",
-                  borderRadius: "var(--radius-md)",
-                  backgroundColor: isSelected ? "var(--primary)" : "transparent",
-                  color: isSelected ? "var(--primary-content)" : "var(--text-muted)",
-                  boxShadow: isSelected ? "0 2px 6px var(--primary-subtle)" : "none",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {c}
-              </button>
-            );
-          })}
-        </div>
+        {/* 통화쌍 드롭다운 */}
+        <label
+          htmlFor={PAIR_SELECT_ID}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.8125rem",
+            fontWeight: 700,
+            color: "var(--text-muted)",
+          }}
+        >
+          <span>통화쌍</span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "var(--radius-full)",
+              backgroundColor: accentColor,
+              display: "inline-block",
+            }}
+          />
+          <select
+            id={PAIR_SELECT_ID}
+            value={pair.code}
+            onChange={(event) => onSelectPair(toPair(event.target.value))}
+            style={{
+              padding: "0.5rem 0.75rem",
+              fontWeight: 700,
+              fontSize: "0.875rem",
+              borderRadius: "var(--radius-md)",
+              backgroundColor: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {FORECAST_PAIRS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {toPairLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
 
-        {/* 기간 토글 버튼 그룹 */}
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          {PERIODS.map((p) => {
-            const isSelected = period === p;
-            return (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelectPeriod(p)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  fontWeight: 700,
-                  fontSize: "0.875rem",
-                  borderRadius: "var(--radius-md)",
-                  backgroundColor: isSelected ? "var(--border)" : "transparent",
-                  color: isSelected ? "var(--text)" : "var(--text-muted)",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {p}
-              </button>
-            );
-          })}
+        {/* 전망 기간 토글 — 무엇에 대한 기간인지 라벨과 보조 설명으로 밝힌다 */}
+        <div
+          role="group"
+          aria-label={PERIOD_GROUP_LABEL}
+          aria-describedby={PERIOD_HELP_ID}
+          style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span
+              style={{
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+              }}
+            >
+              {PERIOD_GROUP_LABEL}
+            </span>
+            {FORECAST_HORIZON_DAYS.map((option) => {
+              const isSelected = period === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSelectPeriod(option)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    fontWeight: 700,
+                    fontSize: "0.875rem",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: isSelected ? "var(--border)" : "transparent",
+                    color: isSelected ? "var(--text)" : "var(--text-muted)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {toPeriodLabel(option)}
+                </button>
+              );
+            })}
+          </div>
+          <p
+            id={PERIOD_HELP_ID}
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-muted)",
+              margin: 0,
+            }}
+          >
+            {PERIOD_HELP_TEXT}
+          </p>
         </div>
 
         {/* 다음 갱신 안내 */}
@@ -175,7 +270,7 @@ function ForecastView({
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          기준 시각: {currencyInfo.asOfLabel}
+          기준 시각: {pairInfo.asOfLabel}
         </div>
       </div>
 
@@ -205,10 +300,14 @@ function ForecastView({
               marginBottom: "1rem",
             }}
           >
-            시뮬레이션 팬 차트 ({currency}/KRW)
+            시뮬레이션 팬 차트 ({pairLabel})
           </h2>
           <div style={{ flex: 1, minHeight: "280px" }}>
-            <FanChart data={chartData} currency={currency} />
+            <FanChart
+              data={chartData}
+              pairLabel={pairLabel}
+              accentColor={accentColor}
+            />
           </div>
         </div>
 
@@ -234,7 +333,7 @@ function ForecastView({
                 letterSpacing: "0.05em",
               }}
             >
-              80% 범위 ({period})
+              80% 범위 ({periodLabel})
             </div>
             <div
               style={{
@@ -245,7 +344,7 @@ function ForecastView({
                 letterSpacing: "-0.02em",
               }}
             >
-              {currencyInfo.summary.lowerLabel} ~ {currencyInfo.summary.upperLabel}
+              {pairInfo.summary.lowerLabel} ~ {pairInfo.summary.upperLabel}
             </div>
           </div>
 
@@ -280,7 +379,7 @@ function ForecastView({
                 letterSpacing: "-0.02em",
               }}
             >
-              {currencyInfo.summary.percentile}
+              {pairInfo.summary.percentile}
             </div>
             <div
               style={{
@@ -290,7 +389,7 @@ function ForecastView({
                 fontWeight: 500,
               }}
             >
-              {currencyInfo.uncertaintyNote}
+              {pairInfo.uncertaintyNote}
             </div>
           </div>
 
@@ -331,7 +430,7 @@ function ForecastView({
                   marginBottom: "0.75rem",
                 }}
               >
-                1% 움직일 때 ₩{currencyInfo.summary.impact}
+                1% 움직일 때 ₩{pairInfo.summary.impact}
               </div>
             </div>
 
@@ -354,6 +453,46 @@ function ForecastView({
           </div>
         </div>
       </div>
+
+
+      {/* 팬 차트 하단 AI 자연어 설명 + 서버가 준 국면 배지 */}
+      {explanationState.status !== "idle" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            padding: "1.25rem 1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          {regimeBadge !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                시장 국면
+              </span>
+              <Badge variant={regimeBadge.tone}>{regimeBadge.label}</Badge>
+            </div>
+          )}
+          <AiExplanation
+            state={explanationState}
+            onRetry={onReloadExplanation}
+            title={`${pairLabel} ${periodLabel} 범위 설명`}
+            loadingIndicator={<Spinner size={20} />}
+          />
+        </div>
+      )}
 
       {/* 하단 3단 그리드: 전망 동인, 다가오는 일정, 모델 성적 */}
       <div
@@ -387,12 +526,12 @@ function ForecastView({
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {currencyInfo.drivers.length === 0 && (
+            {pairInfo.drivers.length === 0 && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                이 통화의 동인 데이터가 아직 제공되지 않습니다.
+                이 통화쌍의 동인 데이터가 아직 제공되지 않습니다.
               </p>
             )}
-            {currencyInfo.drivers.map((driver) => {
+            {pairInfo.drivers.map((driver) => {
               const barColor =
                 driver.type === "danger"
                   ? "var(--danger)"
@@ -454,12 +593,12 @@ function ForecastView({
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {currencyInfo.events.length === 0 && (
+            {pairInfo.events.length === 0 && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
                 예정된 일정이 없습니다.
               </p>
             )}
-            {currencyInfo.events.map((event) => (
+            {pairInfo.events.map((event) => (
               <div
                 key={event.title}
                 style={{
@@ -539,19 +678,19 @@ function ForecastView({
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
                 <span style={{ color: "var(--text-muted)" }}>적중률</span>
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {currencyInfo.modelScore.hitRatePct}%
+                  {pairInfo.modelScore.hitRatePct}%
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
                 <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {currencyInfo.modelScore.maePct}%
+                  {pairInfo.modelScore.maePct}%
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
                 <span style={{ color: "var(--text-muted)" }}>포함률(80%)</span>
                 <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {currencyInfo.modelScore.inclusion80Pct}%
+                  {pairInfo.modelScore.inclusion80Pct}%
                 </span>
               </div>
               <div
@@ -564,7 +703,7 @@ function ForecastView({
                   paddingTop: "0.5rem",
                 }}
               >
-                랜덤워크 대비 +{currencyInfo.modelScore.randomWalkImprovementPct}% 우수
+                랜덤워크 대비 +{pairInfo.modelScore.randomWalkImprovementPct}% 우수
               </div>
             </div>
           </details>

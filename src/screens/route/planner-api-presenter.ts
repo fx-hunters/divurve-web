@@ -202,10 +202,6 @@ export function presentPlannerOverview(
       canCompleteStep: nextSourceStep !== undefined,
       canSkipStep: nextSourceStep !== undefined,
     },
-    unsupportedAreas: [
-      "목표 및 계획 생성·재계산",
-      "대체 시나리오",
-      "AI 설명 생성",
-    ],
+    unsupportedAreas: ["목표 및 계획 생성·재계산", "대체 시나리오"],
   };
 }

@@ -1,11 +1,26 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError } from "../../api/client";
+import { ApiError, type ApiResult } from "../../api/client";
+import type { ForecastResponse } from "../../api/generated/divurve-api";
 import {
   EMPTY_HOME_SUMMARY_FIXTURE,
+  FORECAST_API_FIXTURE,
   HOME_SUMMARY_FIXTURE,
 } from "../../test/api-fixtures";
 import { HomeScreen } from "./home-screen";
+
+const FORECAST_RESULT: ApiResult<ForecastResponse> = {
+  data: { ...FORECAST_API_FIXTURE.forecast, pairCode: "USDJPY", currentRate: 147.52 },
+  meta: { asOf: FORECAST_API_FIXTURE.asOf },
+};
+
+/** 화면 테스트는 네트워크를 타지 않도록 시세·설명 조회를 모두 주입한다. */
+function marketStubs() {
+  return {
+    loadMarket: vi.fn().mockResolvedValue(FORECAST_RESULT),
+    explainRequester: vi.fn().mockReturnValue(new Promise(() => {})),
+  };
+}
 
 describe("HomeScreen", () => {
   it("요약을 불러와 대시보드를 렌더링하고 이동 핸들러를 연결한다", async () => {
@@ -14,6 +29,7 @@ describe("HomeScreen", () => {
       <HomeScreen
         onNavigate={onNavigate}
         loadSummary={vi.fn().mockResolvedValue(HOME_SUMMARY_FIXTURE)}
+        {...marketStubs()}
       />,
     );
 
@@ -29,6 +45,26 @@ describe("HomeScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "환율 범위 확인하기 →" }));
     expect(onNavigate).toHaveBeenCalledWith("range");
+  });
+
+  it("홈 요약이 준 통화쌍으로 시장 카드를 그리고 드롭다운 선택을 조회로 잇는다", async () => {
+    const stubs = marketStubs();
+    render(
+      <HomeScreen
+        onNavigate={vi.fn()}
+        loadSummary={vi.fn().mockResolvedValue(HOME_SUMMARY_FIXTURE)}
+        {...stubs}
+      />,
+    );
+
+    const select = await screen.findByRole("combobox", { name: "통화쌍" });
+    expect(select).toHaveValue("USDKRW");
+    expect(screen.getByText("1,382.40")).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "USDJPY" } });
+
+    expect(stubs.loadMarket).toHaveBeenCalledWith("USDJPY");
+    expect(await screen.findByText("147.52")).toBeInTheDocument();
   });
 
   it("위험성향 미측정 안내에서 마이페이지로 이동한다", async () => {
@@ -47,6 +83,7 @@ describe("HomeScreen", () => {
             ),
           },
         })}
+        {...marketStubs()}
       />,
     );
 
@@ -60,6 +97,7 @@ describe("HomeScreen", () => {
       <HomeScreen
         onNavigate={onNavigate}
         loadSummary={vi.fn().mockResolvedValue(EMPTY_HOME_SUMMARY_FIXTURE)}
+        {...marketStubs()}
       />,
     );
 
@@ -75,6 +113,7 @@ describe("HomeScreen", () => {
       <HomeScreen
         onNavigate={vi.fn()}
         loadSummary={vi.fn().mockReturnValue(new Promise(() => {}))}
+        {...marketStubs()}
       />,
     );
     expect(screen.getByText("홈 정보를 불러오는 중입니다")).toBeInTheDocument();
@@ -85,7 +124,13 @@ describe("HomeScreen", () => {
       .fn()
       .mockRejectedValueOnce(new ApiError("점검 중입니다.", 503, "UNAVAILABLE"))
       .mockResolvedValue(HOME_SUMMARY_FIXTURE);
-    render(<HomeScreen onNavigate={vi.fn()} loadSummary={loadSummary} />);
+    render(
+      <HomeScreen
+        onNavigate={vi.fn()}
+        loadSummary={loadSummary}
+        {...marketStubs()}
+      />,
+    );
 
     expect(await screen.findByText("점검 중입니다.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /다시/ }));

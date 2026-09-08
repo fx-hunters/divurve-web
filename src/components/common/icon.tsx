@@ -6,7 +6,6 @@ export type IconName =
   | "assets"
   | "range"
   | "mypage"
-  | "connectivity"
   | "sun"
   | "moon"
   | "bell"
@@ -97,14 +96,6 @@ export function Icon({
         <svg {...commonProps}>
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
-        </svg>
-      );
-    case "connectivity":
-      return (
-        <svg {...commonProps}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="2" y1="12" x2="22" y2="12" />
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
       );
     case "sun":

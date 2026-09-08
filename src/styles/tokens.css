@@ -259,3 +259,20 @@ a {
   }
 }
 
+/* --- 공용 로딩 스피너 (components/common/spinner.tsx) --- */
+@keyframes divurve-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.divurve-spinner__icon {
+  transform-origin: 50% 50%;
+  animation: divurve-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .divurve-spinner__icon {
+    animation: none;
+  }
+}

@@ -119,7 +119,6 @@ export function PlannerJourney({
             <span aria-hidden="true">←</span>
             다른 목표 보기
           </button>
-          <p className="route-eyebrow">DIVISA + CURVE · PLANNER</p>
           <button type="button" onClick={actions.replayReveal}>
             처음부터 다시 보기
           </button>
@@ -166,12 +165,6 @@ export function PlannerJourney({
             />
           )}
         </div>
-      )}
-
-      {isActionVisible && (
-        <p className="planner-journey__data-note" role="note">
-          {dataNotice.notice}
-        </p>
       )}
 
       {state.isScenarioOpen && (
