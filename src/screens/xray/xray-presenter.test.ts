@@ -4,9 +4,9 @@ import {
   STRESS_RUN_FIXTURE,
   XRAY_API_FIXTURE,
 } from "../../test/api-fixtures";
+import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import {
   isConcentrationAboveThreshold,
-  isRiskProfileMeasured,
   toAsOfLabel,
   toConcentrationStatusLabel,
   toDateLabel,

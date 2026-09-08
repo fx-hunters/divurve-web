@@ -7,9 +7,9 @@ import type {
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
 import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
+import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import {
   isConcentrationAboveThreshold,
-  isRiskProfileMeasured,
   toFitnessExplanationFacts,
   toPercent,
 } from "./xray-presenter";

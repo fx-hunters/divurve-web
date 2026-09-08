@@ -290,12 +290,13 @@ export const MY_PAGE_API_FIXTURE: MyPageBundle = {
   },
   settings: MY_PAGE_SETTINGS_FIXTURE,
   riskProfile: {
-    status: "measured",
+    // 실제 응답(2026-09-08). status·grade·gradeLabel 모두 서버가 보낸 값 그대로다.
+    status: "simple_done",
     grade: "balanced",
-    gradeLabel: "균형 항로형",
-    score: 72,
-    diagnosedOn: "2026-08-15",
-    concentrationThreshold: 0.5,
+    gradeLabel: "균형항로형",
+    score: 4,
+    diagnosedOn: "2026-09-08",
+    concentrationThreshold: 0.6,
     limitationNote:
       "이 판정은 해커톤 MVP용 가설이며 통계적으로 검증된 금융회사 표준 진단이 아닙니다.",
   },
