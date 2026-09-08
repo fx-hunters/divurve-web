@@ -7,7 +7,7 @@
 | 변경 유형 | fix / refactor / test |
 | 영향 범위 | Planner API 상태 / Journey 화면 / X-Ray / Sidebar / 테스트 |
 | 관련 브랜치 | `feat/planner-api-demo-ui-sync` |
-| 관련 커밋 | `1b10e58`, `67601c3` |
+| 관련 커밋 | `1b10e58`, `67601c3`, `0296349` |
 | 관련 이슈·PR | 미지정 |
 
 ## 변경 사유 (Why)
@@ -24,7 +24,9 @@ preview가 뒤로 이동해도 남아, 사용자가 계획 생성을 확인하�
 
 ## 변경 내용 (What)
 
-- 최신 `origin/develop`을 일반 merge하고 충돌 9개를 파일별로 통합했다.
+- 작업 시작 시 최신 `origin/develop`을 일반 merge하고 충돌 9개를 파일별로
+  통합했다. 검증 중 원격이 4개 커밋 더 전진해 최신 `c66875d`도 두 번째 일반
+  merge로 반영했으며 이 추가 merge에는 충돌이 없었다.
 - `PlannerPlanSummaryViewModel.planSource`를 `active | preview`로 구분했다.
 - `continueFromStatus()`는 `active` Plan만 Curve로 직접 이동시키고, `preview`는
   생성 확인 장면으로 보낸다.
@@ -56,22 +58,23 @@ preview가 뒤로 이동해도 남아, 사용자가 계획 생성을 확인하�
 - [x] Journey 표현 컴포넌트 targeted test — 6개 통과
 - [x] Route / X-Ray / Sidebar targeted test — 22개 통과
 - [x] `npx tsc --noEmit` — 오류 0개
-- [x] `npm run lint` — 오류 0개, 기존 Fast Refresh 경고 17개
-- [x] `npm test -- --run` — 108개 파일, 871개 테스트 통과
-- [x] `npm run test -- --coverage` — 108개 파일, 871개 테스트 통과,
+- [x] `npm run lint` — 오류 0개, 기존 Fast Refresh 경고 15개
+- [x] `npm test -- --run` — 117개 파일, 921개 테스트 통과
+- [x] `npm run test -- --coverage` — 117개 파일, 921개 테스트 통과,
   statements/branches/functions/lines 100%
-- [x] `npm run build` — 770개 모듈, production build 성공
+- [x] `npm run build` — 779개 모듈, production build 성공
 - [x] `git diff --check` — whitespace 오류 0개
 
 첫 coverage 실행은 새 apply 방어 분기 두 줄이 검증되지 않아 statements/lines
 99.98%, branches 99.96%로 실패했다. draft ID가 없는 scenario 응답에서 apply를
 호출하지 않는 테스트를 추가한 뒤 네 지표 모두 100%로 복구했다. 전체 테스트 중
 마이페이지 비동기 갱신에서 React `act(...)` 경고 1건, lint의 Fast Refresh 경고
-17건, build의 500kB 초과 chunk 경고가 남지만 이번 Planner 변경의 실패는 아니다.
+15건, build의 500kB 초과 chunk 경고가 남지만 이번 Planner 변경의 실패는 아니다.
 
 ## 롤백 방법
 
 - `67601c3`을 revert하면 preview 상태 분리, 회귀 테스트와 레거시 경계 정리를
   한 단위로 되돌릴 수 있다.
 - `1b10e58`은 develop 통합 merge이므로 되돌릴 때는 merge parent를 명시해 revert한다.
+- `0296349`도 후속 develop 통합 merge이므로 되돌릴 때 merge parent를 명시한다.
 - API 생성 파일과 백엔드 저장소는 수정하지 않았으므로 별도 롤백이 필요 없다.
