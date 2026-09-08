@@ -34,6 +34,7 @@ export interface PlannerGoalSummaryViewModel {
 }
 
 export interface PlannerPlanSummaryViewModel {
+  readonly planSource: "active" | "preview";
   readonly id: string | null;
   readonly version: number | null;
   readonly versionLabel: string;
@@ -48,7 +49,6 @@ export interface PlannerPlanSummaryViewModel {
   readonly policyVersion: string;
   readonly disclaimer: string;
   readonly warnings: readonly string[];
-  readonly isPreview: boolean;
   readonly summaryText?: string;
 }
 
@@ -179,4 +179,9 @@ export function validateExecutedStepInput(
     };
   }
   return { isValid: true, value: input };
+}
+
+/** 현재 데이터 공급처에서 제공하지 않는 Journey 동작의 명시적 경계. */
+export function rejectUnsupportedPlannerOperation(): Promise<boolean> {
+  return Promise.resolve(false);
 }

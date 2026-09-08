@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { RoutePlanData } from "../../types/route";
 import {
+  findDemoPlan,
   presentDemoPlanner,
   presentDemoScenarioComparison,
 } from "./planner-demo-adapter";
-import type {
-  PlannerScenarioComparisonViewModel,
-  PlannerScenarioOptionViewModel,
+import {
+  rejectUnsupportedPlannerOperation,
+  type PlannerScenarioComparisonViewModel,
+  type PlannerScenarioOptionViewModel,
 } from "./planner-api-types";
 import {
   PlannerJourneyScreen,
@@ -37,8 +39,7 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
   );
 
   const handleSelectGoal = (goalId: string) => {
-    const plan = data.plans.find((candidate) => candidate.id === goalId);
-    if (plan === undefined) return;
+    const plan = findDemoPlan(data, goalId);
     setSelectedGoalId(goalId);
     setAppliedScenarioId(plan.baseScenarioId);
     setRecordedRound(false);
@@ -75,22 +76,17 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
       data,
       selectedGoalId,
       option.id,
-    );
+    )!;
     setComparison(result);
-    setFeedback(
-      result === null
-        ? { status: "idle" }
-        : {
-            status: "success",
-            message:
-              "체험용 대체 경로입니다. 확인 전에는 현재 데모 계획이 유지됩니다.",
-          },
-    );
-    return result !== null;
+    setFeedback({
+      status: "success",
+      message:
+        "체험용 대체 경로입니다. 확인 전에는 현재 데모 계획이 유지됩니다.",
+    });
+    return true;
   };
   const handleApply = async () => {
-    if (comparison === null) return false;
-    setAppliedScenarioId(comparison.id);
+    setAppliedScenarioId(comparison!.id);
     setComparison(null);
     setFeedback({
       status: "success",
@@ -98,6 +94,10 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
         "선택한 경로를 이 데모 화면에만 적용했습니다. 서버 데이터는 바뀌지 않았습니다.",
     });
     return true;
+  };
+  const handleClearTransient = () => {
+    setComparison(null);
+    setFeedback({ status: "idle" });
   };
 
   return (
@@ -107,14 +107,14 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
       feedback={feedback}
       scenarioComparison={comparison}
       onSelectGoal={handleSelectGoal}
-      onComplete={async () => false}
+      onPreviewPlan={rejectUnsupportedPlannerOperation}
+      onDiscardPlanPreview={handleClearTransient}
+      onCreatePlan={rejectUnsupportedPlannerOperation}
+      onComplete={handleRecord}
       onRecordDemo={handleRecord}
       onSkip={handleSkip}
       onPreviewScenario={handlePreviewScenario}
-      onClearScenario={() => {
-        setComparison(null);
-        setFeedback({ status: "idle" });
-      }}
+      onClearScenario={handleClearTransient}
       onApplyScenario={handleApply}
     />
   );

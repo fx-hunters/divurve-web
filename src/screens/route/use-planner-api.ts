@@ -47,12 +47,16 @@ export interface PlannerApiDependencies {
   readonly load: typeof fetchPlannerOverview;
   readonly complete: typeof completePlanStep;
   readonly skip: typeof skipPlanStep;
-  readonly preview?: typeof previewGoalPlan;
-  readonly create?: typeof createGoalPlan;
-  readonly previewScenario?: typeof previewPlanScenario;
-  readonly apply?: typeof applyDraftPlan;
-  readonly createExecutionKey?: () => string;
-  readonly getToday?: () => string;
+  readonly preview: typeof previewGoalPlan;
+  readonly create: typeof createGoalPlan;
+  readonly previewScenario: typeof previewPlanScenario;
+  readonly apply: typeof applyDraftPlan;
+  readonly createExecutionKey: () => string;
+  readonly getToday: () => string;
+}
+
+export function getPlannerToday(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
@@ -64,7 +68,7 @@ const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
   previewScenario: previewPlanScenario,
   apply: applyDraftPlan,
   createExecutionKey: createPlannerExecutionKey,
-  getToday: () => new Date().toISOString().slice(0, 10),
+  getToday: getPlannerToday,
 };
 
 function errorMessage(error: unknown): string {
@@ -73,7 +77,7 @@ function errorMessage(error: unknown): string {
     : "플래너 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.";
 }
 
-function replaceActivePlan(
+export function replaceActivePlanState(
   state: PlannerApiState,
   goalId: string,
   plan: PlannerPlanResponse,
@@ -155,15 +159,13 @@ export function usePlannerApi(
       if (executionRef.current?.signature !== signature) {
         executionRef.current = {
           signature,
-          key: (dependencies.createExecutionKey ?? createPlannerExecutionKey)(),
+          key: dependencies.createExecutionKey(),
         };
       }
       try {
         const result = await dependencies.complete(planId, sequence, {
           ...validation.value,
-          executedDate:
-            (dependencies.getToday ??
-              (() => new Date().toISOString().slice(0, 10)))(),
+          executedDate: dependencies.getToday(),
           executionKey: executionRef.current.key,
         });
         setActionState({
@@ -173,12 +175,12 @@ export function usePlannerApi(
         });
         executionRef.current = null;
         setReloadKey((key) => key + 1);
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],
@@ -196,12 +198,12 @@ export function usePlannerApi(
           message: `${sequence}회차 건너뛰기 이후의 계획 미리보기입니다. 아직 계획에는 적용되지 않았습니다.`,
           result,
         });
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],
@@ -213,7 +215,7 @@ export function usePlannerApi(
       isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
-        const result = await (dependencies.preview ?? previewGoalPlan)(goal);
+        const result = await dependencies.preview(goal);
         setPlanPreview({ goalId: goal.id, plan: result });
         setScenarioPreview(null);
         setActionState({
@@ -221,12 +223,12 @@ export function usePlannerApi(
           message: "아직 저장되지 않은 계획 미리보기입니다.",
           result,
         });
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],
@@ -238,21 +240,33 @@ export function usePlannerApi(
       isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
-        const result = await (dependencies.create ?? createGoalPlan)(goal);
-        setState((current) => replaceActivePlan(current, goal.id, result));
+        await dependencies.create(goal);
+        const refreshed = await dependencies.load();
+        const refreshedPlan = refreshed.items.find(
+          (item) => item.goal.id === goal.id,
+        )?.activePlan;
+        if (typeof refreshedPlan?.planId !== "string") {
+          setActionState({
+            status: "error",
+            message:
+              "계획 생성 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+          });
+          isActionPendingRef.current = false;
+          return false;
+        }
+        setState({ status: "success", data: refreshed });
         setPlanPreview(null);
         setActionState({
           status: "success",
-          message: "계획을 만들었습니다. 최신 활성 계획을 다시 확인합니다.",
-          result,
+          message: "계획을 만들고 최신 활성 계획을 확인했습니다.",
+          result: refreshedPlan,
         });
-        setReloadKey((key) => key + 1);
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],
@@ -267,9 +281,7 @@ export function usePlannerApi(
       isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
-        const result = await (
-          dependencies.previewScenario ?? previewPlanScenario
-        )(planId, input);
+        const result = await dependencies.previewScenario(planId, input);
         setScenarioPreview(result);
         setActionState({
           status: "success",
@@ -277,12 +289,12 @@ export function usePlannerApi(
             "변경 전후를 비교하는 미리보기입니다. 아직 활성 계획은 바뀌지 않았습니다.",
           result,
         });
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],
@@ -294,8 +306,8 @@ export function usePlannerApi(
       isActionPendingRef.current = true;
       setActionState({ status: "loading" });
       try {
-        const result = await (dependencies.apply ?? applyDraftPlan)(draftPlanId);
-        setState((current) => replaceActivePlan(current, goalId, result));
+        const result = await dependencies.apply(draftPlanId);
+        setState((current) => replaceActivePlanState(current, goalId, result));
         setScenarioPreview(null);
         setActionState({
           status: "success",
@@ -303,12 +315,12 @@ export function usePlannerApi(
           result,
         });
         setReloadKey((key) => key + 1);
+        isActionPendingRef.current = false;
         return true;
       } catch (error) {
         setActionState({ status: "error", message: errorMessage(error) });
-        return false;
-      } finally {
         isActionPendingRef.current = false;
+        return false;
       }
     },
     [dependencies],

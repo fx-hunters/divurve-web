@@ -23,6 +23,7 @@ describe("planner demo adapter", () => {
       "일본 여행 준비",
     ]);
     expect(model.dataSource).toEqual({ kind: "demo", label: "데모 데이터" });
+    expect(model.plan?.planSource).toBe("active");
     expect(model.selectedGoal).toMatchObject({
       id: "usd-etf-recurring-demo",
       targetAmount: null,
@@ -98,5 +99,39 @@ describe("planner demo adapter", () => {
     expect(presentDemoPlanner(data, "unknown").selectedGoal?.id).toBe(
       "usd-etf-recurring-demo",
     );
+  });
+
+  it("도착 노드와 기록 뒤 다음 노드가 없는 fixture를 임의 생성 없이 표시한다", () => {
+    const sourcePlan = data.plans[0]!;
+    const sourceScenario = sourcePlan.scenarios[0]!;
+    const withoutDestination = {
+      ...sourceScenario,
+      id: "rapidRise" as const,
+      checkpoints: sourceScenario.checkpoints.filter(
+        (checkpoint) => checkpoint.status !== "destination",
+      ),
+    };
+    const fixture: RoutePlanData = {
+      ...data,
+      plans: [
+        {
+          ...sourcePlan,
+          scenarios: [withoutDestination],
+          recordedState: {
+            ...sourcePlan.recordedState,
+            nextCheckpointId: "missing-checkpoint",
+          },
+        },
+      ],
+    };
+
+    const model = presentDemoPlanner(
+      fixture,
+      sourcePlan.id,
+      "unknown",
+      true,
+    );
+    expect(model.curve?.destination).toBeNull();
+    expect(model.nextAction).toBeNull();
   });
 });

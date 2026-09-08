@@ -14,7 +14,6 @@ import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
 import {
   PlannerJourneyConfirm,
   PlannerJourneyNoAction,
-  PlannerJourneyNoPlan,
   PlannerJourneyResult,
 } from "./planner-journey-outcome";
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
@@ -129,7 +128,7 @@ export function PlannerJourneyScreen({
           <PlannerJourneyPlanSetup
             plan={view.plan}
             isPending={isPending}
-            onBack={() => flow.setStage("status")}
+            onBack={flow.returnFromPlanSetup}
             onCreate={() => void flow.createPlan()}
           />
         )}
@@ -198,9 +197,6 @@ export function PlannerJourneyScreen({
             onGoals={() => flow.setStage("goal")}
             onCurve={() => flow.setStage("curve")}
           />
-        )}
-        {flow.stage === "noPlan" && (
-          <PlannerJourneyNoPlan onBack={() => flow.setStage("status")} />
         )}
         <FeedbackView feedback={feedback} />
       </div>

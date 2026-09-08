@@ -28,16 +28,15 @@ const SCENARIO_CODES: Readonly<
 function toNodeStatus(
   status: PlannerCheckpointData["status"],
 ): PlannerNodeStatus {
-  switch (status) {
-    case "complete":
-      return "completed";
-    case "next":
-      return "next";
-    case "upcoming":
-      return "upcoming";
-    case "destination":
-      return "destination";
-  }
+  const statusMap: Readonly<
+    Record<PlannerCheckpointData["status"], PlannerNodeStatus>
+  > = {
+    complete: "completed",
+    next: "next",
+    upcoming: "upcoming",
+    destination: "destination",
+  };
+  return statusMap[status];
 }
 
 function toCurve(scenario: PlannerScenario): PlannerCurveViewModel {
@@ -125,7 +124,7 @@ function scenarioOptions(plan: PlannerPlan): readonly PlannerScenarioOptionViewM
   }));
 }
 
-function findPlan(
+export function findDemoPlan(
   data: RoutePlanData,
   selectedGoalId?: string | null,
 ): PlannerPlan {
@@ -151,7 +150,7 @@ export function presentDemoPlanner(
   appliedScenarioId?: string | null,
   hasRecordedRound = false,
 ): PlannerViewModel {
-  const plan = findPlan(data, selectedGoalId);
+  const plan = findDemoPlan(data, selectedGoalId);
   const scenario = findScenario(plan, appliedScenarioId);
   const steps = toSteps(scenario, hasRecordedRound);
   const nextCheckpoint = hasRecordedRound
@@ -187,6 +186,7 @@ export function presentDemoPlanner(
       progressLabel: plan.goal.progressLabel,
     },
     plan: {
+      planSource: "active",
       id: plan.id,
       version: null,
       versionLabel: "체험용",
@@ -201,7 +201,6 @@ export function presentDemoPlanner(
       policyVersion: "체험용 fixture",
       disclaimer: data.dataNotice.notice,
       warnings: [],
-      isPreview: false,
       summaryText: plan.plan.description,
     },
     curveNodes: toCurve(scenario).nodes,
@@ -215,7 +214,7 @@ export function presentDemoPlanner(
             sequence:
               steps.find(
                 (step) => step.scheduledDate === nextCheckpoint.detail,
-              )?.sequence ?? 1,
+              )!.sequence,
             scheduledDate: nextActionCopy.dueLabel,
             amount: null,
             amountLabel: nextActionCopy.amountLabel,
@@ -245,7 +244,7 @@ export function presentDemoScenarioComparison(
   selectedGoalId: string,
   scenarioId: string,
 ): PlannerScenarioComparisonViewModel | null {
-  const plan = findPlan(data, selectedGoalId);
+  const plan = findDemoPlan(data, selectedGoalId);
   const scenario = plan.scenarios.find((candidate) => candidate.id === scenarioId);
   if (scenario === undefined || scenario.id === plan.baseScenarioId) return null;
   const baseScenario = findScenario(plan, plan.baseScenarioId);

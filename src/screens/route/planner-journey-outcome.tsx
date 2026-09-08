@@ -86,25 +86,6 @@ export function PlannerJourneyResult({ title, onGoals, onCurve }: ResultProps) {
   );
 }
 
-export function PlannerJourneyNoPlan({ onBack }: { readonly onBack: () => void }) {
-  return (
-    <section className="planner-api-journey__scene">
-      <p className="planner-api-journey__eyebrow">활성 계획</p>
-      <h2>이 목표에는 활성 계획이 없습니다</h2>
-      <p className="planner-api-journey__lead">
-        서버가 계획 미리보기를 지원하지 않아 목표 정보만 확인할 수 있습니다.
-      </p>
-      <button
-        type="button"
-        className="planner-api-journey__secondary"
-        onClick={onBack}
-      >
-        현재 상태로
-      </button>
-    </section>
-  );
-}
-
 interface NoActionProps {
   readonly detailButtonRef: RefObject<HTMLButtonElement>;
   readonly onDetail: () => void;

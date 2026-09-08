@@ -7,7 +7,12 @@ import type {
   PlannerScenarioPreviewResponse,
 } from "../../api/planner-contract";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
-import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import {
+  getPlannerToday,
+  replaceActivePlanState,
+  usePlannerApi,
+  type PlannerApiDependencies,
+} from "./use-planner-api";
 
 const overview = (): PlannerApiOverview => ({ items: [{ goal: { id: "goal", name: "목표", kind: "deadline", purpose: "travel", currencyCode: "USD", targetAmount: 100, isSpeculative: false, status: "active", heldAmount: 10 }, activePlan: null }] });
 const completeResult = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 90, nextActionSeq: 2, alreadyApplied: false };
@@ -40,6 +45,20 @@ function deferred<T>() {
 }
 
 describe("usePlannerApi", () => {
+  it("기본 실행일은 현재 날짜의 ISO 일자를 사용한다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-08T23:30:00Z"));
+    expect(getPlannerToday()).toBe("2026-09-08");
+    vi.useRealTimers();
+  });
+
+  it("활성 계획 교체는 성공 상태에서만 선택 목표에 적용한다", () => {
+    expect(replaceActivePlanState({ status: "loading" }, "goal", planResult)).toEqual({
+      status: "loading",
+    });
+    const state = { status: "success" as const, data: overview() };
+    expect(replaceActivePlanState(state, "other", planResult)).toEqual(state);
+  });
   it("목표가 없으면 empty, 재시도하면 최신 성공 상태를 표시한다", async () => {
     const load = vi.fn().mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce(overview());
     const deps = dependencies({ load });
@@ -153,6 +172,17 @@ describe("usePlannerApi", () => {
     await act(async () => pending.resolve(overview()));
   });
 
+  it("언마운트 뒤에 실패한 조회도 상태를 갱신하지 않는다", async () => {
+    let reject!: (reason: unknown) => void;
+    const pending = new Promise<PlannerApiOverview>((_resolve, rejectPromise) => {
+      reject = rejectPromise;
+    });
+    const deps = dependencies({ load: () => pending });
+    const { unmount } = renderHook(() => usePlannerApi(deps));
+    unmount();
+    await act(async () => reject(new Error("late failure")));
+  });
+
   it("건너뛰기 실패를 표시하고 재조회하지 않는다", async () => {
     const load = vi.fn().mockResolvedValue(overview());
     const deps = dependencies({ load, skip: vi.fn().mockRejectedValue(new Error("skip")) });
@@ -187,7 +217,7 @@ describe("usePlannerApi", () => {
     expect(result.current.actionState).toEqual({ status: "idle" });
   });
 
-  it("계획 생성 성공은 응답을 즉시 반영하고 최신 개요를 다시 조회한다", async () => {
+  it("계획 생성 성공은 최신 활성 계획 재조회가 끝난 뒤 확정한다", async () => {
     const refreshed: PlannerApiOverview = {
       items: [{ ...overview().items[0]!, activePlan: planResult }],
     };
@@ -206,6 +236,31 @@ describe("usePlannerApi", () => {
         data: { items: [{ activePlan: planResult }] },
       }),
     );
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("최신 활성 계획을 확인했습니다"),
+    });
+  });
+
+  it("계획 생성 뒤 활성 계획을 재조회하지 못하면 preview를 유지한다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+
+    await act(async () => {
+      expect(await result.current.preview(goal)).toBe(true);
+      expect(await result.current.create(goal)).toBe(false);
+    });
+
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(result.current.planPreview).toEqual({ goalId: "goal", plan: planResult });
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message:
+        "계획 생성 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+    });
   });
 
   it("scenario preview와 사용자 승인 apply를 분리하고 성공 뒤 재조회한다", async () => {

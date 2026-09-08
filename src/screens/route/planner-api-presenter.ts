@@ -286,6 +286,7 @@ export function presentPlannerOverview(
       activePlan === undefined || activePlan === null
         ? null
         : {
+            planSource: activePlan.planId === null ? "preview" : "active",
             id: activePlan.planId,
             version: activePlan.version,
             versionLabel:
@@ -301,7 +302,6 @@ export function presentPlannerOverview(
             policyVersion: activePlan.calculationMeta.policyVersion,
             disclaimer: activePlan.disclaimer,
             warnings: activePlan.warnings,
-            isPreview: activePlan.planId === null,
           },
     curveNodes: selected === null ? [] : toCurveNodes(selected, nextIndex),
     curve: selected === null ? null : toCurve(selected, nextIndex),

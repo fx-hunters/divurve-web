@@ -55,8 +55,7 @@ export function PlannerJourneyScenario({
       onSelect(option);
     }
   };
-  const handleBudgetPreview = () => {
-    if (selectedOption === undefined) return;
+  const handleBudgetPreview = (option: PlannerScenarioOptionViewModel) => {
     const newBudgetKrw = Number(budget);
     if (!Number.isFinite(newBudgetKrw) || newBudgetKrw <= 0) {
       setBudgetError("새 예산은 0보다 큰 금액으로 입력해 주세요.");
@@ -64,7 +63,7 @@ export function PlannerJourneyScenario({
     }
     setBudgetError("");
     setPendingOptionId(null);
-    onSelect(selectedOption, newBudgetKrw);
+    onSelect(option, newBudgetKrw);
   };
 
   return (
@@ -115,7 +114,7 @@ export function PlannerJourneyScenario({
               type="button"
               className="planner-api-journey__primary"
               disabled={isPending}
-              onClick={handleBudgetPreview}
+              onClick={() => handleBudgetPreview(selectedOption)}
             >
               새 예산으로 비교
             </button>

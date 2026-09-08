@@ -96,6 +96,29 @@ describe("planner API", () => {
     await expect(fetchPlannerOverview()).rejects.toBe(error);
   });
 
+  it("goal meta에 demo 여부가 없으면 X-Ray meta를 사용한다", async () => {
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: { goals: [] },
+      meta: { asOf: "" },
+    });
+    vi.mocked(fetchXrayOverview).mockResolvedValue({
+      data: {
+        totalAssetKrw: 0,
+        krwAssetKrw: 0,
+        fxAssetKrw: 0,
+        fxRatio: 0,
+        exposure: [],
+        concentration: { status: "unknown" },
+        sensitivity1pct: { totalKrw: 0, byCurrency: {} },
+      },
+      meta: { asOf: "", isDemo: true },
+    });
+    await expect(fetchPlannerOverview()).resolves.toMatchObject({
+      items: [],
+      isDemo: true,
+    });
+  });
+
   it("최신 Plan 구조를 런타임 타입으로 검증한다", () => {
     expect(parsePlannerPlanResponse(activePlan)).toEqual(activePlan);
     expect(parsePlannerPlanResponse({ ...activePlan, planId: undefined })).toMatchObject({
@@ -114,6 +137,42 @@ describe("planner API", () => {
     expect(() =>
       parsePlannerPlanResponse({ ...activePlan, warnings: ["ok", 1] }),
     ).toThrowError(/warnings/);
+    expect(() =>
+      parsePlannerPlanResponse({ ...activePlan, disclaimer: 1 }),
+    ).toThrowError(/disclaimer/);
+    expect(() =>
+      parsePlannerPlanResponse({
+        ...activePlan,
+        steps: [
+          { ...activePlan.steps[0]!, nextAction: "yes" },
+        ],
+      }),
+    ).toThrowError(/nextAction/);
+  });
+
+  it("서버가 제공한 누적·회차 확보 범위를 손실 없이 파싱한다", () => {
+    const range = { low: 100, base: 120, high: 140 };
+    const response = {
+      ...activePlan,
+      summary: {
+        ...activePlan.summary,
+        cumulativeAcquisition: range,
+      },
+      steps: activePlan.steps.map((step) => ({
+        ...step,
+        acquisition: range,
+      })),
+    };
+    expect(parsePlannerPlanResponse(response)).toMatchObject({
+      summary: { cumulativeAcquisition: range },
+      steps: [{ acquisition: range }, { acquisition: range }],
+    });
+    expect(
+      parsePlannerPlanResponse({
+        ...activePlan,
+        summary: { ...activePlan.summary, estimatedCost: undefined },
+      }).summary.estimatedCost,
+    ).toBeNull();
   });
 
   it("계획 버전 이력을 조회해 versions 배열만 돌려준다", async () => {
@@ -191,5 +250,12 @@ describe("planner API", () => {
 
   it("한 사용자 실행에 사용할 execution key를 주입된 UUID 생성기로 만든다", () => {
     expect(createPlannerExecutionKey(() => "stable-key")).toBe("stable-key");
+  });
+
+  it("UUID 생성기를 주입하지 않으면 브라우저 UUID를 사용한다", () => {
+    const uuid = "00000000-0000-4000-8000-000000000000";
+    const spy = vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(uuid);
+    expect(createPlannerExecutionKey()).toBe(uuid);
+    spy.mockRestore();
   });
 });

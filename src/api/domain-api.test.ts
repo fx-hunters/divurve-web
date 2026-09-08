@@ -85,6 +85,17 @@ describe("screen API modules", () => {
     });
   });
 
+  it("X-Ray 본문에 샘플 여부가 없으면 meta 값을 사용한다", async () => {
+    vi.mocked(request).mockImplementation(async (path) => ({ path }));
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: {},
+      meta: { asOf: "2026-09-08T00:00:00Z", isSampleData: true },
+    });
+    await expect(fetchXrayBundle()).resolves.toMatchObject({
+      isSampleData: true,
+    });
+  });
+
   it("마이페이지 묶음과 설정 저장을 처리한다", async () => {
     vi.mocked(request).mockImplementation(async (path) => {
       if (path === "/api/v1/me") return { userId: "u" };

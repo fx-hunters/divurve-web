@@ -93,6 +93,8 @@ describe("RouteScreen", () => {
       create: vi.fn(),
       previewScenario: vi.fn(),
       apply: vi.fn(),
+      createExecutionKey: vi.fn(() => "demo-must-not-call"),
+      getToday: vi.fn(() => "2026-09-08"),
     };
     render(<RouteScreen apiDependencies={apiDependencies} />);
     fireEvent.click(
@@ -111,6 +113,25 @@ describe("RouteScreen", () => {
     expect(apiDependencies.complete).not.toHaveBeenCalled();
     expect(apiDependencies.skip).not.toHaveBeenCalled();
     expect(apiDependencies.previewScenario).not.toHaveBeenCalled();
+  });
+
+  it("데모 건너뛰기는 로컬 비교만 열고 현재 계획 선택으로 해제한다", async () => {
+    await enterDemoAction();
+    fireEvent.click(
+      screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "상황이 달라지면 경로를 비교해 보세요",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "현재 데모 계획에는 아직 적용되지 않았습니다",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /예상 범위 안/ }));
+    expect(
+      document.querySelector(".planner-api-scenario__comparison"),
+    ).not.toBeInTheDocument();
   });
 
   it("마감형 목표도 같은 장면 구조와 fixture 표시값을 사용한다", async () => {
@@ -158,6 +179,12 @@ describe("RouteScreen", () => {
       load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
       complete: vi.fn(),
       skip: vi.fn(),
+      preview: vi.fn(),
+      create: vi.fn(),
+      previewScenario: vi.fn(),
+      apply: vi.fn(),
+      createExecutionKey: vi.fn(() => "api-key"),
+      getToday: vi.fn(() => "2026-09-08"),
     };
     render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
 

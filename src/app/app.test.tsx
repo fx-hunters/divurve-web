@@ -230,7 +230,7 @@ describe("App", () => {
     fireEvent.click(plannerBtns[0]);
     expect(
       await screen.findByRole("heading", {
-        name: "어떤 외화 목표를 준비하고 있나요?",
+        name: "어떤 외화 목표를 이어갈까요?",
         level: 2,
       }),
     ).toBeInTheDocument();
@@ -307,7 +307,7 @@ describe("App", () => {
       fireEvent.click(mobilePlannerBtn);
       expect(
         await screen.findByRole("heading", {
-          name: "어떤 외화 목표를 준비하고 있나요?",
+          name: "어떤 외화 목표를 이어갈까요?",
           level: 2,
         }),
       ).toBeInTheDocument();
@@ -386,7 +386,7 @@ describe("App", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "어떤 외화 목표를 준비하고 있나요?",
+        name: "어떤 외화 목표를 이어갈까요?",
       }),
     ).toBeInTheDocument();
     expect(window.location.pathname).toBe("/route");

@@ -5,7 +5,10 @@ import {
   presentPlannerScenarioComparison,
   replacePlannerPlan,
 } from "./planner-api-presenter";
-import type { PlannerScenarioOptionViewModel } from "./planner-api-types";
+import {
+  rejectUnsupportedPlannerOperation,
+  type PlannerScenarioOptionViewModel,
+} from "./planner-api-types";
 import {
   PlannerJourneyScreen,
   type PlannerJourneyFeedback,
@@ -59,7 +62,7 @@ export function PlannerApiScreen({
 
   const baseOverview = planner.state.data;
   const baseView = presentPlannerOverview(baseOverview, selectedGoalId);
-  const activeGoalId = baseView.selectedGoal?.id ?? null;
+  const activeGoalId = baseView.selectedGoal!.id;
   const effectiveOverview =
     planner.planPreview !== null && planner.planPreview.goalId === activeGoalId
       ? replacePlannerPlan(
@@ -71,7 +74,7 @@ export function PlannerApiScreen({
   const view = presentPlannerOverview(effectiveOverview, activeGoalId);
   const rawGoal = baseOverview.items.find(
     (item) => item.goal.id === activeGoalId,
-  )?.goal;
+  )!.goal;
   const comparison =
     planner.scenarioPreview !== null && selectedOption !== null
       ? presentPlannerScenarioComparison(
@@ -86,39 +89,33 @@ export function PlannerApiScreen({
     setSelectedOption(null);
     planner.clearTransient();
   };
-  const handlePreviewPlan = async () =>
-    rawGoal === undefined ? false : planner.preview(rawGoal);
-  const handleCreatePlan = async () =>
-    rawGoal === undefined ? false : planner.create(rawGoal);
+  const handlePreviewPlan = async () => planner.preview(rawGoal);
+  const handleCreatePlan = async () => planner.create(rawGoal);
+  const handleClearTransient = () => {
+    setSelectedOption(null);
+    planner.clearTransient();
+  };
   const handleComplete = async (amount: number, rate: number) => {
-    const action = view.nextAction;
-    return action === null
-      ? false
-      : planner.complete(action.planId, action.sequence, amount, rate);
+    const action = view.nextAction!;
+    return planner.complete(action.planId, action.sequence, amount, rate);
   };
   const handleSkip = async () => {
-    const action = view.nextAction;
-    return action === null
-      ? false
-      : planner.skip(action.planId, action.sequence);
+    const action = view.nextAction!;
+    return planner.skip(action.planId, action.sequence);
   };
   const handlePreviewScenario = async (
     option: PlannerScenarioOptionViewModel,
     newBudgetKrw?: number,
   ) => {
     setSelectedOption(option);
-    if (option.scenarioCode === null) {
-      planner.clearTransient();
-      return true;
-    }
-    const planId = view.plan?.id;
-    if (planId === null || planId === undefined) return false;
+    const scenarioCode = option.scenarioCode!;
+    const planId = view.plan!.id!;
     const input = {
-      scenarioCode: option.scenarioCode,
-      ...(option.scenarioCode === "STEP_SKIPPED" && view.nextAction !== null
+      scenarioCode,
+      ...(scenarioCode === "STEP_SKIPPED" && view.nextAction !== null
         ? { skippedSeq: view.nextAction.sequence }
         : {}),
-      ...(option.scenarioCode === "BUDGET_DECREASED" &&
+      ...(scenarioCode === "BUDGET_DECREASED" &&
       newBudgetKrw !== undefined
         ? { newBudgetKrw }
         : {}),
@@ -126,14 +123,11 @@ export function PlannerApiScreen({
     return planner.previewScenario(planId, input);
   };
   const handleApply = async () => {
-    if (
-      activeGoalId === null ||
-      comparison === null ||
-      comparison.draftPlanId === null
-    ) {
+    const draftPlanId = comparison?.draftPlanId;
+    if (typeof draftPlanId !== "string") {
       return false;
     }
-    return planner.apply(activeGoalId, comparison.draftPlanId);
+    return planner.apply(activeGoalId, draftPlanId);
   };
   const feedback: PlannerJourneyFeedback =
     planner.actionState.status === "success"
@@ -149,15 +143,13 @@ export function PlannerApiScreen({
       history={{ dependencies: planVersionDependencies }}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={handlePreviewPlan}
+      onDiscardPlanPreview={handleClearTransient}
       onCreatePlan={handleCreatePlan}
       onComplete={handleComplete}
-      onRecordDemo={async () => false}
+      onRecordDemo={rejectUnsupportedPlannerOperation}
       onSkip={handleSkip}
       onPreviewScenario={handlePreviewScenario}
-      onClearScenario={() => {
-        setSelectedOption(null);
-        planner.clearTransient();
-      }}
+      onClearScenario={handleClearTransient}
       onApplyScenario={handleApply}
     />
   );

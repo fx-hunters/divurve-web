@@ -13,13 +13,13 @@ export type JourneyStage =
   | "action"
   | "scenario"
   | "confirm"
-  | "result"
-  | "noPlan";
+  | "result";
 
 export interface PlannerJourneyOperations {
   readonly onSelectGoal: (goalId: string) => void;
-  readonly onPreviewPlan?: () => Promise<boolean>;
-  readonly onCreatePlan?: () => Promise<boolean>;
+  readonly onPreviewPlan: () => Promise<boolean>;
+  readonly onDiscardPlanPreview: () => void;
+  readonly onCreatePlan: () => Promise<boolean>;
   readonly onComplete: (amount: number, rate: number) => Promise<boolean>;
   readonly onRecordDemo: () => Promise<boolean>;
   readonly onSkip: () => Promise<boolean>;
@@ -52,21 +52,22 @@ export function usePlannerJourneyFlow(
     setStage("status");
   };
   const continueFromStatus = async () => {
-    if (view.plan !== null) {
+    if (view.plan?.planSource === "active") {
       setStage("curve");
       return;
     }
-    if (operations.onPreviewPlan === undefined) {
-      setStage("noPlan");
+    if (view.plan?.planSource === "preview") {
+      setStage("planSetup");
       return;
     }
     if (await operations.onPreviewPlan()) setStage("planSetup");
   };
+  const returnFromPlanSetup = () => {
+    operations.onDiscardPlanPreview();
+    setStage("status");
+  };
   const createPlan = async () => {
-    if (
-      operations.onCreatePlan !== undefined &&
-      (await operations.onCreatePlan())
-    ) {
+    if (await operations.onCreatePlan()) {
       setStage("curve");
     }
   };
@@ -119,6 +120,7 @@ export function usePlannerJourneyFlow(
     resultTitle,
     selectGoal,
     continueFromStatus,
+    returnFromPlanSetup,
     createPlan,
     complete,
     recordDemo,
