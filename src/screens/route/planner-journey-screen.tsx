@@ -11,6 +11,8 @@ import { PlannerJourneyAction } from "./planner-journey-action";
 import { PlannerJourneyCurve } from "./planner-journey-curve";
 import { PlannerJourneyDetail } from "./planner-journey-detail";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
+import { PlannerGoalForm } from "./planner-goal-form";
+import type { PlannerGoalInput } from "./planner-goal-input";
 import {
   PlannerJourneyConfirm,
   PlannerJourneyNoAction,
@@ -40,6 +42,14 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
   readonly history?: {
     readonly dependencies?: PlanVersionDependencies;
   };
+  readonly goalCreation: {
+    readonly sourceLabel: string;
+    readonly canCreateRecurring: boolean;
+    readonly today: string;
+    readonly onCreate: (input: PlannerGoalInput) => Promise<string | null>;
+  };
+  readonly onExploreDemo?: () => void;
+  readonly onExitDemo?: () => void;
 }
 
 function FeedbackView({ feedback }: { readonly feedback: PlannerJourneyFeedback }) {
@@ -60,15 +70,25 @@ export function PlannerJourneyScreen({
   feedback,
   scenarioComparison,
   history,
+  goalCreation,
+  onExploreDemo,
+  onExitDemo,
   ...operations
 }: PlannerJourneyScreenProps) {
   const flow = usePlannerJourneyFlow(view, operations);
   const [isDetailOpen, setDetailOpen] = useState(false);
+  const [isGoalFormOpen, setGoalFormOpen] = useState(false);
   const detailTrigger = useRef<HTMLButtonElement>(null);
   const goal = view.selectedGoal;
   const isPending = feedback.status === "loading";
   const sourceCopy = getDataSourceCopy(view.dataSource.kind);
-  if (goal === null) return null;
+  const handleCreateGoal = async (input: PlannerGoalInput) => {
+    const goalId = await goalCreation.onCreate(input);
+    if (goalId === null) return false;
+    setGoalFormOpen(false);
+    flow.selectGoal(goalId);
+    return true;
+  };
 
   return (
     <section
@@ -79,14 +99,14 @@ export function PlannerJourneyScreen({
     >
       <header className="planner-api__header">
         <div>
-          <p className="planner-api-journey__eyebrow">DIVISA + CURVE</p>
+          <p className="planner-api-journey__eyebrow">DIVURVE</p>
           <h1>내 외화 플래너</h1>
           <p>{sourceCopy.description}</p>
         </div>
         <DataSourceBadge kind={view.dataSource.kind} />
       </header>
 
-      {flow.stage !== "goal" && (
+      {flow.stage !== "goal" && goal !== null && (
         <div className="planner-api__recap" aria-label="선택한 목표 요약">
           <span>{goal.name}</span>
           <strong>{goal.heldAmountLabel}</strong>
@@ -95,19 +115,36 @@ export function PlannerJourneyScreen({
       )}
 
       <div className="planner-api-journey" data-stage={flow.stage}>
-        {flow.stage === "goal" && (
-          <PlannerJourneyGoalSelect
-            goals={view.goalItems}
-            selectedGoalId={goal.id}
-            onSelect={flow.selectGoal}
-            onContinue={() => flow.setStage("status")}
+        {flow.stage === "goal" && isGoalFormOpen && (
+          <PlannerGoalForm
+            sourceLabel={goalCreation.sourceLabel}
+            canCreateRecurring={goalCreation.canCreateRecurring}
+            isPending={isPending}
+            today={goalCreation.today}
+            onSubmit={handleCreateGoal}
+            onCancel={() => setGoalFormOpen(false)}
           />
         )}
-        {flow.stage === "status" && (
+        {flow.stage === "goal" && !isGoalFormOpen && (
+          <PlannerJourneyGoalSelect
+            goals={view.goalItems}
+            selectedGoalId={goal?.id ?? ""}
+            onSelect={flow.selectGoal}
+            onContinue={() => flow.setStage("status")}
+            onCreateGoal={() => setGoalFormOpen(true)}
+            onExploreDemo={onExploreDemo}
+            onExitDemo={onExitDemo}
+          />
+        )}
+        {flow.stage === "status" && goal !== null && (
           <PlannerJourneyStatus
             goal={goal}
             onBack={() => flow.setStage("goal")}
             onContinue={() => void flow.continueFromStatus()}
+            canContinue={
+              view.plan !== null || view.supportedActions.canPreviewPlan
+            }
+            planAvailabilityMessage={view.planAvailabilityMessage}
             onHistory={
               history === undefined
                 ? undefined
@@ -115,7 +152,7 @@ export function PlannerJourneyScreen({
             }
           />
         )}
-        {flow.stage === "history" && history !== undefined && (
+        {flow.stage === "history" && history !== undefined && goal !== null && (
           <PlannerPlanHistory
             goalId={goal.id}
             goalName={goal.name}

@@ -26,7 +26,6 @@ import { validateExecutedStepInput } from "./planner-api-types";
 export type PlannerApiState =
   | { readonly status: "loading" }
   | { readonly status: "error"; readonly message: string }
-  | { readonly status: "empty" }
   | { readonly status: "success"; readonly data: PlannerApiOverview };
 
 type PlannerActionResult =
@@ -128,11 +127,7 @@ export function usePlannerApi(
       .load()
       .then((data) => {
         if (!isActive) return;
-        setState(
-          data.items.length === 0
-            ? { status: "empty" }
-            : { status: "success", data },
-        );
+        setState({ status: "success", data });
       })
       .catch((error: unknown) => {
         if (isActive) setState({ status: "error", message: errorMessage(error) });

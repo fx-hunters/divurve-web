@@ -814,6 +814,11 @@
     grid-template-columns: 1fr;
   }
 
+  .planner-goal-form__grid,
+  .planner-goal-form__kind {
+    grid-template-columns: 1fr;
+  }
+
   .planner-api-detail__sheet {
     top: auto;
     right: 0.45rem;
@@ -923,6 +928,127 @@
   color: var(--text);
   font-family: var(--font-sans);
   text-align: left;
+}
+
+.planner-api-goal-select__check {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--primary-content);
+  font-weight: 800;
+}
+
+.planner-api-goal-select__notice,
+.planner-goal-form__contract-note {
+  max-width: 68ch;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.planner-goal-form {
+  display: grid;
+  width: min(100%, 900px);
+  gap: 1.4rem;
+}
+
+.planner-goal-form form,
+.planner-goal-form__grid {
+  display: grid;
+  width: 100%;
+  gap: 1rem;
+}
+
+.planner-goal-form__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.planner-goal-form__grid label {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.planner-goal-form__grid input,
+.planner-goal-form__grid select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+}
+
+.planner-goal-form__kind {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 0;
+}
+
+.planner-goal-form__kind legend {
+  margin-bottom: 0.55rem;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 750;
+}
+
+.planner-goal-form__kind label {
+  display: flex;
+  min-height: 92px;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.planner-goal-form__kind label:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+}
+
+.planner-goal-form__kind label[aria-disabled="true"] {
+  opacity: 0.65;
+}
+
+.planner-goal-form__kind input {
+  margin-top: 0.2rem;
+}
+
+.planner-goal-form__kind span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.planner-goal-form__kind small {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.planner-goal-form__error {
+  color: var(--danger);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.planner-goal-form input:focus-visible,
+.planner-goal-form select:focus-visible {
+  outline: 3px solid var(--primary-border);
+  outline-offset: 3px;
 }
 
 .plan-version-list__version {

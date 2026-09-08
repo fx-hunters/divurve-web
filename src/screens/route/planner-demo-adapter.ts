@@ -14,6 +14,15 @@ import type {
   PlannerStepViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+import type { PlannerLocalGoal } from "./planner-goal-input";
+
+const amountFormatter = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: 2,
+});
+
+function formatAmount(value: number, currencyCode: string): string {
+  return `${amountFormatter.format(value)} ${currencyCode}`;
+}
 
 const SCENARIO_CODES: Readonly<
   Record<PlannerScenarioId, PlannerScenarioCode | null>
@@ -149,7 +158,67 @@ export function presentDemoPlanner(
   selectedGoalId?: string | null,
   appliedScenarioId?: string | null,
   hasRecordedRound = false,
+  localGoals: readonly PlannerLocalGoal[] = [],
 ): PlannerViewModel {
+  const localGoal = localGoals.find((goal) => goal.id === selectedGoalId);
+  if (localGoal !== undefined) {
+    const goalItems = [
+      ...data.plans.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.introOption.name,
+        currencyCode: candidate.introOption.currencyCode,
+        targetAmountLabel: candidate.goal.targetAmountLabel,
+        heldAmountLabel: candidate.goal.securedAmountLabel,
+        targetDateLabel: candidate.goal.targetDateLabel,
+        isSelected: false,
+        planStatusLabel: "데모 계획 있음",
+      })),
+      ...localGoals.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.input.name,
+        currencyCode: candidate.input.currencyCode,
+        targetAmountLabel: formatAmount(candidate.input.targetAmount, candidate.input.currencyCode),
+        heldAmountLabel: `0 ${candidate.input.currencyCode} 배정`,
+        targetDateLabel: candidate.input.targetDate,
+        isSelected: candidate.id === localGoal.id,
+        planStatusLabel: "계획 데이터 없음",
+      })),
+    ];
+    return {
+      goalItems,
+      selectedGoal: {
+        id: localGoal.id,
+        name: localGoal.input.name,
+        currencyCode: localGoal.input.currencyCode,
+        targetAmount: localGoal.input.targetAmount,
+        heldAmount: 0,
+        targetDate: localGoal.input.targetDate,
+        targetDateLabel: localGoal.input.targetDate,
+        targetAmountLabel: formatAmount(localGoal.input.targetAmount, localGoal.input.currencyCode),
+        heldAmountLabel: `0 ${localGoal.input.currencyCode} 배정`,
+        progressPercent: 0,
+        progressLabel: "데모 목표 배정 상태",
+      },
+      plan: null,
+      curveNodes: [],
+      curve: null,
+      steps: [],
+      nextAction: null,
+      dataSource: { kind: "demo", label: data.dataNotice.sourceLabel },
+      supportedActions: {
+        canPreviewPlan: false,
+        canCreatePlan: false,
+        canCompleteStep: false,
+        canSkipStep: false,
+        canPreviewScenario: false,
+        canApplyDraft: false,
+      },
+      unsupportedAreas: ["데모 입력으로 계획 계산", "실제 서버 저장"],
+      planAvailabilityMessage:
+        "입력한 목표는 이 화면에만 추가했습니다. 가짜 회차를 만들지 않으며, Curve는 기존 샘플 목표에서 확인할 수 있습니다.",
+      scenarioOptions: [],
+    };
+  }
   const plan = findDemoPlan(data, selectedGoalId);
   const scenario = findScenario(plan, appliedScenarioId);
   const steps = toSteps(scenario, hasRecordedRound);
@@ -163,7 +232,8 @@ export function presentDemoPlanner(
     : plan.action;
 
   return {
-    goalItems: data.plans.map((candidate) => ({
+    goalItems: [
+      ...data.plans.map((candidate) => ({
       id: candidate.id,
       name: candidate.introOption.name,
       currencyCode: candidate.introOption.currencyCode,
@@ -171,7 +241,19 @@ export function presentDemoPlanner(
       heldAmountLabel: candidate.goal.securedAmountLabel,
       targetDateLabel: candidate.goal.targetDateLabel,
       isSelected: candidate.id === plan.id,
-    })),
+      planStatusLabel: "데모 계획 있음",
+      })),
+      ...localGoals.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.input.name,
+        currencyCode: candidate.input.currencyCode,
+        targetAmountLabel: formatAmount(candidate.input.targetAmount, candidate.input.currencyCode),
+        heldAmountLabel: `0 ${candidate.input.currencyCode} 배정`,
+        targetDateLabel: candidate.input.targetDate,
+        isSelected: false,
+        planStatusLabel: "계획 데이터 없음",
+      })),
+    ],
     selectedGoal: {
       id: plan.id,
       name: plan.goal.name,
@@ -235,6 +317,7 @@ export function presentDemoPlanner(
       "금융 수치 계산",
       "실제 환전 실행",
     ],
+    planAvailabilityMessage: "브라우저에서만 사용하는 체험용 계획입니다.",
     scenarioOptions: scenarioOptions(plan),
   };
 }

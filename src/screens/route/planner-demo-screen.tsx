@@ -14,12 +14,20 @@ import {
   PlannerJourneyScreen,
   type PlannerJourneyFeedback,
 } from "./planner-journey-screen";
+import type { PlannerGoalInput, PlannerLocalGoal } from "./planner-goal-input";
+import { getPlannerToday } from "./use-planner-api";
 
 interface PlannerDemoScreenProps {
   readonly data: RoutePlanData;
+  readonly onExitDemo?: () => void;
+  readonly createGoalId?: () => string;
 }
 
-export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
+export function PlannerDemoScreen({
+  data,
+  onExitDemo,
+  createGoalId = () => crypto.randomUUID(),
+}: PlannerDemoScreenProps) {
   const initialPlan = data.plans[0];
   const [selectedGoalId, setSelectedGoalId] = useState(initialPlan.id);
   const [appliedScenarioId, setAppliedScenarioId] = useState<string>(
@@ -31,11 +39,13 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
   const [feedback, setFeedback] = useState<PlannerJourneyFeedback>({
     status: "idle",
   });
+  const [localGoals, setLocalGoals] = useState<readonly PlannerLocalGoal[]>([]);
   const view = presentDemoPlanner(
     data,
     selectedGoalId,
     appliedScenarioId,
     hasRecordedRound,
+    localGoals,
   );
 
   const handleSelectGoal = (goalId: string) => {
@@ -99,6 +109,17 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
     setComparison(null);
     setFeedback({ status: "idle" });
   };
+  const handleCreateGoal = async (input: PlannerGoalInput) => {
+    const id = `demo-${createGoalId()}`;
+    setLocalGoals((current) => [...current, { id, input }]);
+    setSelectedGoalId(id);
+    setComparison(null);
+    setFeedback({
+      status: "success",
+      message: "목표를 데모 화면에만 추가했습니다. 서버에는 저장하지 않았습니다.",
+    });
+    return id;
+  };
 
   return (
     <PlannerJourneyScreen
@@ -106,6 +127,13 @@ export function PlannerDemoScreen({ data }: PlannerDemoScreenProps) {
       view={view}
       feedback={feedback}
       scenarioComparison={comparison}
+      goalCreation={{
+        sourceLabel: "데모",
+        canCreateRecurring: true,
+        today: getPlannerToday(),
+        onCreate: handleCreateGoal,
+      }}
+      onExitDemo={onExitDemo}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={rejectUnsupportedPlannerOperation}
       onDiscardPlanPreview={handleClearTransient}

@@ -108,7 +108,7 @@ function dependencies(
 async function openAction(deps = dependencies()) {
   render(<PlannerApiScreen dependencies={deps} />);
   await screen.findByRole("region", { name: "API 플래너" });
-  fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+  fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
   fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
   fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
   return deps;
@@ -132,7 +132,43 @@ describe("PlannerApiScreen", () => {
         dependencies={dependencies({ load: vi.fn().mockResolvedValue({ items: [] }) })}
       />,
     );
-    expect(await screen.findByText("등록된 외화 목표가 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("첫 외화 목표를 만들어 보세요")).toBeInTheDocument();
+  });
+
+  it("빈 상태에서 목표를 만들고 서버 재조회 결과로 선택한다", async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValue(PLANNER_API_FIXTURE);
+    const deps = dependencies({ load });
+    render(<PlannerApiScreen dependencies={deps} />);
+
+    await screen.findByText("첫 외화 목표를 만들어 보세요");
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "미국 학비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "60000" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-09-08" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+
+    await waitFor(() => expect(deps.createGoal).toHaveBeenCalledOnce());
+    expect(deps.createGoal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "deadline",
+        purpose: "TRAVEL",
+        currencyCode: "USD",
+        targetAmount: 60000,
+        budgetCurrencyCode: "KRW",
+      }),
+    );
+    expect(
+      await screen.findByText("미국 ETF 준비의 현재 위치입니다"),
+    ).toBeInTheDocument();
   });
 
   it("활성 계획이 없으면 미리보기와 명시적 생성을 분리한다", async () => {
@@ -329,7 +365,7 @@ describe("PlannerApiScreen", () => {
       />,
     );
     await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
     expect(screen.getByRole("heading", { name: "남은 회차가 없습니다" })).toBeInTheDocument();
@@ -365,7 +401,7 @@ describe("PlannerApiScreen", () => {
       />,
     );
     await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
 
     expect(screen.getByText("계획 이력을 불러오고 있습니다.")).toBeInTheDocument();

@@ -197,4 +197,33 @@ describe("RouteScreen", () => {
     expect(screen.queryByText("미국 ETF 정기 투자")).not.toBeInTheDocument();
     expect(screen.getByTestId("planner-journey-screen")).toBe(region);
   });
+
+  it("회원은 저장 없이 데모를 둘러본 뒤 계정 플래너로 돌아온다", async () => {
+    const apiDependencies: PlannerApiDependencies = {
+      load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+      complete: vi.fn(),
+      skip: vi.fn(),
+      preview: vi.fn(),
+      create: vi.fn(),
+      createGoal: vi.fn(),
+      previewScenario: vi.fn(),
+      apply: vi.fn(),
+      createExecutionKey: vi.fn(() => "api-key"),
+      getToday: vi.fn(() => "2026-09-08"),
+    };
+    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "데모로 둘러보기" }));
+    expect(
+      await screen.findByRole("region", { name: "데모 플래너" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "내 계정 플래너로 돌아가기" }),
+    );
+    expect(
+      await screen.findByRole("region", { name: "API 플래너" }),
+    ).toBeInTheDocument();
+    expect(apiDependencies.createGoal).not.toHaveBeenCalled();
+  });
 });

@@ -256,6 +256,8 @@ export function presentPlannerOverview(
       heldAmountLabel: formatAmount(item.goal.heldAmount, item.goal.currencyCode),
       targetDateLabel: item.goal.targetDate ?? "미설정",
       isSelected: item.goal.id === selected?.goal.id,
+      planStatusLabel:
+        item.activePlan === null ? "활성 계획 없음" : "활성 계획 있음",
     })),
     selectedGoal:
       selected === null
@@ -332,6 +334,10 @@ export function presentPlannerOverview(
       canApplyDraft: false,
     },
     unsupportedAreas: ["서버에 없는 AI 설명 생성"],
+    planAvailabilityMessage:
+      activePlan === null
+        ? "활성 계획이 없습니다. 미리보기를 확인한 뒤 계획을 만들 수 있습니다."
+        : "서버에서 확인한 활성 계획입니다.",
     scenarioOptions: API_SCENARIO_OPTIONS,
   };
 }

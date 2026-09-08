@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   loadRoutePlan,
   type RoutePlanLoader,
@@ -25,20 +26,35 @@ export function RouteScreen({
   loadPlan = loadRoutePlan,
   apiDependencies,
 }: RouteScreenProps) {
-  if (mode === "api") {
-    return <PlannerApiScreen dependencies={apiDependencies} />;
+  const [isTemporaryDemo, setTemporaryDemo] = useState(false);
+
+  if (mode === "api" && !isTemporaryDemo) {
+    return (
+      <PlannerApiScreen
+        dependencies={apiDependencies}
+        onExploreDemo={() => setTemporaryDemo(true)}
+      />
+    );
   }
 
-  return <RouteDemoScreen loadPlan={loadPlan} />;
+  return (
+    <RouteDemoScreen
+      loadPlan={loadPlan}
+      onExitDemo={mode === "api" ? () => setTemporaryDemo(false) : undefined}
+    />
+  );
 }
 
 function RouteDemoScreen({
   loadPlan = loadRoutePlan,
-}: Pick<RouteScreenProps, "loadPlan">) {
+  onExitDemo,
+}: Pick<RouteScreenProps, "loadPlan"> & {
+  readonly onExitDemo?: () => void;
+}) {
   const { state, reload } = useRoutePlan(loadPlan);
 
   if (state.status === "success") {
-    return <PlannerDemoScreen data={state.data} />;
+    return <PlannerDemoScreen data={state.data} onExitDemo={onExitDemo} />;
   }
 
   return <RouteStatusView state={state} onRetry={reload} />;

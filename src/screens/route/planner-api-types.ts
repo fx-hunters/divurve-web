@@ -17,6 +17,7 @@ export interface PlannerGoalItemViewModel {
   readonly heldAmountLabel: string;
   readonly targetDateLabel: string;
   readonly isSelected: boolean;
+  readonly planStatusLabel: string;
 }
 
 export interface PlannerGoalSummaryViewModel {
@@ -149,6 +150,7 @@ export interface PlannerViewModel {
     readonly canApplyDraft: boolean;
   };
   readonly unsupportedAreas: readonly string[];
+  readonly planAvailabilityMessage: string;
   readonly scenarioOptions?: readonly PlannerScenarioOptionViewModel[];
 }
 

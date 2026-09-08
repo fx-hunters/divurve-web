@@ -19,6 +19,12 @@ import type { PlannerJourneyOperations } from "./use-planner-journey-flow";
 
 const view = presentPlannerOverview(PLANNER_API_FIXTURE);
 const plan = view.plan!;
+const goalCreation = {
+  sourceLabel: "내 계정",
+  canCreateRecurring: false,
+  today: "2026-09-08",
+  onCreate: vi.fn().mockResolvedValue("goal-usd"),
+};
 
 function operations(
   overrides: Partial<PlannerJourneyOperations> = {},
@@ -59,11 +65,12 @@ describe("Planner Journey 표현 컴포넌트", () => {
         view={view}
         feedback={{ status: "idle" }}
         scenarioComparison={null}
+        goalCreation={goalCreation}
         {...ops}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "목표 다시 고르기" }));
     expect(screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /미국 ETF 준비/ }));
@@ -81,7 +88,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
     expect(screen.getByRole("heading", { name: "2회차를 확인할까요?" })).toBeInTheDocument();
   });
 
-  it("선택된 목표가 없으면 Journey 본문을 렌더링하지 않는다", () => {
+  it("선택된 목표가 없으면 목표 생성과 데모 진입을 안내한다", () => {
     const emptyView: PlannerViewModel = {
       ...view,
       goalItems: [],
@@ -98,10 +105,17 @@ describe("Planner Journey 표현 컴포넌트", () => {
         view={emptyView}
         feedback={{ status: "idle" }}
         scenarioComparison={null}
+        goalCreation={goalCreation}
+        onExploreDemo={vi.fn()}
         {...operations()}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(container).not.toBeEmptyDOMElement();
+    expect(
+      screen.getByRole("heading", { name: "첫 외화 목표를 만들어 보세요" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "새 목표 만들기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "데모로 둘러보기" })).toBeInTheDocument();
   });
 
   it("상세 drawer는 미리보기 비용·경고를 표시하고 닫힌 뒤 포커스를 복원한다", () => {

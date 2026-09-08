@@ -59,11 +59,12 @@ describe("usePlannerApi", () => {
     const state = { status: "success" as const, data: overview() };
     expect(replaceActivePlanState(state, "other", planResult)).toEqual(state);
   });
-  it("목표가 없으면 empty, 재시도하면 최신 성공 상태를 표시한다", async () => {
+  it("목표가 없어도 생성 가능한 성공 상태이며 재시도하면 최신 목록을 표시한다", async () => {
     const load = vi.fn().mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce(overview());
     const deps = dependencies({ load });
     const { result } = renderHook(() => usePlannerApi(deps));
-    await waitFor(() => expect(result.current.state.status).toBe("empty"));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    expect(result.current.state).toMatchObject({ data: { items: [] } });
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     expect(load).toHaveBeenCalledTimes(2);

@@ -13,18 +13,25 @@ import {
   PlannerJourneyScreen,
   type PlannerJourneyFeedback,
 } from "./planner-journey-screen";
-import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import {
+  getPlannerToday,
+  usePlannerApi,
+  type PlannerApiDependencies,
+} from "./use-planner-api";
+import { toPlannerGoalCreateRequest } from "./planner-goal-input";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import "./planner-api-screen.css";
 
 interface PlannerApiScreenProps {
   readonly dependencies?: PlannerApiDependencies;
   readonly planVersionDependencies?: PlanVersionDependencies;
+  readonly onExploreDemo?: () => void;
 }
 
 export function PlannerApiScreen({
   dependencies,
   planVersionDependencies,
+  onExploreDemo,
 }: PlannerApiScreenProps) {
   const planner = usePlannerApi(dependencies);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
@@ -50,21 +57,13 @@ export function PlannerApiScreen({
       />
     );
   }
-  if (planner.state.status === "empty") {
-    return (
-      <ApiStateView
-        status="empty"
-        title="등록된 외화 목표가 없습니다"
-        message="서버에 등록된 외화 목표가 생기면 이곳에서 계획을 확인할 수 있습니다."
-      />
-    );
-  }
-
   const baseOverview = planner.state.data;
   const baseView = presentPlannerOverview(baseOverview, selectedGoalId);
-  const activeGoalId = baseView.selectedGoal!.id;
+  const activeGoalId = baseView.selectedGoal?.id ?? null;
   const effectiveOverview =
-    planner.planPreview !== null && planner.planPreview.goalId === activeGoalId
+    activeGoalId !== null &&
+    planner.planPreview !== null &&
+    planner.planPreview.goalId === activeGoalId
       ? replacePlannerPlan(
           baseOverview,
           planner.planPreview.goalId,
@@ -74,7 +73,7 @@ export function PlannerApiScreen({
   const view = presentPlannerOverview(effectiveOverview, activeGoalId);
   const rawGoal = baseOverview.items.find(
     (item) => item.goal.id === activeGoalId,
-  )!.goal;
+  )?.goal;
   const comparison =
     planner.scenarioPreview !== null && selectedOption !== null
       ? presentPlannerScenarioComparison(
@@ -89,8 +88,18 @@ export function PlannerApiScreen({
     setSelectedOption(null);
     planner.clearTransient();
   };
-  const handlePreviewPlan = async () => planner.preview(rawGoal);
-  const handleCreatePlan = async () => planner.create(rawGoal);
+  const handlePreviewPlan = async () =>
+    rawGoal === undefined ? false : planner.preview(rawGoal);
+  const handleCreatePlan = async () =>
+    rawGoal === undefined ? false : planner.create(rawGoal);
+  const handleCreateGoal = async (
+    input: Parameters<typeof toPlannerGoalCreateRequest>[0],
+  ) => {
+    const result = await planner.createGoal(toPlannerGoalCreateRequest(input));
+    if (result === null) return null;
+    setSelectedGoalId(result.id);
+    return result.id;
+  };
   const handleClearTransient = () => {
     setSelectedOption(null);
     planner.clearTransient();
@@ -127,6 +136,7 @@ export function PlannerApiScreen({
     if (typeof draftPlanId !== "string") {
       return false;
     }
+    if (activeGoalId === null) return false;
     return planner.apply(activeGoalId, draftPlanId);
   };
   const feedback: PlannerJourneyFeedback =
@@ -141,6 +151,13 @@ export function PlannerApiScreen({
       feedback={feedback}
       scenarioComparison={comparison}
       history={{ dependencies: planVersionDependencies }}
+      goalCreation={{
+        sourceLabel: "내 계정",
+        canCreateRecurring: false,
+        today: getPlannerToday(),
+        onCreate: handleCreateGoal,
+      }}
+      onExploreDemo={onExploreDemo}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={handlePreviewPlan}
       onDiscardPlanPreview={handleClearTransient}
