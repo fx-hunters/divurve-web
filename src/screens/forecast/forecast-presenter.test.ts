@@ -162,7 +162,6 @@ describe("toPairForecastInfo", () => {
       { title: "미국 물가 발표", dateLabel: "2026-09-12", severity: "고변동성" },
     ]);
     expect(info.modelScore).toEqual({
-      hitRatePct: 61,
       maePct: 3.1,
       inclusion80Pct: 82,
       randomWalkImprovementPct: 14,

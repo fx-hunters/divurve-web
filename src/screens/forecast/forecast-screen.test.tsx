@@ -33,7 +33,7 @@ const BUNDLE_BY_PAIR: Readonly<Record<string, ForecastBundle>> = {
     performance: {
       ...FORECAST_API_FIXTURE.performance,
       pairCode: "USDJPY",
-      model: { hitRate: 0.55, mae: 0.042, coverage80: 0.79, avgWidth: 0.08 },
+      model: { mae: 0.042, coverage80: 0.79, avgWidth: 0.08 },
     },
   },
   EURUSD: {
@@ -52,7 +52,7 @@ const BUNDLE_BY_PAIR: Readonly<Record<string, ForecastBundle>> = {
     performance: {
       ...FORECAST_API_FIXTURE.performance,
       pairCode: "EURUSD",
-      model: { hitRate: 0.58, mae: 0.027, coverage80: 0.85, avgWidth: 0.06 },
+      model: { mae: 0.027, coverage80: 0.85, avgWidth: 0.06 },
     },
   },
 };
@@ -167,7 +167,7 @@ describe("ForecastScreen", () => {
         "이 기간의 성적표는 아직 표시할 수 없습니다. 검증할 과거 관측이 쌓이면 나타납니다.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("적중률")).not.toBeInTheDocument();
+    expect(screen.queryByText("평균 오차율")).not.toBeInTheDocument();
     // 팬 차트와 요약 카드는 그대로 보인다.
     expect(
       screen.getByRole("heading", { name: "시뮬레이션 팬 차트 (USD/KRW)" }),
@@ -230,7 +230,8 @@ describe("ForecastScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("140.25 ~ 152.75")).toBeInTheDocument();
     expect(screen.getByText("일본 정책 기조")).toBeInTheDocument();
-    expect(screen.getByText("55%")).toBeInTheDocument();
+    // 성적표도 통화쌍을 따라 갱신된다 — USDJPY 의 mae 0.042 가 평균 오차율로 보인다.
+    expect(screen.getByText("4.2%")).toBeInTheDocument();
     // 통화쌍을 이루는 두 통화의 일정이 함께 보인다.
     expect(screen.getByText("일본 정책 회의")).toBeInTheDocument();
 
@@ -243,7 +244,7 @@ describe("ForecastScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1.02 ~ 1.14")).toBeInTheDocument();
     expect(screen.getByText("유로존 금리")).toBeInTheDocument();
-    expect(screen.getByText("58%")).toBeInTheDocument();
+    expect(screen.getByText("2.7%")).toBeInTheDocument();
   });
 
   it("목록에 없는 통화쌍 값이 오면 기본 통화쌍으로 되돌린다", async () => {

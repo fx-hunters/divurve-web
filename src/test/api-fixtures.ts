@@ -74,10 +74,10 @@ export const FORECAST_API_FIXTURE: ForecastBundle = {
   performance: {
     pairCode: "USDKRW",
     horizonDays: 30,
-    model: { hitRate: 0.61, mae: 0.031, coverage80: 0.82, avgWidth: 0.073 },
-    randomWalk: { hitRate: 0.5, mae: 0.035 },
+    model: { mae: 0.031, coverage80: 0.82, avgWidth: 0.073 },
+    randomWalk: { mae: 0.035 },
     rwImprovement: 0.14,
-    validation: { method: "walk-forward", folds: 5, leakageGuard: true },
+    validation: { method: "rolling_walk_forward", folds: 5, leakageGuard: true },
     note: "과거 검증 결과입니다.",
     evaluatedAt: "2026-09-04T00:00:00Z",
   },

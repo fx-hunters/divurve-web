@@ -207,7 +207,6 @@ export function toModelScore(
 ): ModelPerformanceScore | null {
   if (performance === null) return null;
   return {
-    hitRatePct: toPercent(performance.model.hitRate),
     maePct: toPercent(performance.model.mae),
     inclusion80Pct: toPercent(performance.model.coverage80),
     randomWalkImprovementPct: toPercent(performance.rwImprovement),
