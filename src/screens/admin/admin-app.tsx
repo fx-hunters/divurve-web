@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { logout } from "../../api/auth";
 import { installSessionRefresh } from "../../api/session-bootstrap";
 import { readApiSession } from "../../api/session";
+import { AdminAiCallsScreen } from "./admin-ai-calls-screen";
 import { AdminAiExplainScreen } from "./admin-ai-explain-screen";
 import { AdminAiExtractScreen } from "./admin-ai-extract-screen";
 import { AdminCurrenciesScreen } from "./admin-currencies-screen";
@@ -139,6 +140,12 @@ export function AdminApp() {
         )}
         {route.kind === "aiExtract" && (
           <AdminAiExtractScreen onAuthFailure={handleAuthFailure} />
+        )}
+        {route.kind === "aiCallLogs" && (
+          <AdminAiCallsScreen
+            onAuthFailure={handleAuthFailure}
+            onSelectUser={(userId) => navigate(adminUserDetailPath(userId))}
+          />
         )}
       </main>
     </div>

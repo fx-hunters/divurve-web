@@ -32,6 +32,9 @@ describe("resolveAdminRoute", () => {
     expect(resolveAdminRoute("/admin/ai/extract")).toEqual({
       kind: "aiExtract",
     });
+    expect(resolveAdminRoute("/admin/ai/calls")).toEqual({
+      kind: "aiCallLogs",
+    });
   });
 
   it("ai 하위 경로가 없으면 설명 화면으로 본다", () => {

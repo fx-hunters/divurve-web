@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ADMIN_AI_CALLS_MAX_PAGE_SIZE,
+  ADMIN_AI_OUTCOMES,
+  ADMIN_AI_PURPOSES,
   ADMIN_USER_DATA_DOMAINS,
+  fetchAdminAiCalls,
+  fetchAdminAiUsageSummary,
   fetchAdminCurrencies,
   fetchAdminFxRates,
   fetchAdminUser,
   fetchAdminUserData,
   fetchAdminRefreshStatus,
   fetchAdminUsers,
+  normalizeAdminAiCallPage,
+  normalizeAdminAiUsageSummary,
   normalizeAdminCurrencyMaster,
   normalizeAdminExtractPreview,
   normalizeAdminFxRates,
@@ -646,5 +653,179 @@ describe("normalizeAdminExtractPreview — 수집 결과", () => {
       fetchedTextPreview: "연준은",
       failureReason: "행사 일자를 찾지 못했습니다.",
     });
+  });
+});
+
+describe("AI 호출 로그 어휘", () => {
+  it("백엔드 enum과 같은 리터럴을 쓴다", () => {
+    expect(ADMIN_AI_PURPOSES).toEqual(["narrate", "extract"]);
+    expect(ADMIN_AI_OUTCOMES).toEqual([
+      "success",
+      "fallback",
+      "cache_hit",
+      "quota_blocked",
+      "error",
+    ]);
+    expect(ADMIN_AI_CALLS_MAX_PAGE_SIZE).toBe(200);
+  });
+});
+
+describe("normalizeAdminAiCallPage", () => {
+  it("행과 페이지 정보를 그대로 담는다", () => {
+    const page = normalizeAdminAiCallPage({
+      items: [
+        {
+          id: "9a1c",
+          requestedAt: "2026-09-08T03:00:00Z",
+          userId: "7c0f",
+          isDemo: true,
+          purpose: "narrate",
+          surface: "forecast_summary",
+          model: "claude-opus-5",
+          inputTokens: 120,
+          outputTokens: 45,
+          cacheReadInputTokens: null,
+          cacheCreationInputTokens: null,
+          outcome: "fallback",
+          fallbackReason: "provider_error",
+          latencyMs: 4321,
+          errorSummary: "IOException: timeout",
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalElements: 1,
+      totalPages: 1,
+    });
+
+    expect(page.items[0]?.model).toBe("claude-opus-5");
+    expect(page.items[0]?.fallbackReason).toBe("provider_error");
+    expect(page.totalElements).toBe(1);
+  });
+
+  it("model·userId·캐시 토큰이 null인 행을 그대로 받는다", () => {
+    // 실 API가 꺼져 있고 배치가 도는 기본 상태다. 값이 빠진 것이 아니다.
+    const page = normalizeAdminAiCallPage({
+      items: [{ id: "3b", purpose: "extract", outcome: "success" }],
+    });
+
+    expect(page.items[0]).toEqual({
+      id: "3b",
+      requestedAt: null,
+      userId: null,
+      isDemo: null,
+      purpose: "extract",
+      surface: null,
+      model: null,
+      inputTokens: null,
+      outputTokens: null,
+      cacheReadInputTokens: null,
+      cacheCreationInputTokens: null,
+      outcome: "success",
+      fallbackReason: null,
+      latencyMs: null,
+      errorSummary: null,
+    });
+  });
+
+  it("읽을 수 없는 응답이면 빈 목록과 null 페이지 정보를 돌려준다", () => {
+    expect(normalizeAdminAiCallPage("nope")).toEqual({
+      items: [],
+      page: null,
+      size: null,
+      totalElements: null,
+      totalPages: null,
+    });
+  });
+});
+
+describe("normalizeAdminAiUsageSummary", () => {
+  it("집계 칸을 그대로 담고 model null을 유지한다", () => {
+    const summary = normalizeAdminAiUsageSummary({
+      buckets: [
+        {
+          day: "2026-09-08",
+          purpose: "narrate",
+          model: "claude-opus-5",
+          calls: 3,
+          inputTokens: 300,
+          outputTokens: 120,
+        },
+        {
+          day: "2026-09-07",
+          purpose: "narrate",
+          model: null,
+          calls: 5,
+          inputTokens: 0,
+          outputTokens: 0,
+        },
+      ],
+    });
+
+    expect(summary.buckets).toHaveLength(2);
+    expect(summary.buckets[1]?.model).toBeNull();
+    expect(summary.buckets[1]?.calls).toBe(5);
+  });
+
+  it("읽을 수 없는 응답이면 빈 집계를 돌려준다", () => {
+    expect(normalizeAdminAiUsageSummary("nope")).toEqual({ buckets: [] });
+    expect(normalizeAdminAiUsageSummary({ buckets: 1 })).toEqual({
+      buckets: [],
+    });
+  });
+});
+
+describe("fetchAdminAiCalls", () => {
+  it("필터를 snake_case 쿼리로 보낸다", async () => {
+    const fetchMock = stubFetchResolving({ items: [] });
+
+    await fetchAdminAiCalls({
+      page: 2,
+      size: 50,
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-08T23:59:59.999Z",
+      purpose: "narrate",
+      surface: "forecast_summary",
+      outcome: "fallback",
+      isDemo: true,
+    });
+
+    const { url } = lastRequest(fetchMock);
+    expect(url).toContain("/api/v1/admin/ai/calls?");
+    expect(url).toContain("purpose=narrate");
+    expect(url).toContain("surface=forecast_summary");
+    expect(url).toContain("outcome=fallback");
+    expect(url).toContain("is_demo=true");
+    expect(url).toContain("page=2");
+    expect(url).toContain("size=50");
+  });
+
+  it("비어 있는 조건은 아예 보내지 않는다", async () => {
+    const fetchMock = stubFetchResolving({ items: [] });
+
+    await fetchAdminAiCalls({ page: 0, size: 50, purpose: "", surface: "" });
+
+    const { url } = lastRequest(fetchMock);
+    expect(url).not.toContain("purpose=");
+    expect(url).not.toContain("surface=");
+    expect(url).not.toContain("from=");
+    expect(url).not.toContain("is_demo=");
+  });
+});
+
+describe("fetchAdminAiUsageSummary", () => {
+  it("기간만 보내고 봉투의 meta를 함께 돌려준다", async () => {
+    const fetchMock = stubFetchResolving({ buckets: [] });
+
+    const result = await fetchAdminAiUsageSummary({
+      from: "2026-09-01T00:00:00Z",
+      to: "",
+    });
+
+    const { url } = lastRequest(fetchMock);
+    expect(url).toContain("/api/v1/admin/ai/usage-summary?");
+    expect(url).toContain("from=");
+    expect(url).not.toContain("to=");
+    expect(result.meta).toEqual({ asOf: "2026-09-07T00:00:00Z" });
   });
 });

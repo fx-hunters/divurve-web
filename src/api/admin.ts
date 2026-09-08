@@ -599,3 +599,196 @@ export async function previewAdminExtraction(
     meta: result.meta,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * 2-6. AI 호출 로그·사용량 집계
+ * ------------------------------------------------------------------ */
+
+/**
+ * AI 호출 용도 (백엔드 이슈 fx-hunters/divurve-api#143).
+ *
+ * `narrate`는 사용자 요청마다 동기로 일어나고, `extract`는 배치에서 돈다 —
+ * 비용 성격이 다른 두 경로라 집계에서 갈라 본다.
+ */
+export const ADMIN_AI_PURPOSES = ["narrate", "extract"] as const;
+
+/**
+ * 호출 결과 어휘.
+ *
+ * `cache_hit`(응답 캐시, divurve-api#139)·`quota_blocked`(쿼터, #140)는 백엔드가
+ * 아직 만들지 않아 지금은 0건이다. 그래도 어휘에 넣어 두는 이유는, 그 기능이
+ * 켜지는 날 화면이 값을 모르는 상태로 깨지지 않게 하기 위해서다.
+ */
+export const ADMIN_AI_OUTCOMES = [
+  "success",
+  "fallback",
+  "cache_hit",
+  "quota_blocked",
+  "error",
+] as const;
+
+/** 한 페이지 최대 크기. 서버 검증(`AiCallLogQueryService.MAX_PAGE_SIZE`)과 같은 값이다. */
+export const ADMIN_AI_CALLS_MAX_PAGE_SIZE = 200;
+
+/**
+ * 호출 한 건.
+ *
+ * `userId`가 null인 것은 정상값이다 — 데모 정리로 계정이 지워져도 비용 이력은
+ * 남고(FK가 `on delete set null`), `extract`는 배치라 사용자가 없다.
+ * `model`이 null이면 LLM을 부르지 않은 요청이라는 뜻이며 토큰이 0이다.
+ */
+export interface AdminAiCall {
+  readonly id: string | null;
+  readonly requestedAt: string | null;
+  readonly userId: string | null;
+  readonly isDemo: boolean | null;
+  readonly purpose: string | null;
+  readonly surface: string | null;
+  readonly model: string | null;
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  /** 프롬프트 캐싱을 쓰지 않으면 null. 캐싱은 단가가 달라 비용 계산이 바뀐다. */
+  readonly cacheReadInputTokens: number | null;
+  readonly cacheCreationInputTokens: number | null;
+  readonly outcome: string | null;
+  readonly fallbackReason: string | null;
+  readonly latencyMs: number | null;
+  readonly errorSummary: string | null;
+}
+
+export interface AdminAiCallPage {
+  readonly items: readonly AdminAiCall[];
+  readonly page: number | null;
+  readonly size: number | null;
+  readonly totalElements: number | null;
+  readonly totalPages: number | null;
+}
+
+export function toAdminAiCall(row: AdminRecord): AdminAiCall {
+  return {
+    id: readString(row, "id"),
+    requestedAt: readString(row, "requestedAt"),
+    userId: readString(row, "userId"),
+    isDemo: readBoolean(row, "isDemo"),
+    purpose: readString(row, "purpose"),
+    surface: readString(row, "surface"),
+    model: readString(row, "model"),
+    inputTokens: readNumber(row, "inputTokens"),
+    outputTokens: readNumber(row, "outputTokens"),
+    cacheReadInputTokens: readNumber(row, "cacheReadInputTokens"),
+    cacheCreationInputTokens: readNumber(row, "cacheCreationInputTokens"),
+    outcome: readString(row, "outcome"),
+    fallbackReason: readString(row, "fallbackReason"),
+    latencyMs: readNumber(row, "latencyMs"),
+    errorSummary: readString(row, "errorSummary"),
+  };
+}
+
+export function normalizeAdminAiCallPage(data: unknown): AdminAiCallPage {
+  const source = isRecord(data) ? data : {};
+  return {
+    items: readArray(source, "items").map(toAdminAiCall),
+    page: readNumber(source, "page"),
+    size: readNumber(source, "size"),
+    totalElements: readNumber(source, "totalElements"),
+    totalPages: readNumber(source, "totalPages"),
+  };
+}
+
+/**
+ * 조회 조건.
+ *
+ * `from`·`to`는 ISO 8601 datetime이다. `purpose`·`outcome`에 어휘 밖의 값을
+ * 보내면 빈 결과가 아니라 **400**이 온다 — 오타를 "그 기간에 호출이 없었다"로
+ * 읽는 것을 서버가 막는다. `from > to`도 400이다.
+ */
+export interface AdminAiCallQuery {
+  readonly page: number;
+  readonly size: number;
+  readonly from?: string;
+  readonly to?: string;
+  readonly purpose?: string;
+  readonly surface?: string;
+  readonly outcome?: string;
+  /** `is_demo`로 전송된다. 생략하면 데모를 포함한 전체다. */
+  readonly isDemo?: boolean;
+}
+
+/** 비어 있는 문자열은 조건을 걸지 않는다는 뜻이므로 보내지 않는다. */
+function omitBlank(value: string | undefined): string | undefined {
+  return value === undefined || value === "" ? undefined : value;
+}
+
+export async function fetchAdminAiCalls(
+  query: AdminAiCallQuery,
+): Promise<ApiResult<AdminAiCallPage>> {
+  const result = await requestWithMeta<unknown>(
+    apiPath(`${ADMIN_BASE}/ai/calls`, {
+      from: omitBlank(query.from),
+      to: omitBlank(query.to),
+      purpose: omitBlank(query.purpose),
+      surface: omitBlank(query.surface),
+      outcome: omitBlank(query.outcome),
+      isDemo: query.isDemo,
+      page: query.page,
+      size: query.size,
+    }),
+  );
+  return { data: normalizeAdminAiCallPage(result.data), meta: result.meta };
+}
+
+/**
+ * 하루·용도·모델별 집계 한 칸.
+ *
+ * `day`는 **UTC 기준**으로 자른 날짜다. 서울 기준으로 옮겨 읽으면 하루 경계가
+ * 9시간 어긋나므로 서버가 준 문자열을 그대로 표시한다.
+ * 비용 금액은 서버가 내지 않는다 — 토큰 수까지다.
+ */
+export interface AdminAiUsageBucket {
+  readonly day: string | null;
+  readonly purpose: string | null;
+  readonly model: string | null;
+  readonly calls: number | null;
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+}
+
+export interface AdminAiUsageSummary {
+  readonly buckets: readonly AdminAiUsageBucket[];
+}
+
+export function normalizeAdminAiUsageSummary(
+  data: unknown,
+): AdminAiUsageSummary {
+  const source = isRecord(data) ? data : {};
+  return {
+    buckets: readArray(source, "buckets").map((row) => ({
+      day: readString(row, "day"),
+      purpose: readString(row, "purpose"),
+      model: readString(row, "model"),
+      calls: readNumber(row, "calls"),
+      inputTokens: readNumber(row, "inputTokens"),
+      outputTokens: readNumber(row, "outputTokens"),
+    })),
+  };
+}
+
+export interface AdminAiUsageQuery {
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export async function fetchAdminAiUsageSummary(
+  query: AdminAiUsageQuery,
+): Promise<ApiResult<AdminAiUsageSummary>> {
+  const result = await requestWithMeta<unknown>(
+    apiPath(`${ADMIN_BASE}/ai/usage-summary`, {
+      from: omitBlank(query.from),
+      to: omitBlank(query.to),
+    }),
+  );
+  return {
+    data: normalizeAdminAiUsageSummary(result.data),
+    meta: result.meta,
+  };
+}

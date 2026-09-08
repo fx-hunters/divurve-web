@@ -67,6 +67,20 @@ vi.mock("./admin-ai-explain-screen", () => ({
 vi.mock("./admin-ai-extract-screen", () => ({
   AdminAiExtractScreen: () => <span>추출 화면</span>,
 }));
+vi.mock("./admin-ai-calls-screen", () => ({
+  AdminAiCallsScreen: ({
+    onSelectUser,
+  }: {
+    onSelectUser: (userId: string) => void;
+  }) => (
+    <div>
+      <span>AI 로그 화면</span>
+      <button type="button" onClick={() => onSelectUser("9")}>
+        로그에서 상세로
+      </button>
+    </div>
+  ),
+}));
 
 const SESSION = {
   accessToken: "access",
@@ -132,6 +146,20 @@ describe("AdminApp", () => {
     // 같은 경로를 다시 눌러도 히스토리를 늘리지 않는다.
     fireEvent.click(screen.getByRole("button", { name: "AI 추출" }));
     expect(window.location.pathname).toBe("/admin/ai/extract");
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 로그" }));
+    expect(screen.getByText("AI 로그 화면")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin/ai/calls");
+  });
+
+  it("AI 로그의 행에서도 사용자 상세로 이동한다", () => {
+    render(<AdminApp />);
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 로그" }));
+    fireEvent.click(screen.getByRole("button", { name: "로그에서 상세로" }));
+
+    expect(screen.getByText("상세 화면 9")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin/users/9");
   });
 
   it("사용자 상세로 이동했다가 목록으로 돌아온다", () => {
