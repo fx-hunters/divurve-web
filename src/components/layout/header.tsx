@@ -1,4 +1,5 @@
 import { Icon } from "../common/icon";
+import { NotificationMenu } from "./notification-menu";
 
 interface HeaderProps {
   readonly onNavigateToMypage: () => void;
@@ -9,7 +10,7 @@ interface HeaderProps {
 
 export function Header({
   onNavigateToMypage,
-  activeTabTitle = "홈",
+  activeTabTitle = "대시보드",
   isDark,
   onToggleTheme,
 }: HeaderProps) {
@@ -17,7 +18,10 @@ export function Header({
     <header
       className="app-header"
       style={{
+        // 사이드바 로고 블록과 같은 높이·같은 좌우 여백(1.5rem)을 써서
+        // 두 구분선과 두 제목의 기준선을 맞춘다.
         height: "var(--header-height)",
+        boxSizing: "border-box",
         backgroundColor: "var(--surface)",
         borderBottom: "1px solid var(--border)",
         padding: "0 1.5rem",
@@ -31,7 +35,14 @@ export function Header({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--text)" }}>
+        <h2
+          style={{
+            fontSize: "1.125rem",
+            fontWeight: 700,
+            lineHeight: 1.2,
+            color: "var(--text)",
+          }}
+        >
           {activeTabTitle}
         </h2>
       </div>
@@ -58,24 +69,7 @@ export function Header({
           <Icon name={isDark ? "sun" : "moon"} size={16} />
         </button>
 
-        <button
-          type="button"
-          aria-label="알림"
-          style={{
-            width: "38px",
-            height: "38px",
-            borderRadius: "var(--radius-full)",
-            backgroundColor: "var(--surface-subtle)",
-            border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--text-muted)",
-            transition: "all 0.15s",
-          }}
-        >
-          <Icon name="bell" size={16} />
-        </button>
+        <NotificationMenu />
 
         <button
           type="button"

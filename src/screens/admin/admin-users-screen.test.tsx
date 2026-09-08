@@ -25,8 +25,8 @@ const USER: AdminUser = {
   sampleDataSeeded: true,
   createdAt: "2026-01-01T00:00:00Z",
   onboardedAt: "2026-01-02T00:00:00Z",
-  lastLoginAt: null,
-  lastLoginIp: null,
+  lastLoginAt: "2026-09-08T05:12:33.412Z",
+  lastLoginIp: "203.0.113.42",
 };
 
 const DEMO_USER: AdminUser = {
@@ -37,6 +37,8 @@ const DEMO_USER: AdminUser = {
   role: "USER",
   isDemo: true,
   sampleDataSeeded: false,
+  lastLoginAt: null,
+  lastLoginIp: null,
 };
 
 function page(overrides: Partial<AdminUserPage> = {}): AdminUserPage {
@@ -89,16 +91,42 @@ describe("AdminUsersScreen", () => {
 
     expect(await screen.findByText("ops@divurve.io")).toBeInTheDocument();
     expect(screen.getByText("demo")).toBeInTheDocument();
-    expect(screen.getByText("sample")).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "role" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("columnheader", { name: "onboardedAt" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("columnheader").map((header) => header.textContent),
+    ).toEqual([
+      "lastLoginIp",
+      "lastLoginAt",
+      "createdAt",
+      "isDemo",
+      "name",
+      "email",
+    ]);
     expect(screen.getByText("totalElements")).toBeInTheDocument();
     // 접속한 적 없는 칸은 - 로 남는다.
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("타임스탬프를 YY.MM.DD HH:mm으로 적는다", async () => {
+    resolveWith(page());
+    render(<AdminUsersScreen onAuthFailure={vi.fn()} onSelectUser={vi.fn()} />);
+
+    // 2026-09-08T05:12:33Z = 서울 14:12
+    expect(await screen.findByText("26.09.08 14:12")).toBeInTheDocument();
+    expect(screen.getAllByText("26.01.01 09:00")).toHaveLength(2);
+  });
+
+  it("목록에 세우지 않기로 한 컬럼은 표에 없다", async () => {
+    resolveWith(page());
+    render(<AdminUsersScreen onAuthFailure={vi.fn()} onSelectUser={vi.fn()} />);
+
+    await screen.findByText("ops@divurve.io");
+    for (const key of ["id", "role", "sampleDataSeeded", "onboardedAt"]) {
+      expect(
+        screen.queryByRole("columnheader", { name: key }),
+      ).not.toBeInTheDocument();
+    }
+    // 배지도 함께 사라진다.
+    expect(screen.queryByText("sample")).not.toBeInTheDocument();
     expect(fetchAdminUsers).toHaveBeenCalledWith({
       page: 0,
       size: 50,

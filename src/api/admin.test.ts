@@ -5,12 +5,14 @@ import {
   fetchAdminFxRates,
   fetchAdminUser,
   fetchAdminUserData,
+  fetchAdminRefreshStatus,
   fetchAdminUsers,
   normalizeAdminCurrencyMaster,
   normalizeAdminExtractPreview,
   normalizeAdminFxRates,
   normalizeAdminFxRefresh,
   normalizeAdminMacroRefresh,
+  normalizeAdminRefreshStatus,
   normalizeAdminUserData,
   normalizeAdminUserPage,
   previewAdminExtraction,
@@ -542,6 +544,11 @@ describe("normalizeAdminExtractPreview", () => {
       count: null,
       previewedAt: null,
       candidates: [],
+      // 서버가 URL로 본문을 수집했을 때만 채워지는 값들.
+      resolvedSourceUrl: null,
+      fetchedCharCount: null,
+      fetchedTextPreview: null,
+      failureReason: null,
     });
   });
 });
@@ -560,6 +567,84 @@ describe("previewAdminExtraction", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       source_url: "https://news.example/1",
       text: "원문",
+    });
+  });
+});
+
+describe("normalizeAdminRefreshStatus", () => {
+  it("fx와 macro를 나눠 담는다", () => {
+    expect(
+      normalizeAdminRefreshStatus({
+        fx: {
+          lastFetchedAt: "2026-09-08T00:31:07Z",
+          lastQuoteDate: "2026-09-05",
+          pairs: [
+            {
+              pairCode: "USDKRW",
+              lastFetchedAt: "2026-09-08T00:31:07Z",
+              lastQuoteDate: "2026-09-05",
+            },
+          ],
+        },
+        macro: { lastRefreshedAt: null },
+      }),
+    ).toEqual({
+      fx: {
+        lastFetchedAt: "2026-09-08T00:31:07Z",
+        lastQuoteDate: "2026-09-05",
+        pairs: [
+          {
+            pairCode: "USDKRW",
+            lastFetchedAt: "2026-09-08T00:31:07Z",
+            lastQuoteDate: "2026-09-05",
+          },
+        ],
+      },
+      macro: { lastRefreshedAt: null },
+    });
+  });
+
+  it("응답이 비어도 모양을 지킨다", () => {
+    expect(normalizeAdminRefreshStatus(null)).toEqual({
+      fx: { lastFetchedAt: null, lastQuoteDate: null, pairs: [] },
+      macro: { lastRefreshedAt: null },
+    });
+  });
+});
+
+describe("fetchAdminRefreshStatus", () => {
+  it("갱신을 일으키지 않는 GET으로 부른다", async () => {
+    const fetchMock = stubFetchResolving({
+      fx: { lastFetchedAt: "2026-09-08T00:31:07Z", pairs: [] },
+      macro: {},
+    });
+
+    const result = await fetchAdminRefreshStatus();
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/admin/fx-rates/status");
+    expect(init?.method ?? "GET").toBe("GET");
+    expect(result.data.fx.lastFetchedAt).toBe("2026-09-08T00:31:07Z");
+  });
+});
+
+describe("normalizeAdminExtractPreview — 수집 결과", () => {
+  it("서버가 URL로 수집한 값을 그대로 담는다", () => {
+    expect(
+      normalizeAdminExtractPreview({
+        extractor: "ClaudeEconEventExtractor",
+        count: 0,
+        candidates: [],
+        resolvedSourceUrl: "https://news.example/1?utm=x",
+        fetchedCharCount: 4210,
+        fetchedTextPreview: "연준은",
+        failureReason: "행사 일자를 찾지 못했습니다.",
+      }),
+    ).toMatchObject({
+      resolvedSourceUrl: "https://news.example/1?utm=x",
+      fetchedCharCount: 4210,
+      fetchedTextPreview: "연준은",
+      failureReason: "행사 일자를 찾지 못했습니다.",
     });
   });
 });

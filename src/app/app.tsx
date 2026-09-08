@@ -8,7 +8,6 @@ import { MobileNav } from "../components/layout/mobile-nav";
 import { Sidebar } from "../components/layout/sidebar";
 import { useTabNavigation } from "../hooks/use-tab-navigation";
 import { useTheme } from "../hooks/use-theme";
-import { ConnectivityCheckPanel } from "../screens/connectivity/connectivity-check-panel";
 import { ForecastScreen } from "../screens/forecast/forecast-screen";
 import { HomeScreen } from "../screens/home/home-screen";
 import { MyPageScreen } from "../screens/mypage/mypage-screen";
@@ -411,7 +410,6 @@ export function App({ ensureSession }: AppProps = {}) {
                 }
               />
             )}
-            {activeTab === "connectivity" && <ConnectivityCheckPanel />}
           </div>
         </main>
 

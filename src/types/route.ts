@@ -14,7 +14,6 @@ export interface RouteDataNotice {
 }
 
 export interface PlannerIntroContent {
-  readonly eyebrow: string;
   readonly title: string;
   readonly description: string;
   readonly newPlanLabel: string;

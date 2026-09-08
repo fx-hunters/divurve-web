@@ -51,10 +51,7 @@ export function PlannerDetailDrawer({
         aria-labelledby="planner-detail-title"
       >
         <header className="planner-detail-drawer__header">
-          <div>
-            <p className="route-eyebrow">목 데이터로 구성된 세부 정보</p>
-            <h2 id="planner-detail-title">계획 자세히 보기</h2>
-          </div>
+          <h2 id="planner-detail-title">계획 자세히 보기</h2>
           <button type="button" autoFocus onClick={onClose} aria-label="닫기">
             ×
           </button>

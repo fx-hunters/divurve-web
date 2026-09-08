@@ -7,14 +7,21 @@ import {
   getDataSourceCopy,
   toApiDataSourceKind,
 } from "../../components/common/data-source-badge";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { NavTabId } from "../../types/navigation";
 
 interface XRayScreenProps {
   readonly onNavigate?: (tab: NavTabId) => void;
   readonly dependencies?: XRayDependencies;
+  /** AI 설명 요청 경로 주입 지점. 두 탭 뷰로 그대로 내려보낸다. */
+  readonly explanationRequester?: ExplanationRequester;
 }
 
-export function XRayScreen({ onNavigate, dependencies }: XRayScreenProps) {
+export function XRayScreen({
+  onNavigate,
+  dependencies,
+  explanationRequester,
+}: XRayScreenProps) {
   const {
     activeTab,
     data,
@@ -122,6 +129,7 @@ export function XRayScreen({ onNavigate, dependencies }: XRayScreenProps) {
           runState={runState}
           runResult={runResult}
           onSelectScenario={selectScenario}
+          explanationRequester={explanationRequester}
         />
       ) : (
         <XRayFitnessView
@@ -129,6 +137,7 @@ export function XRayScreen({ onNavigate, dependencies }: XRayScreenProps) {
           previewState={previewState}
           onPreviewAdjustment={previewAdjustment}
           onNavigateToPlanner={handleNavigateToPlanner}
+          explanationRequester={explanationRequester}
         />
       )}
     </div>

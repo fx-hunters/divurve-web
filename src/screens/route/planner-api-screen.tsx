@@ -11,13 +11,18 @@ import {
   type PlannerJourneyFeedback,
 } from "./planner-journey-screen";
 import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import type { PlanVersionDependencies } from "./use-plan-versions";
 import "./planner-api-screen.css";
 
 interface PlannerApiScreenProps {
   readonly dependencies?: PlannerApiDependencies;
+  readonly planVersionDependencies?: PlanVersionDependencies;
 }
 
-export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
+export function PlannerApiScreen({
+  dependencies,
+  planVersionDependencies,
+}: PlannerApiScreenProps) {
   const planner = usePlannerApi(dependencies);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedOption, setSelectedOption] =
@@ -121,17 +126,18 @@ export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
     return planner.previewScenario(planId, input);
   };
   const handleApply = async () => {
-    if (activeGoalId === null || comparison?.draftPlanId === null || comparison === null) {
+    if (
+      activeGoalId === null ||
+      comparison === null ||
+      comparison.draftPlanId === null
+    ) {
       return false;
     }
     return planner.apply(activeGoalId, comparison.draftPlanId);
   };
   const feedback: PlannerJourneyFeedback =
     planner.actionState.status === "success"
-      ? {
-          status: "success",
-          message: planner.actionState.message,
-        }
+      ? { status: "success", message: planner.actionState.message }
       : planner.actionState;
 
   return (
@@ -140,6 +146,7 @@ export function PlannerApiScreen({ dependencies }: PlannerApiScreenProps) {
       view={view}
       feedback={feedback}
       scenarioComparison={comparison}
+      history={{ dependencies: planVersionDependencies }}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={handlePreviewPlan}
       onCreatePlan={handleCreatePlan}

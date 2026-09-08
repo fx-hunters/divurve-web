@@ -28,6 +28,21 @@ export interface PlannerApiOverview {
   readonly isSampleData?: boolean;
 }
 
+/** 서버가 반환하는 계획 버전 이력의 한 행. */
+export interface PlanVersion {
+  readonly planId: string;
+  readonly version: number;
+  readonly status: string;
+  readonly reason?: string;
+  readonly planEndDate?: string;
+  readonly supersededBy?: string;
+  readonly createdAt?: string;
+}
+
+export interface PlanVersionListResponse {
+  readonly versions: readonly PlanVersion[];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -229,7 +244,11 @@ async function requestPlan(
   path: string,
   init?: { readonly method: "POST"; readonly body?: unknown },
 ): Promise<PlannerPlanResponse> {
-  return parsePlannerPlanResponse(await request<unknown>(path, init));
+  const response =
+    init === undefined
+      ? await request<unknown>(path)
+      : await request<unknown>(path, init);
+  return parsePlannerPlanResponse(response);
 }
 
 export function previewGoalPlan(goal: GoalResponse): Promise<PlannerPlanResponse> {
@@ -244,6 +263,26 @@ export function createGoalPlan(goal: GoalResponse): Promise<PlannerPlanResponse>
     `/api/v1/goals/${encodeURIComponent(goal.id)}/plans`,
     { method: "POST", body: planRequest(goal) },
   );
+}
+
+/**
+ * 목표의 계획 버전 이력(`GET /api/v1/goals/{id}/plans`).
+ *
+ * 최신 버전이 먼저 온다. 과거 버전은 지워지지 않으므로 완료 회차 기록을
+ * 되짚어 볼 때 쓴다.
+ */
+export async function fetchPlanVersions(
+  goalId: string,
+): Promise<readonly PlanVersion[]> {
+  const { versions } = await request<PlanVersionListResponse>(
+    `/api/v1/goals/${encodeURIComponent(goalId)}/plans`,
+  );
+  return versions;
+}
+
+/** 계획 버전 하나의 상세(`GET /api/v1/plans/{id}`). 회차까지 함께 온다. */
+export function fetchPlanDetail(planId: string): Promise<PlannerPlanResponse> {
+  return requestPlan(`/api/v1/plans/${encodeURIComponent(planId)}`);
 }
 
 export function completePlanStep(

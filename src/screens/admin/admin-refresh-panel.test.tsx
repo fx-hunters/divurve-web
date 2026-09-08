@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { refreshAdminFxRates, refreshAdminMacro } from "../../api/admin";
+import {
+  fetchAdminRefreshStatus,
+  refreshAdminFxRates,
+  refreshAdminMacro,
+} from "../../api/admin";
 import { ApiError } from "../../api/client";
-import { AdminRefreshPanel, parseSeriesIds } from "./admin-refresh-panel";
+import { parseSeriesIds } from "./admin-macro-refresh-card";
+import { AdminRefreshPanel } from "./admin-refresh-panel";
 
 vi.mock("../../api/admin", () => ({
+  fetchAdminRefreshStatus: vi.fn(),
   refreshAdminFxRates: vi.fn(),
   refreshAdminMacro: vi.fn(),
 }));
@@ -20,9 +26,23 @@ const EMPTY_FX = {
   pairs: [],
 };
 
+const STATUS = {
+  fx: {
+    lastFetchedAt: "2026-09-08T00:31:07Z",
+    lastQuoteDate: "2026-09-05",
+    pairs: [],
+  },
+  macro: { lastRefreshedAt: null },
+};
+
 beforeEach(() => {
   vi.mocked(refreshAdminFxRates).mockReset();
   vi.mocked(refreshAdminMacro).mockReset();
+  vi.mocked(fetchAdminRefreshStatus).mockReset();
+  vi.mocked(fetchAdminRefreshStatus).mockResolvedValue({
+    data: STATUS,
+    meta: META,
+  });
 });
 
 describe("parseSeriesIds", () => {
@@ -196,8 +216,10 @@ describe("AdminRefreshPanel — 거시지표", () => {
     expect(screen.getByText(/저장하지 않습니다/)).toBeInTheDocument();
   });
 
-  it("시리즈를 비우면 보낼 수 없다", () => {
+  it("시리즈를 비우면 보낼 수 없다", async () => {
     render(<AdminRefreshPanel onAuthFailure={vi.fn()} />);
+    // 마운트 직후 나가는 마지막 갱신 조회가 끝난 뒤에 만진다.
+    await screen.findAllByText(/마지막 갱신/);
 
     fireEvent.change(screen.getByLabelText("series_ids (쉼표 구분)"), {
       target: { value: "  " },
@@ -242,5 +264,53 @@ describe("AdminRefreshPanel — 거시지표", () => {
     expect(
       await screen.findByText("조회할 시리즈를 지정해야 합니다."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AdminRefreshPanel — 마지막 갱신", () => {
+  it("들어오자마자 한 번 조회해 두 카드에 나눠 적는다", async () => {
+    render(<AdminRefreshPanel onAuthFailure={vi.fn()} />);
+
+    // 2026-09-08T00:31:07Z = 서울 09:31
+    expect(
+      await screen.findByText(/마지막 갱신 — 26.09.08 09:31/),
+    ).toBeInTheDocument();
+    // FRED는 저장되지 않아 서버에 남는 값이 없다.
+    expect(
+      screen.getByText(/서버에 남는 기록이 없습니다/),
+    ).toBeInTheDocument();
+    // 조회는 두 카드가 나눠 보므로 한 번만 나간다.
+    expect(fetchAdminRefreshStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("갱신을 마치면 마지막 갱신 시각을 다시 읽는다", async () => {
+    vi.mocked(refreshAdminFxRates).mockResolvedValue({
+      data: EMPTY_FX,
+      meta: META,
+    });
+
+    render(<AdminRefreshPanel onAuthFailure={vi.fn()} />);
+    await waitFor(() =>
+      expect(fetchAdminRefreshStatus).toHaveBeenCalledTimes(1),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "환율 갱신" }));
+    await waitFor(() =>
+      expect(fetchAdminRefreshStatus).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("서버가 아직 열지 않은 엔드포인트면 조용히 넘어간다", async () => {
+    vi.mocked(fetchAdminRefreshStatus).mockRejectedValue(
+      new ApiError("찾을 수 없습니다.", 404, "NOT_FOUND"),
+    );
+
+    render(<AdminRefreshPanel onAuthFailure={vi.fn()} />);
+
+    expect(
+      await screen.findAllByText(/서버가 아직 제공하지 않습니다/),
+    ).toHaveLength(2);
+    // 갱신 버튼은 그대로 살아 있다.
+    expect(screen.getByRole("button", { name: "환율 갱신" })).toBeEnabled();
   });
 });

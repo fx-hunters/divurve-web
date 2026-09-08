@@ -20,6 +20,8 @@ import {
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerJourneyScenario } from "./planner-journey-scenario";
 import { PlannerJourneyStatus } from "./planner-journey-status";
+import { PlannerPlanHistory } from "./planner-plan-history";
+import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
   usePlannerJourneyFlow,
   type PlannerJourneyOperations,
@@ -36,6 +38,9 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
   readonly view: PlannerViewModel;
   readonly feedback: PlannerJourneyFeedback;
   readonly scenarioComparison: PlannerScenarioComparisonViewModel | null;
+  readonly history?: {
+    readonly dependencies?: PlanVersionDependencies;
+  };
 }
 
 function FeedbackView({ feedback }: { readonly feedback: PlannerJourneyFeedback }) {
@@ -55,6 +60,7 @@ export function PlannerJourneyScreen({
   view,
   feedback,
   scenarioComparison,
+  history,
   ...operations
 }: PlannerJourneyScreenProps) {
   const flow = usePlannerJourneyFlow(view, operations);
@@ -103,6 +109,20 @@ export function PlannerJourneyScreen({
             goal={goal}
             onBack={() => flow.setStage("goal")}
             onContinue={() => void flow.continueFromStatus()}
+            onHistory={
+              history === undefined
+                ? undefined
+                : () => flow.setStage("history")
+            }
+          />
+        )}
+        {flow.stage === "history" && history !== undefined && (
+          <PlannerPlanHistory
+            goalId={goal.id}
+            goalName={goal.name}
+            currencyCode={goal.currencyCode}
+            dependencies={history.dependencies}
+            onBack={() => flow.setStage("status")}
           />
         )}
         {flow.stage === "planSetup" && view.plan !== null && (

@@ -7,6 +7,8 @@ import {
   completePlanStep,
   createGoalPlan,
   createPlannerExecutionKey,
+  fetchPlanDetail,
+  fetchPlanVersions,
   fetchPlannerOverview,
   parsePlannerPlanResponse,
   previewGoalPlan,
@@ -112,6 +114,22 @@ describe("planner API", () => {
     expect(() =>
       parsePlannerPlanResponse({ ...activePlan, warnings: ["ok", 1] }),
     ).toThrowError(/warnings/);
+  });
+
+  it("계획 버전 이력을 조회해 versions 배열만 돌려준다", async () => {
+    const versions = [
+      { planId: "plan-2", version: 2, status: "active" },
+      { planId: "plan-1", version: 1, status: "superseded" },
+    ];
+    vi.mocked(request).mockResolvedValueOnce({ versions });
+    await expect(fetchPlanVersions("goal/a")).resolves.toEqual(versions);
+    expect(request).toHaveBeenCalledWith("/api/v1/goals/goal%2Fa/plans");
+  });
+
+  it("계획 버전 상세를 인코딩된 경로로 조회한다", async () => {
+    vi.mocked(request).mockResolvedValueOnce(activePlan);
+    await expect(fetchPlanDetail("plan/1")).resolves.toEqual(activePlan);
+    expect(request).toHaveBeenCalledWith("/api/v1/plans/plan%2F1");
   });
 
   it("계획 미리보기와 생성은 저장 목표 ID와 통화만 서버에 전달한다", async () => {

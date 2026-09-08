@@ -7,19 +7,15 @@
  *
  * `explain_level`·`explain_domain`은 요청이 아니라 로그인 사용자 설정에서
  * 오므로 입력란을 두지 않는다.
+ *
+ * 배치: 입력을 왼쪽, 결과를 오른쪽에 1:1로 세운다. facts JSON을 고치면서 그
+ * 결과를 곧바로 대조하는 것이 이 화면을 쓰는 방식이기 때문이다.
  */
 import { useState } from "react";
 import { requestExplanation } from "../../api/ai-explain";
+import { AdminAiExplainResult } from "./admin-ai-explain-result";
 import type { AdminAuthFailure } from "./admin-errors";
-import {
-  AdminErrorPanel,
-  AdminIdlePanel,
-  AdminLoadingPanel,
-  AdminMetaLine,
-  AdminRawPanel,
-  AdminSection,
-} from "./admin-panels";
-import { formatAdminValue } from "./admin-value";
+import { AdminSection } from "./admin-panels";
 import { useAdminRequest } from "./use-admin-request";
 
 const DEFAULT_SURFACE = "forecast_summary";
@@ -75,119 +71,42 @@ export function AdminAiExplainScreen({
   };
 
   return (
-    <AdminSection
-      title="AI 자연어 설명"
-      description="POST /api/v1/ai/explain — 실패해도 200이 옵니다. fallback과 verification으로 판정하세요."
-    >
-      <form className="admin-form" onSubmit={handleSubmit}>
-        <label className="admin-field">
-          <span>surface</span>
-          <input
-            type="text"
-            value={surface}
-            onChange={(event) => setSurface(event.target.value)}
-          />
-        </label>
-        <label className="admin-field admin-field--block">
-          <span>facts (JSON)</span>
-          <textarea
-            value={factsInput}
-            rows={14}
-            spellCheck={false}
-            onChange={(event) => setFactsInput(event.target.value)}
-          />
-        </label>
-        <button
-          type="submit"
-          className="admin-button admin-button--primary"
-          disabled={state.status === "loading"}
-        >
-          호출
-        </button>
-      </form>
+    <div className="admin-split">
+      <AdminSection
+        title="입력"
+        description="POST /api/v1/ai/explain — 실패해도 200이 옵니다. fallback과 verification으로 판정하세요."
+      >
+        <form className="admin-form" onSubmit={handleSubmit}>
+          <label className="admin-field">
+            <span>surface</span>
+            <input
+              type="text"
+              value={surface}
+              onChange={(event) => setSurface(event.target.value)}
+            />
+          </label>
+          <label className="admin-field admin-field--block">
+            <span>facts (JSON)</span>
+            <textarea
+              value={factsInput}
+              rows={14}
+              spellCheck={false}
+              onChange={(event) => setFactsInput(event.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="admin-button admin-button--primary"
+            disabled={state.status === "loading"}
+          >
+            호출
+          </button>
+        </form>
+      </AdminSection>
 
-      {parseError !== null && (
-        <p className="admin-panel admin-panel--danger" role="alert">
-          {parseError}
-        </p>
-      )}
-
-      {state.status === "idle" && (
-        <AdminIdlePanel label="facts를 채우고 호출을 누르세요." />
-      )}
-      {state.status === "loading" && (
-        <AdminLoadingPanel label="설명을 생성하는 중입니다." />
-      )}
-      {state.status === "error" && <AdminErrorPanel error={state.error} />}
-      {state.status === "success" && (
-        <>
-          {state.result.data.explanation.fallback === true && (
-            <p className="admin-panel admin-panel--warn" role="alert">
-              fallback=true — LLM 결과가 검증을 통과하지 못해 고정 템플릿이
-              나갔습니다. 아래 verification을 확인하세요.
-            </p>
-          )}
-
-          <h3 className="admin-subtitle">verification</h3>
-          <dl className="admin-kv admin-kv--inline">
-            <div className="admin-kv__pair">
-              <dt>numericMatch</dt>
-              <dd>
-                {formatAdminValue(state.result.data.verification.numericMatch)}
-              </dd>
-            </div>
-            <div className="admin-kv__pair">
-              <dt>blockedPhrases</dt>
-              <dd>
-                {state.result.data.verification.blockedPhrases.length === 0
-                  ? "-"
-                  : state.result.data.verification.blockedPhrases.join(", ")}
-              </dd>
-            </div>
-          </dl>
-
-          <h3 className="admin-subtitle">explanation</h3>
-          <dl className="admin-kv admin-kv--inline">
-            <div className="admin-kv__pair">
-              <dt>sentenceCount</dt>
-              <dd>
-                {formatAdminValue(state.result.data.explanation.sentenceCount)}
-              </dd>
-            </div>
-            <div className="admin-kv__pair">
-              <dt>explainLevel</dt>
-              <dd>
-                {formatAdminValue(state.result.data.explanation.explainLevel)}
-              </dd>
-            </div>
-            <div className="admin-kv__pair">
-              <dt>explainDomain</dt>
-              <dd>
-                {formatAdminValue(state.result.data.explanation.explainDomain)}
-              </dd>
-            </div>
-            <div className="admin-kv__pair">
-              <dt>fallback</dt>
-              <dd>
-                {formatAdminValue(state.result.data.explanation.fallback)}
-              </dd>
-            </div>
-          </dl>
-
-          {state.result.data.explanation.sentences.length === 0 ? (
-            <p className="admin-empty">문장이 없습니다.</p>
-          ) : (
-            <ol className="admin-sentences">
-              {state.result.data.explanation.sentences.map((sentence, index) => (
-                <li key={`${index}-${sentence}`}>{sentence}</li>
-              ))}
-            </ol>
-          )}
-
-          <AdminMetaLine meta={state.result.meta} />
-          <AdminRawPanel title="응답 원문" value={state.result} />
-        </>
-      )}
-    </AdminSection>
+      <AdminSection title="결과">
+        <AdminAiExplainResult state={state} parseError={parseError} />
+      </AdminSection>
+    </div>
   );
 }

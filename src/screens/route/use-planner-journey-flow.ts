@@ -8,6 +8,7 @@ export type JourneyStage =
   | "goal"
   | "status"
   | "planSetup"
+  | "history"
   | "curve"
   | "action"
   | "scenario"

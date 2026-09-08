@@ -1,5 +1,6 @@
 import type { StressRunResponse } from "../../api/generated/divurve-api";
 import type { XrayApiBundle } from "../../api/xray";
+import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
 import type {
   ConcentrationDiagnosis,
   ExposureShareItem,
@@ -140,4 +141,70 @@ export function toStressRunResult(run: StressRunResponse): StressRunResult {
     afterFxAssetKrw: run.after.fxAssetKrw,
     conditionalNote: run.conditionalNote,
   };
+}
+
+/**
+ * AI 설명(`POST /api/v1/ai/explain`)에 실을 근거 수치를 만든다.
+ *
+ * 엔진이 준 값을 골라 담기만 하고 새로 계산하지 않는다(AGENTS.md §1).
+ * 값이 없는 키는 아예 빼서 보낸다.
+ *
+ * 키 표기는 요청 본문 그대로 서버에 닿으므로(`isRawBody`) 백엔드 계약의
+ * snake_case 를 쓴다. 홈·환율 전망 화면의 facts 와 같은 규칙이다.
+ *
+ * ⚠️ 비율은 반드시 0~1 스케일로 넣는다. 백엔드 수치 대조기는 서술 속
+ * `%` 토큰을 100으로 나눠 facts와 비교하므로("63%" → 0.63), 화면 표시용
+ * 0~100 값을 그대로 실으면 63 ≠ 0.63 으로 어긋나 `fallback: true`가 된다.
+ * `toRatio`가 표시용 퍼센트를 API 원본과 같은 비율 단위로 되돌린다.
+ */
+/** 표시용 퍼센트(0~100)를 API 원본과 같은 비율(0~1)로 되돌린다. */
+function toRatio(percent: number | undefined): number | undefined {
+  return percent === undefined ? undefined : percent / 100;
+}
+
+function compactFacts(
+  source: Readonly<Record<string, unknown>>,
+): ExplanationFacts {
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined),
+  );
+}
+
+/** 통화 노출 탭의 근거 수치. 노출 목록이 비면 요청하지 않도록 null을 준다. */
+export function toExposureExplanationFacts(
+  data: XRayDashboardData,
+): ExplanationFacts | null {
+  if (data.exposure.length === 0) return null;
+  return compactFacts({
+    total_asset_krw: data.totalAssetKrw,
+    fx_asset_krw: data.fxKrw,
+    krw_asset_krw: data.krwAmount,
+    fx_ratio: toRatio(data.fxRatioPct),
+    exposure: data.exposure.map((item) => ({
+      currency_code: item.currencyCode,
+      krw: item.krw,
+      share: toRatio(item.sharePct),
+    })),
+    fx_sensitivity_1pct_krw: data.fxSensitivity1pctKrw,
+    total_return: toRatio(data.pnl.totalReturnPct),
+    concentration_status: data.concentration.status,
+    concentration_threshold: toRatio(data.concentration.thresholdPct),
+  });
+}
+
+/** 통화 적합도 탭의 근거 수치. 집중도가 없으면 요청하지 않도록 null을 준다. */
+export function toFitnessExplanationFacts(
+  data: XRayDashboardData,
+): ExplanationFacts | null {
+  const { concentration } = data;
+  if (concentration.sharePct === undefined) return null;
+  return compactFacts({
+    top_currency_code: concentration.topCurrencyCode,
+    concentration_share: toRatio(concentration.sharePct),
+    concentration_status: concentration.status,
+    concentration_threshold: toRatio(concentration.thresholdPct),
+    gap: toRatio(concentration.gapPp),
+    risk_profile_status: concentration.riskProfileStatus,
+    risk_grade_label: concentration.gradeLabel,
+  });
 }

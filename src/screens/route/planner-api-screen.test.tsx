@@ -7,6 +7,7 @@ import type {
 } from "../../api/planner-contract";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import type { PlannerApiDependencies } from "./use-planner-api";
+import type { PlanVersionDependencies } from "./use-plan-versions";
 import { PlannerApiScreen } from "./planner-api-screen";
 
 const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
@@ -288,5 +289,54 @@ describe("PlannerApiScreen", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("비교 실패");
     expect(screen.queryByText("미국 ETF 정기 투자")).not.toBeInTheDocument();
     expect(deps.previewScenario).toHaveBeenCalledOnce();
+  });
+
+  it("공통 Journey 안에서 계획 버전 목록과 최신 상세를 표시한다", async () => {
+    const planVersionDependencies: PlanVersionDependencies = {
+      loadVersions: vi.fn().mockResolvedValue([
+        { planId: "plan-usd", version: 2, status: "active", reason: "재계산" },
+        { planId: "plan-usd-1", version: 1, status: "superseded" },
+      ]),
+      loadDetail: vi.fn().mockResolvedValue(activePlan),
+    };
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        planVersionDependencies={planVersionDependencies}
+      />,
+    );
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
+
+    expect(screen.getByText("계획 이력을 불러오고 있습니다.")).toBeInTheDocument();
+    const activeVersion = await screen.findByRole("button", { name: /v2/ });
+    expect(planVersionDependencies.loadVersions).toHaveBeenCalledWith("goal-usd");
+    fireEvent.click(activeVersion);
+    expect(await screen.findByText("전체 회차")).toBeInTheDocument();
+    expect(planVersionDependencies.loadDetail).toHaveBeenCalledWith("plan-usd");
+    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
+    expect(screen.getByText("미국 ETF 준비의 현재 위치입니다")).toBeInTheDocument();
+  });
+
+  it("활성 계획이 없는 목표에서도 빈 계획 이력을 확인한다", async () => {
+    const planVersionDependencies: PlanVersionDependencies = {
+      loadVersions: vi.fn().mockResolvedValue([]),
+      loadDetail: vi.fn(),
+    };
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        planVersionDependencies={planVersionDependencies}
+      />,
+    );
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
+
+    expect(
+      await screen.findByText(/저장된 계획 버전이 없습니다/),
+    ).toBeInTheDocument();
+    expect(planVersionDependencies.loadDetail).not.toHaveBeenCalled();
   });
 });

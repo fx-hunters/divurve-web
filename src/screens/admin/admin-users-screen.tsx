@@ -10,6 +10,7 @@ import {
   type AdminUser,
   type AdminUserPage,
 } from "../../api/admin";
+import { formatAdminDateTime } from "./admin-datetime";
 import type { AdminAuthFailure } from "./admin-errors";
 import {
   AdminErrorPanel,
@@ -32,11 +33,18 @@ export function toIsDemoParam(filter: AdminDemoFilter): boolean | undefined {
   return undefined;
 }
 
+/**
+ * 표에 세울 컬럼과 그 순서.
+ *
+ * 응답에는 `id`·`role`·`sampleDataSeeded`·`onboardedAt`도 오지만 목록에서는
+ * 세우지 않는다. 계정을 찾아 들어가는 데 쓰는 값만 남긴 것이고, 나머지는
+ * 행을 눌러 들어가는 상세 화면에서 본다. `id`는 컬럼에서 빠져도 행 클릭이
+ * 행 객체의 `user.id`를 그대로 쓰므로 이동에는 영향이 없다.
+ */
 const COLUMNS: readonly AdminColumn<AdminUser>[] = [
-  { key: "id" },
-  { key: "email" },
-  { key: "name" },
-  { key: "role" },
+  { key: "lastLoginIp" },
+  { key: "lastLoginAt", render: (user) => formatAdminDateTime(user.lastLoginAt) },
+  { key: "createdAt", render: (user) => formatAdminDateTime(user.createdAt) },
   {
     key: "isDemo",
     render: (user) =>
@@ -46,19 +54,8 @@ const COLUMNS: readonly AdminColumn<AdminUser>[] = [
         formatAdminValue(user.isDemo)
       ),
   },
-  {
-    key: "sampleDataSeeded",
-    render: (user) =>
-      user.sampleDataSeeded === true ? (
-        <span className="admin-badge admin-badge--sample">sample</span>
-      ) : (
-        formatAdminValue(user.sampleDataSeeded)
-      ),
-  },
-  { key: "createdAt" },
-  { key: "onboardedAt" },
-  { key: "lastLoginAt" },
-  { key: "lastLoginIp" },
+  { key: "name" },
+  { key: "email" },
 ];
 
 /**

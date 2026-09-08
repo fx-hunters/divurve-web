@@ -1,16 +1,9 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AuthPage, Field, pwStrength, fmtTime, inputBtnStyle } from "./AuthPage";
+import { AuthPage, Field, pwStrength, inputBtnStyle } from "./AuthPage";
 import { ApiError } from "./api/client";
 
 describe("AuthPage Utils", () => {
-  it("fmtTime이 초 단위를 mm:ss 형식으로 정확히 변환한다", () => {
-    expect(fmtTime(180)).toBe("3:00");
-    expect(fmtTime(179)).toBe("2:59");
-    expect(fmtTime(65)).toBe("1:05");
-    expect(fmtTime(0)).toBe("0:00");
-  });
-
   it("pwStrength가 비밀번호 길이에 따른 점수와 라벨을 반환한다", () => {
     expect(pwStrength("")).toEqual({ score: 0, label: "", color: "transparent" });
     expect(pwStrength("short")).toEqual({ score: 0, label: "매우 약함", color: "var(--danger)" });
@@ -42,7 +35,7 @@ describe("AuthPage Component", () => {
     vi.useRealTimers();
   });
 
-  it("기본 로그인 모드에서 브랜드 로고, 입력 필드 및 소셜 로그인 버튼을 렌더링한다", () => {
+  it("기본 로그인 모드에서 브랜드 로고와 입력 필드를 렌더링한다", () => {
     render(<AuthPage onSuccess={onSuccessMock} onBack={onBackMock} />);
 
     // 브랜드 로고 텍스트 확인
@@ -51,11 +44,6 @@ describe("AuthPage Component", () => {
     // 로그인 입력란
     expect(screen.getByLabelText("이메일")).toBeInTheDocument();
     expect(screen.getByLabelText("비밀번호")).toBeInTheDocument();
-
-    // 소셜 로그인 버튼
-    expect(screen.getByRole("button", { name: "카카오 로그인" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "네이버 로그인" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "구글 로그인" })).toBeInTheDocument();
   });
 
   it("로그인 폼에서 빈 값 제출 시 에러 메시지를 표시하고, 입력 시 API 인증을 요청한다", async () => {
@@ -111,18 +99,6 @@ describe("AuthPage Component", () => {
     const autoLoginCheckbox = screen.getByLabelText("자동 로그인");
     fireEvent.click(autoLoginCheckbox);
     expect(autoLoginCheckbox).toBeChecked();
-  });
-
-  it("Swagger에 없는 소셜 로그인은 안내하고 인증 완료로 처리하지 않는다", () => {
-    render(<AuthPage onSuccess={onSuccessMock} onBack={onBackMock} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "카카오 로그인" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("소셜 로그인 API");
-
-    fireEvent.click(screen.getByRole("button", { name: "네이버 로그인" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "구글 로그인" }));
-    expect(onSuccessMock).not.toHaveBeenCalled();
   });
 
   it("홈으로 돌아가기 버튼 클릭 시 onBack 콜백을 호출한다", () => {
@@ -188,7 +164,6 @@ describe("AuthPage Component", () => {
     expect(screen.getByText("이름을 입력하세요.")).toBeInTheDocument();
     expect(screen.getByText("올바른 이메일을 입력하세요.")).toBeInTheDocument();
     expect(screen.getByText("비밀번호는 8자 이상이어야 합니다.")).toBeInTheDocument();
-    expect(screen.getByText("휴대폰 인증을 완료하세요.")).toBeInTheDocument();
     expect(screen.getByText("필수 약관에 동의하세요.")).toBeInTheDocument();
     expect(onSuccessMock).not.toHaveBeenCalled();
   });
@@ -244,58 +219,6 @@ describe("AuthPage Component", () => {
     expect(pwConfirmInput).toHaveAttribute("type", "password");
   });
 
-  it("휴대폰 번호 인증 프로세스(발송, 카운트다운, 검증)가 정상 동작한다", () => {
-    render(<AuthPage initialMode="signup" onSuccess={onSuccessMock} onBack={onBackMock} />);
-
-    const phoneInput = screen.getByLabelText("휴대폰 번호");
-    const sendBtn = screen.getByRole("button", { name: "인증번호 발송" });
-
-    // 번호 미입력 시 발송 클릭
-    fireEvent.click(sendBtn);
-    expect(screen.getByText("올바른 휴대폰 번호를 입력하세요.")).toBeInTheDocument();
-
-    // 유효 번호 입력 후 발송
-    fireEvent.change(phoneInput, { target: { value: "010-1234-5678" } });
-    fireEvent.click(sendBtn);
-
-    // 인증번호 입력창 및 타이머 노출 확인
-    expect(screen.getByText("3:00")).toBeInTheDocument();
-    expect(screen.getByLabelText("인증번호")).toBeInTheDocument();
-
-    // 타이머 카운트다운 진행
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
-    expect(screen.getByText("2:58")).toBeInTheDocument();
-
-    // 인증번호 미입력 상태에서 확인 클릭
-    const verifyBtn = screen.getByRole("button", { name: "확인" });
-    fireEvent.click(verifyBtn);
-    expect(screen.getByText("4자리 인증번호를 입력하세요.")).toBeInTheDocument();
-
-    // 인증번호 입력 후 확인
-    const codeInput = screen.getByLabelText("인증번호");
-    fireEvent.change(codeInput, { target: { value: "1234" } });
-    fireEvent.click(verifyBtn);
-
-    expect(screen.getByText("휴대폰 인증이 완료되었습니다.")).toBeInTheDocument();
-    expect(phoneInput).toBeDisabled();
-  });
-
-  it("휴대폰 카운트다운이 0에 도달하면 타이머가 멈춘다", () => {
-    render(<AuthPage initialMode="signup" onSuccess={onSuccessMock} onBack={onBackMock} />);
-
-    const phoneInput = screen.getByLabelText("휴대폰 번호");
-    fireEvent.change(phoneInput, { target: { value: "010-1234-5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-
-    act(() => {
-      vi.advanceTimersByTime(185000);
-    });
-
-    expect(screen.getByText("0:00")).toBeInTheDocument();
-  });
-
   it("약관 동의 전체 선택 및 개별 선택 동기화가 정상 동작한다", () => {
     render(<AuthPage initialMode="signup" onSuccess={onSuccessMock} onBack={onBackMock} />);
 
@@ -338,12 +261,6 @@ describe("AuthPage Component", () => {
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "Password123!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "Password123!" } });
 
-    // 휴대폰 + 인증
-    fireEvent.change(screen.getByLabelText("휴대폰 번호"), { target: { value: "010-9999-8888" } });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-    fireEvent.change(screen.getByLabelText("인증번호"), { target: { value: "9876" } });
-    fireEvent.click(screen.getByRole("button", { name: "확인" }));
-
     // 약관 전체 동의
     fireEvent.click(screen.getByLabelText(/전체 동의/));
 
@@ -356,19 +273,6 @@ describe("AuthPage Component", () => {
       password: "Password123!",
       name: "홍길동",
     });
-  });
-
-  it("회원가입 모드의 소셜 버튼도 미지원 안내를 표시한다", () => {
-    render(<AuthPage initialMode="signup" onSuccess={onSuccessMock} onBack={onBackMock} />);
-
-    expect(screen.getByText(/휴대폰 인증은 현재 Swagger 계약에 없어/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "카카오로 시작하기" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "네이버로 시작하기" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "구글로 시작하기" }));
-    expect(onSuccessMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("소셜 로그인 API");
   });
 
   it("약관 에러 상태에서 개별 약관 체크 시 에러가 해제된다", () => {
@@ -399,24 +303,6 @@ describe("AuthPage Component", () => {
     const loginTabBtn = screen.getByRole("tab", { name: "로그인" });
     fireEvent.click(loginTabBtn);
     expect(screen.getByLabelText("이메일")).toBeInTheDocument();
-  });
-
-  it("휴대폰 인증번호 발송 후 재발송 버튼을 누르면 카운트다운이 180초로 리셋된다", () => {
-    render(<AuthPage initialMode="signup" onSuccess={onSuccessMock} onBack={onBackMock} />);
-
-    const phoneInput = screen.getByLabelText("휴대폰 번호");
-    fireEvent.change(phoneInput, { target: { value: "010-1234-5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-
-    act(() => {
-      vi.advanceTimersByTime(30000);
-    });
-    expect(screen.getByText("2:30")).toBeInTheDocument();
-
-    // 재발송 클릭
-    const resendBtn = screen.getByRole("button", { name: "재발송" });
-    fireEvent.click(resendBtn);
-    expect(screen.getByText("3:00")).toBeInTheDocument();
   });
 
   it("Field 인풋 포커스 및 블러 이벤트 시 glow 상태가 토글된다", () => {
@@ -454,21 +340,6 @@ describe("AuthPage Component", () => {
     // 비밀번호 확인 일치 입력 시 에러 해제
     fireEvent.change(pwConfirmInput, { target: { value: "Password123!" } });
     expect(screen.queryByText("비밀번호가 일치하지 않습니다.")).not.toBeInTheDocument();
-
-    // 휴대폰 번호 입력 및 인증번호 발송
-    const phoneInput = screen.getByLabelText("휴대폰 번호");
-    fireEvent.change(phoneInput, { target: { value: "010-1234-5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-
-    // 인증번호 에러 발생
-    const verifyBtn = screen.getByRole("button", { name: "확인" });
-    fireEvent.click(verifyBtn);
-    expect(screen.getByText("4자리 인증번호를 입력하세요.")).toBeInTheDocument();
-
-    // 인증번호 입력 시 에러 해제
-    const codeInput = screen.getByLabelText("인증번호");
-    fireEvent.change(codeInput, { target: { value: "1234" } });
-    expect(screen.queryByText("4자리 인증번호를 입력하세요.")).not.toBeInTheDocument();
   });
 
   it("Field 컴포넌트가 hint, aria-label, successBorder, disabled를 정상적으로 렌더링한다", () => {
@@ -591,14 +462,6 @@ describe("AuthPage Component", () => {
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), {
       target: { value: "Password123!" },
     });
-    fireEvent.change(screen.getByLabelText("휴대폰 번호"), {
-      target: { value: "010-9999-8888" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-    fireEvent.change(screen.getByLabelText("인증번호"), {
-      target: { value: "9876" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "확인" }));
     fireEvent.click(screen.getByLabelText(/전체 동의/));
     await act(async () =>
       fireEvent.click(screen.getByRole("button", { name: "가입하기" })),

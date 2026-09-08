@@ -7,7 +7,6 @@ export const NAV_PATHS: Readonly<Record<NavTabId, string>> = {
   assets: "/xray",
   range: "/forecast",
   mypage: "/mypage",
-  connectivity: "/connectivity",
 };
 
 export function getTabFromPathname(pathname: string): NavTabId {
@@ -24,8 +23,6 @@ export function getTabFromPathname(pathname: string): NavTabId {
     case NAV_PATHS.mypage:
     case "/mypage/diagnosis":
       return "mypage";
-    case NAV_PATHS.connectivity:
-      return "connectivity";
     default:
       return "home";
   }
