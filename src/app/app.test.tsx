@@ -758,10 +758,6 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "user@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "Password123!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "Password123!" } });
-    fireEvent.change(screen.getByLabelText("휴대폰 번호"), { target: { value: "010-1234-5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "인증번호 발송" }));
-    fireEvent.change(screen.getByLabelText("인증번호"), { target: { value: "1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "확인" }));
     fireEvent.click(screen.getByLabelText(/전체 동의/));
     fireEvent.click(screen.getByRole("button", { name: "가입하기" }));
 
