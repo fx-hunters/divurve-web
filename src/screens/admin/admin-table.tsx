@@ -10,8 +10,13 @@ import { formatAdminValue } from "./admin-value";
 export type AdminRowTone = "default" | "muted" | "danger";
 
 export interface AdminColumn<Row> {
-  /** 행 객체에서 값을 꺼낼 키. 헤더 문구로도 그대로 쓴다. */
+  /** 행 객체에서 값을 꺼낼 키. `header`가 없으면 헤더 문구로도 그대로 쓴다. */
   readonly key: string;
+  /**
+   * 헤더에만 쓰는 문구. 필드명만으로는 값을 잘못 읽는 칸에 붙인다
+   * (예: 기준 시간대가 다른 날짜 칸).
+   */
+  readonly header?: string;
   /** 기본 표시로 부족한 칸만 직접 그린다. */
   readonly render?: (row: Row) => ReactNode;
 }
@@ -50,7 +55,7 @@ export function AdminTable<Row>({
           <tr>
             {columns.map((column) => (
               <th key={column.key} scope="col">
-                {column.key}
+                {column.header ?? column.key}
               </th>
             ))}
           </tr>

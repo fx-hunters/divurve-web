@@ -13,13 +13,15 @@ export type AdminRoute =
   | { readonly kind: "currencies" }
   | { readonly kind: "fxRates" }
   | { readonly kind: "aiExplain" }
-  | { readonly kind: "aiExtract" };
+  | { readonly kind: "aiExtract" }
+  | { readonly kind: "aiCallLogs" };
 
 export const ADMIN_USERS_PATH = `${ADMIN_BASE_PATH}/users`;
 export const ADMIN_CURRENCIES_PATH = `${ADMIN_BASE_PATH}/currencies`;
 export const ADMIN_FX_RATES_PATH = `${ADMIN_BASE_PATH}/fx-rates`;
 export const ADMIN_AI_EXPLAIN_PATH = `${ADMIN_BASE_PATH}/ai/explain`;
 export const ADMIN_AI_EXTRACT_PATH = `${ADMIN_BASE_PATH}/ai/extract`;
+export const ADMIN_AI_CALLS_PATH = `${ADMIN_BASE_PATH}/ai/calls`;
 
 export interface AdminNavItem {
   readonly path: string;
@@ -34,6 +36,7 @@ export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { path: ADMIN_FX_RATES_PATH, label: "환율·갱신", kinds: ["fxRates"] },
   { path: ADMIN_AI_EXPLAIN_PATH, label: "AI 설명", kinds: ["aiExplain"] },
   { path: ADMIN_AI_EXTRACT_PATH, label: "AI 추출", kinds: ["aiExtract"] },
+  { path: ADMIN_AI_CALLS_PATH, label: "AI 로그", kinds: ["aiCallLogs"] },
 ];
 
 /** 끝 슬래시와 중복 슬래시를 지운 경로. `/admin/` 과 `/admin` 을 같게 본다. */
@@ -69,6 +72,7 @@ export function resolveAdminRoute(pathname: string): AdminRoute {
   if (section === "fx-rates") return { kind: "fxRates" };
   if (section === "ai") {
     if (detail === "extract") return { kind: "aiExtract" };
+    if (detail === "calls") return { kind: "aiCallLogs" };
     return { kind: "aiExplain" };
   }
   if (section === "users" && detail !== undefined) {

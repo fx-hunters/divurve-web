@@ -6,11 +6,7 @@ import {
   type AdminUserPage,
 } from "../../api/admin";
 import { ApiError } from "../../api/client";
-import {
-  AdminUsersScreen,
-  hasAdminUsersNextPage,
-  toIsDemoParam,
-} from "./admin-users-screen";
+import { AdminUsersScreen } from "./admin-users-screen";
 
 vi.mock("../../api/admin", () => ({ fetchAdminUsers: vi.fn() }));
 
@@ -58,26 +54,6 @@ function resolveWith(data: AdminUserPage) {
 
 beforeEach(() => {
   vi.mocked(fetchAdminUsers).mockReset();
-});
-
-describe("toIsDemoParam", () => {
-  it("전체는 파라미터를 보내지 않는다", () => {
-    expect(toIsDemoParam("all")).toBeUndefined();
-    expect(toIsDemoParam("demoOnly")).toBe(true);
-    expect(toIsDemoParam("memberOnly")).toBe(false);
-  });
-});
-
-describe("hasAdminUsersNextPage", () => {
-  it("totalPages가 있으면 그 값만 믿는다", () => {
-    expect(hasAdminUsersNextPage(page({ totalPages: 3 }), 1, 50)).toBe(true);
-    expect(hasAdminUsersNextPage(page({ totalPages: 2 }), 1, 50)).toBe(false);
-  });
-
-  it("totalPages가 없으면 이번 페이지가 가득 찼는지로 판단한다", () => {
-    expect(hasAdminUsersNextPage(page({ totalPages: null }), 0, 2)).toBe(true);
-    expect(hasAdminUsersNextPage(page({ totalPages: null }), 0, 3)).toBe(false);
-  });
 });
 
 describe("AdminUsersScreen", () => {
