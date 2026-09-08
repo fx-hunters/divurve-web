@@ -25,6 +25,13 @@ function overview(): PlannerApiOverview {
           planId: "plan",
           goalId: "first",
           version: 3,
+          goal: {
+            ...first.activePlan!.goal,
+            targetAmount: 100,
+            allocatedHoldingAmount: 25,
+            remainingAmount: 65,
+            targetDate: "2026-12-31",
+          },
           summary: {
             ...first.activePlan!.summary,
             totalRounds: 4,
@@ -34,10 +41,10 @@ function overview(): PlannerApiOverview {
             nextActionSeq: 3,
           },
           steps: [
-            { ...first.activePlan!.steps[0]!, seq: 1, status: "completed", nextAction: false },
-            { ...first.activePlan!.steps[1]!, seq: 2, status: "skipped", nextAction: false },
-            { ...first.activePlan!.steps[1]!, seq: 3, amount: 30, status: "pending", nextAction: true },
-            { ...first.activePlan!.steps[1]!, seq: 4, amount: 40, status: "pending", nextAction: false },
+            { ...first.activePlan!.steps[0]!, seq: 1, scheduledDate: "2026-09-01", executedAmount: 10, status: "completed", nextAction: false },
+            { ...first.activePlan!.steps[1]!, seq: 2, scheduledDate: "2026-09-10", status: "skipped", nextAction: false },
+            { ...first.activePlan!.steps[1]!, seq: 3, scheduledDate: "2026-10-10", amount: 30, status: "pending", nextAction: true },
+            { ...first.activePlan!.steps[1]!, seq: 4, scheduledDate: "2026-12-10", amount: 40, status: "pending", nextAction: false },
           ],
         },
       },
@@ -89,8 +96,9 @@ describe("presentPlannerOverview", () => {
     });
     expect(model.selectedGoal).toMatchObject({
       id: "first",
-      progressPercent: 25,
-      progressLabel: "외화 확보 진행",
+      progressPercent: 35,
+      progressLabel: "목표 배정 및 완료 기록 기준",
+      heldAmountLabel: "35 USD",
     });
     expect(model.plan).toMatchObject({
       id: "plan",
@@ -122,7 +130,7 @@ describe("presentPlannerOverview", () => {
     expect(model.supportedActions.canPreviewPlan).toBe(true);
   });
 
-  it("단계 순서와 상태만으로 안정적인 Curve 좌표와 상태를 만든다", () => {
+  it("실제 날짜 간격과 누적 금액으로 Curve 좌표와 상태를 만든다", () => {
     const model = presentPlannerOverview(overview());
     expect(model.steps.map((step) => step.status)).toEqual([
       "completed",
@@ -130,8 +138,13 @@ describe("presentPlannerOverview", () => {
       "next",
       "upcoming",
     ]);
-    expect(model.curveNodes.map((node) => node.x)).toEqual([17.6, 35.2, 52.8, 70.4]);
-    expect(model.curveNodes.map((node) => node.y)).toEqual([65, 35, 65, 35]);
+    const [first, second, third, fourth] = model.curveNodes;
+    expect(first!.x).toBeLessThan(second!.x);
+    expect(second!.x).toBeLessThan(third!.x);
+    expect(third!.x).toBeLessThan(fourth!.x);
+    expect(second!.cumulativeAmount).toBe(first!.cumulativeAmount);
+    expect(third!.cumulativeAmount).toBe(first!.cumulativeAmount + 30);
+    expect(fourth!.cumulativeAmount).toBe(third!.cumulativeAmount + 40);
     expect(model.curve).toMatchObject({
       destination: {
         status: "destination",
@@ -159,12 +172,16 @@ describe("presentPlannerOverview", () => {
       isSampleData: false,
     };
     const model = presentPlannerOverview(noSteps, "unknown");
-    expect(model.selectedGoal).toMatchObject({ id: "first", targetDateLabel: "미설정" });
+    expect(model.selectedGoal).toMatchObject({ id: "first", targetDateLabel: "2026-12-31" });
     expect(model.plan).toMatchObject({
       versionLabel: "미리보기",
       planSource: "preview",
     });
-    expect(model.curve?.path).toBe("M 2 78 L 96 24");
+    expect(model.curve?.path).toBe("");
+    expect(model.curve?.destination).toMatchObject({
+      status: "destination",
+      targetAmountLabel: "100 USD",
+    });
     expect(model.nextAction).toBeNull();
     expect(model.dataSource).toEqual({ kind: "account", label: "내 계정 데이터" });
   });
@@ -172,7 +189,7 @@ describe("presentPlannerOverview", () => {
   it("진행률은 잘못된 분모에서 0이고 항상 0부터 100 사이로 제한한다", () => {
     const first = overview().items[0]!;
     const withGoal = (goal: typeof first.goal): PlannerApiOverview => ({
-      items: [{ ...first, goal }],
+      items: [{ ...first, goal, activePlan: null }],
     });
     expect(presentPlannerOverview(withGoal({ ...first.goal, targetAmount: 0 })).selectedGoal?.progressPercent).toBe(0);
     expect(presentPlannerOverview(withGoal({ ...first.goal, heldAmount: -5 })).selectedGoal?.progressPercent).toBe(0);
@@ -272,7 +289,7 @@ describe("presentPlannerOverview", () => {
       },
       changedSteps: [
         {
-          seq: 1,
+          seq: 3,
           changeType: "date_changed",
           dateBefore: "2026-09-01",
           dateAfter: "2026-09-02",
@@ -280,7 +297,7 @@ describe("presentPlannerOverview", () => {
           amountAfter: 10,
         },
         {
-          seq: 2,
+          seq: 5,
           changeType: "amount_changed",
           dateBefore: "2026-09-10",
           dateAfter: "2026-09-10",
@@ -303,6 +320,8 @@ describe("presentPlannerOverview", () => {
       { label: "목표일", before: "2026-12-01", after: "2026-12-15" },
       { label: "남은 회차", before: "2회", after: "3회" },
       { label: "회차 금액", before: "제공되지 않음", after: "25 USD" },
+      { label: "회차 예산", before: "제공되지 않음", after: "180,000원" },
+      { label: "예상 원화 비용", before: "제공되지 않음", after: "제공되지 않음" },
     ]);
     expect(comparison.alternativeCurve?.path).not.toBe(model.curve?.path);
     expect(comparison.changedNodeIds).toHaveLength(2);
@@ -310,12 +329,21 @@ describe("presentPlannerOverview", () => {
 
     const noDestination: PlannerViewModel = {
       ...model,
-      curve: model.curve === null ? null : { ...model.curve, destination: null },
+      curve:
+        model.curve === null
+          ? null
+          : {
+              ...model.curve,
+              destination: null,
+              targetAmount: null,
+              targetDate: null,
+              targetLineY: null,
+            },
     };
     expect(
       presentPlannerScenarioComparison(response, noDestination, option)
-        .alternativeCurve?.path,
-    ).not.toContain("96 24");
+        .alternativeCurve?.destination,
+    ).toBeNull();
 
     const empty: PlannerViewModel = {
       ...model,

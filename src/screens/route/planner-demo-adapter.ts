@@ -1,5 +1,4 @@
 import type {
-  PlannerCheckpointData,
   PlannerPlan,
   PlannerScenario,
   PlannerScenarioId,
@@ -15,6 +14,11 @@ import type {
   PlannerViewModel,
 } from "./planner-api-types";
 import type { PlannerLocalGoal } from "./planner-goal-input";
+import {
+  mergePlannerCurveDomains,
+  presentPlannerCurve,
+  type PlannerCurveInput,
+} from "./planner-curve-presenter";
 
 const amountFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
@@ -34,90 +38,81 @@ const SCENARIO_CODES: Readonly<
   reducedBudget: "BUDGET_DECREASED",
 };
 
-function toNodeStatus(
-  status: PlannerCheckpointData["status"],
+function demoStepStatus(
+  status: "completed" | "next" | "upcoming" | "skipped",
+  index: number,
+  hasRecordedRound: boolean,
 ): PlannerNodeStatus {
-  const statusMap: Readonly<
-    Record<PlannerCheckpointData["status"], PlannerNodeStatus>
-  > = {
-    complete: "completed",
-    next: "next",
-    upcoming: "upcoming",
-    destination: "destination",
-  };
-  return statusMap[status];
+  if (!hasRecordedRound) return status;
+  if (index === 0) return "completed";
+  if (index === 1) return "next";
+  return status === "next" ? "upcoming" : status;
 }
 
-function toCurve(scenario: PlannerScenario): PlannerCurveViewModel {
-  const checkpoints = scenario.checkpoints;
-  const destinationSource = checkpoints.find(
-    (checkpoint) => checkpoint.status === "destination",
-  );
+function demoCurveInput(
+  plan: PlannerPlan,
+  hasRecordedRound: boolean,
+  curveData = plan.curveData,
+): PlannerCurveInput {
   return {
-    viewBox: "0 0 100 100",
-    accessibleLabel: scenario.curve.accessibleLabel,
-    path: normalizeDemoPath(scenario.curve.path),
-    nodes: checkpoints
-      .filter((checkpoint) => checkpoint.status !== "destination")
-      .map((checkpoint, index) => ({
-        id: checkpoint.id,
-        sequence: index + 1,
-        x: checkpoint.x / 10,
-        y: checkpoint.y / 4.5,
-        status: toNodeStatus(checkpoint.status),
-        statusLabel: checkpoint.statusLabel,
-        roundLabel: checkpoint.label,
-      })),
-    destination:
-      destinationSource === undefined
-        ? null
-        : {
-            id: destinationSource.id,
-            x: destinationSource.x / 10,
-            y: destinationSource.y / 4.5,
-            status: "destination",
-            statusLabel: destinationSource.statusLabel,
-            label: destinationSource.label,
-            targetAmountLabel: destinationSource.amountLabel,
-            targetDateLabel: destinationSource.detail,
-          },
+    currencyCode: plan.goal.currencyCode,
+    allocatedAmount: curveData.allocatedAmount,
+    currentDate: curveData.currentDate,
+    targetAmount: curveData.targetAmount,
+    targetDate: curveData.targetDate,
+    dataNotice: curveData.notice,
+    steps: curveData.steps.map((step, index) => ({
+      id: step.id,
+      sequence: step.sequence,
+      scheduledDate: step.scheduledDate,
+      plannedAmount: step.amount,
+      executedAmount:
+        hasRecordedRound && index === 0 ? step.amount : step.executedAmount,
+      executedDate:
+        hasRecordedRound && index === 0
+          ? step.scheduledDate
+          : step.executedDate,
+      status: demoStepStatus(step.status, index, hasRecordedRound),
+    })),
   };
 }
 
-/** 기존 1000×450 데모 좌표를 공통 100×100 표시 좌표로만 변환한다. */
-function normalizeDemoPath(path: string): string {
-  let coordinateIndex = 0;
-  return path.replace(/-?\d+(?:\.\d+)?/g, (value) => {
-    const coordinate = Number(value);
-    const normalized =
-      coordinateIndex % 2 === 0 ? coordinate / 10 : coordinate / 4.5;
-    coordinateIndex += 1;
-    return String(Number(normalized.toFixed(2)));
-  });
+function toCurve(
+  plan: PlannerPlan,
+  hasRecordedRound: boolean,
+  curveData = plan.curveData,
+): PlannerCurveViewModel | null {
+  return presentPlannerCurve(demoCurveInput(plan, hasRecordedRound, curveData));
 }
 
 function toSteps(
-  scenario: PlannerScenario,
+  plan: PlannerPlan,
   hasRecordedRound: boolean,
+  curve: PlannerCurveViewModel | null,
 ): readonly PlannerStepViewModel[] {
-  return scenario.checkpoints
-    .filter((checkpoint) => checkpoint.status !== "destination")
-    .map((checkpoint, index) => {
-      const isRecordedNext = hasRecordedRound && checkpoint.status === "next";
-      const status = isRecordedNext
-        ? "completed"
-        : toNodeStatus(checkpoint.status);
+  return plan.curveData.steps.map((step, index) => {
+      const status = demoStepStatus(step.status, index, hasRecordedRound);
+      const point = curve?.nodes.find((node) => node.sequence === step.sequence);
+      const isRecorded = hasRecordedRound && index === 0;
       return {
-        sequence: index + 1,
-        scheduledDate: checkpoint.detail,
-        amount: null,
-        amountLabel: checkpoint.amountLabel,
+        sequence: step.sequence,
+        scheduledDate: step.scheduledDate,
+        amount: step.amount,
+        amountLabel: formatAmount(step.amount, plan.goal.currencyCode),
         budgetLabel: null,
         estimatedCostLabel: null,
-        executedAmount: isRecordedNext ? 0 : null,
+        executedAmount: isRecorded ? step.amount : null,
+        cumulativeAmount: point?.cumulativeAmount ?? 0,
+        cumulativeAmountLabel: point?.cumulativeAmountLabel ?? "누적 금액 확인 불가",
+        actionLabel: point?.actionLabel ?? "회차 정보 확인",
+        calculationBasis: isRecorded
+          ? `데모 기록 금액 ${formatAmount(step.amount, plan.goal.currencyCode)} 반영`
+          : status === "skipped"
+            ? "건너뛴 회차는 누적 금액에 더하지 않음"
+            : `데모 응답의 회차 금액 ${formatAmount(step.amount, plan.goal.currencyCode)} 반영`,
         status,
-        statusLabel: isRecordedNext ? "데모 기록 완료" : checkpoint.statusLabel,
-        sequenceLabel: checkpoint.label,
+        statusLabel: isRecorded ? "데모 기록 완료" : point?.statusLabel ?? "예정",
+        sequenceLabel: `${step.sequence}회차`,
       };
     });
 }
@@ -196,6 +191,11 @@ export function presentDemoPlanner(
         targetDateLabel: localGoal.input.targetDate,
         targetAmountLabel: formatAmount(localGoal.input.targetAmount, localGoal.input.currencyCode),
         heldAmountLabel: `0 ${localGoal.input.currencyCode} 배정`,
+        remainingAmountLabel: formatAmount(
+          localGoal.input.targetAmount,
+          localGoal.input.currencyCode,
+        ),
+        heldAmountBasisLabel: "새 데모 목표에는 배정한 외화가 없습니다.",
         progressPercent: 0,
         progressLabel: "데모 목표 배정 상태",
       },
@@ -215,21 +215,25 @@ export function presentDemoPlanner(
       },
       unsupportedAreas: ["데모 입력으로 계획 계산", "실제 서버 저장"],
       planAvailabilityMessage:
-        "입력한 목표는 이 화면에만 추가했습니다. 가짜 회차를 만들지 않으며, Curve는 기존 샘플 목표에서 확인할 수 있습니다.",
+        "입력한 목표는 이 화면에만 추가했습니다. 회차 데이터가 없어 Curve는 기존 데모 목표에서 확인할 수 있습니다.",
       scenarioOptions: [],
     };
   }
   const plan = findDemoPlan(data, selectedGoalId);
   const scenario = findScenario(plan, appliedScenarioId);
-  const steps = toSteps(scenario, hasRecordedRound);
-  const nextCheckpoint = hasRecordedRound
-    ? scenario.checkpoints.find(
-        (checkpoint) => checkpoint.id === plan.recordedState.nextCheckpointId,
-      )
-    : scenario.checkpoints.find((checkpoint) => checkpoint.status === "next");
+  const curve = toCurve(plan, hasRecordedRound);
+  const steps = toSteps(plan, hasRecordedRound, curve);
+  const nextStep = steps.find((step) => step.status === "next");
   const nextActionCopy = hasRecordedRound
     ? plan.recordedState.action
     : plan.action;
+  const demoCurrentAmount =
+    plan.curveData.allocatedAmount +
+    (hasRecordedRound ? plan.curveData.steps[0]?.amount ?? 0 : 0);
+  const demoProgress =
+    plan.curveData.targetAmount === null || plan.curveData.targetAmount <= 0
+      ? plan.goal.progressPercent
+      : Math.min(100, (demoCurrentAmount / plan.curveData.targetAmount) * 100);
 
   return {
     goalItems: [
@@ -258,13 +262,25 @@ export function presentDemoPlanner(
       id: plan.id,
       name: plan.goal.name,
       currencyCode: plan.goal.currencyCode,
-      targetAmount: null,
-      heldAmount: null,
-      targetDate: null,
+      targetAmount: plan.curveData.targetAmount,
+      heldAmount: demoCurrentAmount,
+      targetDate: plan.curveData.targetDate,
       targetDateLabel: plan.goal.targetDateLabel,
       targetAmountLabel: plan.goal.targetAmountLabel,
       heldAmountLabel: plan.goal.securedAmountLabel,
-      progressPercent: plan.goal.progressPercent,
+      remainingAmountLabel:
+        plan.curveData.targetAmount === null
+          ? "제공되지 않음"
+          : formatAmount(
+              Math.max(
+                0,
+                plan.curveData.targetAmount - demoCurrentAmount,
+              ),
+              plan.goal.currencyCode,
+            ),
+      heldAmountBasisLabel:
+        "체험용 데이터의 배정 외화와 이 화면에서 기록한 회차만 반영합니다.",
+      progressPercent: demoProgress,
       progressLabel: plan.goal.progressLabel,
     },
     plan: {
@@ -280,27 +296,29 @@ export function presentDemoPlanner(
       scheduledRounds: Math.max(0, plan.rounds.items.length - (hasRecordedRound ? 1 : 0)),
       skippedRounds: 0,
       estimatedCostLabel: null,
-      policyVersion: "체험용 fixture",
+      policyVersion: "체험용 데이터",
+      calculatedAtLabel: plan.curveData.currentDate,
+      rateAsOfLabel: null,
       disclaimer: data.dataNotice.notice,
       warnings: [],
-      summaryText: plan.plan.description,
+      summaryText:
+        scenario.id === plan.baseScenarioId
+          ? plan.plan.description
+          : scenario.summary,
     },
-    curveNodes: toCurve(scenario).nodes,
-    curve: toCurve(scenario),
+    curveNodes: curve?.nodes ?? [],
+    curve,
     steps,
     nextAction:
-      nextCheckpoint === undefined
+      nextStep === undefined
         ? null
         : {
             planId: plan.id,
-            sequence:
-              steps.find(
-                (step) => step.scheduledDate === nextCheckpoint.detail,
-              )!.sequence,
-            scheduledDate: nextActionCopy.dueLabel,
-            amount: null,
-            amountLabel: nextActionCopy.amountLabel,
-            title: nextActionCopy.title,
+            sequence: nextStep.sequence,
+            scheduledDate: nextStep.scheduledDate,
+            amount: nextStep.amount,
+            amountLabel: nextStep.amountLabel,
+            title: `${nextStep.sequence}회차 준비 내용 확인`,
             description: nextActionCopy.description,
           },
     dataSource: { kind: "demo", label: data.dataNotice.sourceLabel },
@@ -331,6 +349,48 @@ export function presentDemoScenarioComparison(
   const scenario = plan.scenarios.find((candidate) => candidate.id === scenarioId);
   if (scenario === undefined || scenario.id === plan.baseScenarioId) return null;
   const baseScenario = findScenario(plan, plan.baseScenarioId);
+  const baseInput = demoCurveInput(plan, false);
+  const alternativeInput =
+    scenario.curveData === undefined
+      ? null
+      : demoCurveInput(plan, false, scenario.curveData);
+  const firstBaseCurve = presentPlannerCurve(baseInput);
+  const firstAlternativeCurve =
+    alternativeInput === null ? null : presentPlannerCurve(alternativeInput);
+  const sharedDomain =
+    firstBaseCurve === null || firstAlternativeCurve === null
+      ? null
+      : mergePlannerCurveDomains(
+          firstBaseCurve.domain,
+          firstAlternativeCurve.domain,
+        );
+  const baseCurve =
+    sharedDomain === null
+      ? firstBaseCurve
+      : presentPlannerCurve(baseInput, sharedDomain);
+  const alternativeCurve =
+    sharedDomain === null || alternativeInput === null
+      ? firstAlternativeCurve
+      : presentPlannerCurve(alternativeInput, sharedDomain);
+  const baseBySequence = new Map(
+    plan.curveData.steps.map((step) => [step.sequence, step]),
+  );
+  const changedNodeIds =
+    alternativeCurve?.nodes
+      .filter((node) => {
+        const before = baseBySequence.get(node.sequence);
+        const after = scenario.curveData?.steps.find(
+          (step) => step.sequence === node.sequence,
+        );
+        return (
+          before === undefined ||
+          after === undefined ||
+          before.scheduledDate !== after.scheduledDate ||
+          before.amount !== after.amount ||
+          before.status !== after.status
+        );
+      })
+      .map((node) => node.id) ?? [];
   return {
     id: scenario.id,
     label: scenario.label,
@@ -349,8 +409,9 @@ export function presentDemoScenarioComparison(
         after: scenario.nextAction,
       },
     ],
-    alternativeCurve: toCurve(scenario),
-    changedNodeIds: scenario.changedCheckpointIds,
+    baseCurve,
+    alternativeCurve,
+    changedNodeIds,
     warnings: ["체험용 변경이며 이 브라우저 화면에서만 적용됩니다."],
   };
 }

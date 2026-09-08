@@ -30,6 +30,8 @@ export interface PlannerGoalSummaryViewModel {
   readonly targetDateLabel: string;
   readonly targetAmountLabel: string;
   readonly heldAmountLabel: string;
+  readonly remainingAmountLabel: string;
+  readonly heldAmountBasisLabel: string;
   readonly progressPercent: number;
   readonly progressLabel: string;
 }
@@ -47,7 +49,9 @@ export interface PlannerPlanSummaryViewModel {
   readonly scheduledRounds: number;
   readonly skippedRounds: number;
   readonly estimatedCostLabel: string | null;
-  readonly policyVersion: string;
+  readonly policyVersion: string | null;
+  readonly calculatedAtLabel: string | null;
+  readonly rateAsOfLabel: string | null;
   readonly disclaimer: string;
   readonly warnings: readonly string[];
   readonly summaryText?: string;
@@ -61,6 +65,13 @@ export interface PlannerCurveNodeViewModel {
   readonly status: PlannerNodeStatus;
   readonly statusLabel: string;
   readonly roundLabel: string;
+  readonly date: string;
+  readonly dateLabel: string;
+  readonly cumulativeAmount: number;
+  readonly cumulativeAmountLabel: string;
+  readonly roundAmount: number;
+  readonly roundAmountLabel: string;
+  readonly actionLabel: string;
 }
 
 export interface PlannerDestinationNodeViewModel {
@@ -78,8 +89,36 @@ export interface PlannerCurveViewModel {
   readonly viewBox?: string;
   readonly accessibleLabel?: string;
   readonly path: string;
+  readonly actualPath: string | null;
+  readonly plannedPath: string | null;
   readonly nodes: readonly PlannerCurveNodeViewModel[];
   readonly destination: PlannerDestinationNodeViewModel | null;
+  readonly currentPoint: {
+    readonly x: number;
+    readonly y: number;
+    readonly date: string;
+    readonly dateLabel: string;
+    readonly amount: number;
+    readonly amountLabel: string;
+  } | null;
+  readonly targetLineY: number | null;
+  readonly yTicks: readonly {
+    readonly y: number;
+    readonly label: string;
+  }[];
+  readonly xStartLabel: string | null;
+  readonly xEndLabel: string | null;
+  readonly dataNotice: string | null;
+  readonly currencyCode: string;
+  readonly allocatedAmount: number;
+  readonly targetAmount: number | null;
+  readonly targetDate: string | null;
+  readonly currentDate: string | null;
+  readonly domain: {
+    readonly minDate: number;
+    readonly maxDate: number;
+    readonly maxAmount: number;
+  };
 }
 
 export interface PlannerStepViewModel {
@@ -90,6 +129,10 @@ export interface PlannerStepViewModel {
   readonly budgetLabel: string | null;
   readonly estimatedCostLabel: string | null;
   readonly executedAmount: number | null;
+  readonly cumulativeAmount: number;
+  readonly cumulativeAmountLabel: string;
+  readonly actionLabel: string;
+  readonly calculationBasis: string;
   readonly status: PlannerNodeStatus;
   readonly statusLabel: string;
   readonly sequenceLabel: string;
@@ -127,6 +170,7 @@ export interface PlannerScenarioComparisonViewModel {
   readonly nextAction: string;
   readonly draftPlanId: string | null;
   readonly rows: readonly PlannerComparisonRowViewModel[];
+  readonly baseCurve: PlannerCurveViewModel | null;
   readonly alternativeCurve: PlannerCurveViewModel | null;
   readonly changedNodeIds: readonly string[];
   readonly warnings: readonly string[];

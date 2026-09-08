@@ -26,12 +26,12 @@ describe("planner demo adapter", () => {
     expect(model.plan?.planSource).toBe("active");
     expect(model.selectedGoal).toMatchObject({
       id: "usd-etf-recurring-demo",
-      targetAmount: null,
-      heldAmount: null,
+      targetAmount: 3_000,
+      heldAmount: 1_260,
       progressPercent: 42,
     });
-    expect(model.curve?.viewBox).toBe("0 0 100 100");
-    expect(model.curve?.path).toMatch(/^M 8 82\.22/);
+    expect(model.curve?.viewBox).toBe("0 0 1000 440");
+    expect(model.curve?.accessibleLabel).toContain("가로축은 날짜");
     expect(model.scenarioOptions).toHaveLength(5);
   });
 
@@ -44,9 +44,9 @@ describe("planner demo adapter", () => {
     expect(model.selectedGoal?.name).toBe("일본 여행 준비");
     expect(model.nextAction).toMatchObject({
       amountLabel: "35,000 JPY",
-      title: "첫 마감 보호 회차 확인",
+      title: "1회차 준비 내용 확인",
     });
-    expect(model.curve?.accessibleLabel).toContain("대체 계획 경로");
+    expect(model.plan?.summaryText).toContain("예산 한도");
     expect(model.supportedActions.canPreviewScenario).toBe(true);
   });
 
@@ -58,10 +58,10 @@ describe("planner demo adapter", () => {
       true,
     );
     expect(model.nextAction).toMatchObject({
-      title: "상황 확인 노드 살펴보기",
-      amountLabel: "응답 갱신 확인",
+      title: "2회차 준비 내용 확인",
+      amountLabel: "290 USD",
     });
-    expect(model.steps.find((step) => step.sequence === 2)?.status).toBe(
+    expect(model.steps.find((step) => step.sequence === 1)?.status).toBe(
       "completed",
     );
     expect(model.supportedActions.canCompleteStep).toBe(false);
@@ -91,8 +91,10 @@ describe("planner demo adapter", () => {
       id: "missedRound",
       draftPlanId: "missedRound",
     });
+    expect(comparison?.baseCurve).not.toBeNull();
     expect(comparison?.alternativeCurve).not.toBeNull();
-    expect(comparison?.changedNodeIds).toContain("usd-next");
+    expect(comparison?.changedNodeIds).toContain("usd-round-1");
+    expect(comparison?.reason).toContain("체험");
   });
 
   it("알 수 없는 목표 식별자는 첫 데모 목표로 안전하게 돌아간다", () => {
@@ -131,7 +133,9 @@ describe("planner demo adapter", () => {
       "unknown",
       true,
     );
-    expect(model.curve?.destination).toBeNull();
-    expect(model.nextAction).toBeNull();
+    expect(model.curve?.destination).toMatchObject({
+      targetAmountLabel: "3,000 USD",
+    });
+    expect(model.nextAction?.sequence).toBe(2);
   });
 });

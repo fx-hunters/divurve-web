@@ -279,18 +279,27 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 78%;
+  height: 100%;
   overflow: visible;
 }
 
 .planner-api-curve__path {
   fill: none;
   stroke: var(--primary);
-  stroke-width: 1.6;
+  stroke-width: 5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 220;
+  stroke-dasharray: 1200;
   animation: planner-api-curve-draw 850ms var(--ease-out-smooth) both;
+}
+
+.planner-api-curve__path--actual {
+  stroke: var(--normal);
+}
+
+.planner-api-curve__path--planned {
+  stroke-dasharray: 14 10;
+  animation-name: planner-api-planned-enter;
 }
 
 .planner-api-curve__path--muted {
@@ -300,8 +309,41 @@
 
 .planner-api-curve__path--alternative {
   stroke: var(--warn);
-  stroke-dasharray: 220;
+  stroke-dasharray: 18 8;
   animation-duration: 520ms;
+}
+
+.planner-api-curve__axis line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.planner-api-curve__axis text,
+.planner-api-curve__target-line text {
+  fill: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.planner-api-curve__target-line line {
+  stroke: var(--primary-border);
+  stroke-width: 2;
+  stroke-dasharray: 8 8;
+}
+
+.planner-api-curve__current-point circle {
+  fill: var(--normal);
+  stroke: var(--surface);
+  stroke-width: 4;
+}
+
+.planner-api-curve__current-point text {
+  fill: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 800;
+  text-anchor: middle;
 }
 
 .planner-api-curve__svg-node {
@@ -313,7 +355,7 @@
 .planner-api-curve__svg-node circle {
   fill: var(--surface);
   stroke: var(--border);
-  stroke-width: 1.4;
+  stroke-width: 4;
 }
 
 .planner-api-curve__svg-node[data-kind="completed"] circle {
@@ -324,7 +366,7 @@
 .planner-api-curve__svg-node[data-kind="next"] circle {
   fill: var(--primary-subtle);
   stroke: var(--primary);
-  stroke-width: 2;
+  stroke-width: 5;
 }
 
 .planner-api-curve__svg-node[data-kind="upcoming"] circle {
@@ -336,10 +378,10 @@
   stroke: var(--warn);
 }
 
-.planner-api-curve__svg-node[data-kind="destination"] rect {
+.planner-api-curve__svg-node[data-kind="destination"] circle {
   fill: var(--primary-subtle);
   stroke: var(--primary);
-  stroke-width: 1.6;
+  stroke-width: 4;
 }
 
 .planner-api-curve__svg-node[data-changed="true"] {
@@ -349,9 +391,21 @@
 .planner-api-curve__svg-node text {
   fill: var(--text);
   font-family: var(--font-sans);
-  font-size: 6px;
+  font-size: 16px;
   font-weight: 750;
   text-anchor: middle;
+}
+
+.planner-api-curve__svg-node .planner-api-curve__node-date {
+  fill: var(--text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.planner-api-curve__svg-node .planner-api-curve__mark {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .planner-api-curve__nodes {
@@ -690,7 +744,7 @@
 @keyframes planner-api-curve-draw {
   from {
     opacity: 0;
-    stroke-dashoffset: 220;
+    stroke-dashoffset: 1200;
   }
   to {
     opacity: 1;
@@ -795,19 +849,11 @@
     min-height: 350px;
   }
 
-  .planner-api-curve > svg {
-    height: 62%;
-  }
-
   .planner-api-curve__nodes {
     right: 0.6rem;
     bottom: 0.6rem;
     left: 0.6rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .planner-api-curve__svg-node text {
-    font-size: 6.5px;
   }
 
   .planner-api-scenario__options {
@@ -853,6 +899,17 @@
 
   .planner-api-journey button {
     transition-duration: 1ms;
+  }
+}
+
+@keyframes planner-api-planned-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

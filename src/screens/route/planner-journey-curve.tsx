@@ -30,21 +30,56 @@ export function PlannerCurveCanvas({
           curve.accessibleLabel ??
           "환율 차트가 아닌 계획 회차의 진행 경로입니다."}
       </desc>
-      <path
-        className={
-          alternativeCurve === null
-            ? "planner-api-curve__path"
-            : "planner-api-curve__path planner-api-curve__path--muted"
-        }
-        d={curve.path}
-        data-curve-role="current"
-      />
+      <g className="planner-api-curve__axis" aria-hidden="true">
+        {curve.yTicks.map((tick) => (
+          <g key={`${tick.y}-${tick.label}`}>
+            <line x1="92" x2="960" y1={tick.y} y2={tick.y} />
+            <text x="80" y={tick.y + 5}>{tick.label}</text>
+          </g>
+        ))}
+        {curve.xStartLabel !== null && <text x="92" y="410">{curve.xStartLabel}</text>}
+        {curve.xEndLabel !== null && <text x="960" y="410" textAnchor="end">{curve.xEndLabel}</text>}
+      </g>
+      {curve.targetLineY !== null && (
+        <g className="planner-api-curve__target-line" aria-hidden="true">
+          <line x1="92" x2="960" y1={curve.targetLineY} y2={curve.targetLineY} />
+          <text x="960" y={curve.targetLineY - 9} textAnchor="end">목표 금액 기준</text>
+        </g>
+      )}
+      {curve.actualPath !== null && (
+        <path
+          className="planner-api-curve__path planner-api-curve__path--actual"
+          d={curve.actualPath}
+          data-curve-role="actual"
+        />
+      )}
+      {curve.plannedPath !== null && (
+        <path
+          className={
+            alternativeCurve === null
+              ? "planner-api-curve__path planner-api-curve__path--planned"
+              : "planner-api-curve__path planner-api-curve__path--planned planner-api-curve__path--muted"
+          }
+          d={curve.plannedPath}
+          data-curve-role="current"
+        />
+      )}
       {alternativeCurve !== null && (
         <path
           className="planner-api-curve__path planner-api-curve__path--alternative"
-          d={alternativeCurve.path}
+          d={alternativeCurve.plannedPath ?? alternativeCurve.path}
           data-curve-role="alternative"
         />
+      )}
+      {curve.currentPoint !== null && (
+        <g
+          className="planner-api-curve__current-point"
+          transform={`translate(${curve.currentPoint.x} ${curve.currentPoint.y})`}
+          aria-hidden="true"
+        >
+          <circle r="8" />
+          <text y="-15">현재 확보</text>
+        </g>
       )}
       {curve.nodes.map((node) => (
         <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
@@ -53,8 +88,11 @@ export function PlannerCurveCanvas({
             data-kind={node.status}
             data-changed={changedIds.has(node.id) || undefined}
           >
-            <circle r={node.status === "next" ? 5 : 4} />
-            <text y="-9">{node.roundLabel}</text>
+            <circle r={node.status === "next" ? 9 : 7} />
+            {node.status === "completed" && <text className="planner-api-curve__mark" y="5">✓</text>}
+            {node.status === "skipped" && <text className="planner-api-curve__mark" y="5">×</text>}
+            <text className="planner-api-curve__node-label" y="-17">{node.roundLabel}</text>
+            <text className="planner-api-curve__node-date" y="28">{node.dateLabel}</text>
           </g>
         </g>
       ))}
@@ -69,8 +107,9 @@ export function PlannerCurveCanvas({
               changedIds.has(curve.destination.id) || undefined
             }
           >
-            <rect x="-4" y="-4" width="8" height="8" />
-            <text y="-9">{curve.destination.label}</text>
+            <circle r="8" />
+            <text className="planner-api-curve__node-label" y="-17">{curve.destination.label}</text>
+            <text className="planner-api-curve__node-date" y="28">{curve.destination.targetDateLabel}</text>
           </g>
         </g>
       )}
@@ -109,7 +148,7 @@ export function PlannerJourneyCurve({
         계획 Curve를 따라 다음 회차를 확인하세요
       </h2>
       <p className="planner-api-journey__lead">
-        이 선은 환율 움직임이 아니라 목표까지 이어지는 계획 순서입니다.
+        가로축은 날짜, 세로축은 누적 확보 외화입니다. 점선은 환율 전망이 아니라 계획대로 준비했을 때의 금액입니다.
       </p>
       <div className="planner-api-curve" role="region" aria-label="계획 Curve">
         <PlannerCurveCanvas curve={curve} />
@@ -137,13 +176,16 @@ export function PlannerJourneyCurve({
           ))}
         </div>
       </div>
+      {curve.dataNotice !== null && (
+        <p className="planner-api__notice">{curve.dataNotice}</p>
+      )}
       {selected !== undefined && (
         <div className="planner-api-curve__selection" role="status">
           <strong>{selected.sequenceLabel}</strong>
           <span>
-            {selected.scheduledDate} · {selected.amountLabel} ·{" "}
-            {selected.statusLabel}
+            {selected.scheduledDate} · 이번 회차 {selected.amountLabel} · 누적 {selected.cumulativeAmountLabel}
           </span>
+          <span>{selected.actionLabel} · {selected.calculationBasis}</span>
         </div>
       )}
       <div className="planner-api-journey__buttons">

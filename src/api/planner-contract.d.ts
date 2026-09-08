@@ -96,7 +96,7 @@ export interface PlannerPlanResponse {
   readonly planId: string | null;
   readonly goalId: string | null;
   readonly version: number | null;
-  readonly calculationMeta: PlannerCalculationMeta;
+  readonly calculationMeta: PlannerCalculationMeta | null;
   readonly goal: PlannerPlanGoal;
   readonly summary: PlannerPlanSummary;
   readonly steps: readonly PlannerPlanStep[];

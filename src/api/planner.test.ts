@@ -122,6 +122,10 @@ describe("planner API", () => {
 
   it("최신 Plan 구조를 런타임 타입으로 검증한다", () => {
     expect(parsePlannerPlanResponse(activePlan)).toEqual(activePlan);
+    expect(
+      parsePlannerPlanResponse({ ...activePlan, calculationMeta: null })
+        .calculationMeta,
+    ).toBeNull();
     expect(parsePlannerPlanResponse({ ...activePlan, planId: undefined })).toMatchObject({
       planId: null,
     });

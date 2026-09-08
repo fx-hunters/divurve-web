@@ -51,6 +51,7 @@ const comparison: PlannerScenarioComparisonViewModel = {
   nextAction: "변경 내용을 확인해 주세요.",
   draftPlanId: "draft",
   rows: [{ label: "남은 회차", before: "1회", after: "2회" }],
+  baseCurve: view.curve,
   alternativeCurve: view.curve,
   changedNodeIds: [view.curveNodes[0]!.id],
   warnings: [],

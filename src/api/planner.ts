@@ -115,7 +115,8 @@ function toAcquisitionRange(
   };
 }
 
-function toCalculationMeta(value: unknown): PlannerCalculationMeta {
+function toCalculationMeta(value: unknown): PlannerCalculationMeta | null {
+  if (value === undefined || value === null) return null;
   const row = requiredRecord(value, "calculationMeta");
   const rates = requiredRecord(row.rates, "calculationMeta.rates");
   return {

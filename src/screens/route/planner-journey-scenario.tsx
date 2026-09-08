@@ -126,11 +126,16 @@ export function PlannerJourneyScenario({
         <div className="planner-api-scenario__comparison">
           <div className="planner-api-curve planner-api-curve--comparison">
             <PlannerCurveCanvas
-              curve={baseCurve}
+              curve={comparison.baseCurve ?? baseCurve}
               alternativeCurve={comparison.alternativeCurve}
               changedNodeIds={comparison.changedNodeIds}
             />
           </div>
+          {comparison.alternativeCurve === null && (
+            <p className="planner-api__notice">
+              서버 응답에 외화 누적 경로를 바꿀 날짜·금액이 없어 Curve를 억지로 갈라 표시하지 않습니다. 아래 조건 차이를 확인해 주세요.
+            </p>
+          )}
           <div>
             <h3>{comparison.label}</h3>
             <p>{comparison.reason}</p>
