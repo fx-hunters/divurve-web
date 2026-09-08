@@ -121,7 +121,11 @@ export const XRAY_API_FIXTURE: XrayBundle = {
       { currencyCode: "USD", krw: 6_000_000, share: 0.75 },
       { currencyCode: "JPY", krw: 2_000_000, share: 0.25 },
     ],
-    concentration: { topCurrencyCode: "USD", share: 0.75, status: "over" },
+    concentration: {
+      topCurrencyCode: "USD",
+      share: 0.75,
+      status: "above_threshold",
+    },
     dayChangeKrw: 30_000,
     sensitivity1pct: { totalKrw: 80_000, byCurrency: { USD: 60_000 } },
   },
@@ -131,9 +135,10 @@ export const XRAY_API_FIXTURE: XrayBundle = {
     currentKrw: 6_000_000,
     totalReturn: 0.09,
     components: [
-      { key: "asset", label: "자산 가격 효과", krw: 320_000, contributionPp: 5.8 },
-      { key: "fx", label: "환율 효과", krw: 180_000, contributionPp: 3.2 },
-      { key: "interaction", label: "상호작용", krw: -20_000, contributionPp: -0.4 },
+      // `contribution_pp` 는 서버가 0~1 비율로 준다(`GET /xray/attribution` 실제 응답 확인).
+      { key: "asset", label: "자산 가격 효과", krw: 320_000, contributionPp: 0.058 },
+      { key: "fx", label: "환율 효과", krw: 180_000, contributionPp: 0.032 },
+      { key: "interaction", label: "상호작용", krw: -20_000, contributionPp: -0.004 },
       { key: "cost", label: "비용", krw: 0, contributionPp: 0 },
     ],
     byHolding: [
@@ -143,15 +148,20 @@ export const XRAY_API_FIXTURE: XrayBundle = {
   },
   fit: {
     riskProfile: {
-      status: "measured",
-      grade: "B",
-      gradeLabel: "중립형",
+      status: "simple_done",
+      grade: "balanced",
+      gradeLabel: "균형항로형",
       diagnosedOn: "2026-08-20",
     },
-    concentration: { topCurrencyCode: "USD", share: 0.75, status: "over" },
+    concentration: {
+      topCurrencyCode: "USD",
+      share: 0.75,
+      status: "above_threshold",
+    },
     relation: {
-      code: "concentration_over_threshold",
-      facts: { share: 0.75, threshold: 0.6, gapPp: 15 },
+      // `gap_pp` 는 서버가 준 `share − threshold` 로 이미 0~1 비율이다.
+      code: "concentration_above_profile",
+      facts: { share: 0.75, threshold: 0.6, gapPp: 0.15 },
     },
     basisNote: "참고 기준선은 MVP 가설값이며 통계적으로 검증된 배분 기준이 아닙니다.",
   },
@@ -221,14 +231,18 @@ export const STRESS_RUN_FIXTURE: StressRunResponse = {
     totalEffectKrw: -520_000,
   },
   after: { fxAssetKrw: 7_480_000 },
-  interpretationCode: "loss_within_range",
+  interpretationCode: "fx_cushions_equity_loss",
   conditionalNote: "주가와 환율이 동시에 움직이는 가정입니다.",
 };
 
 export const FIT_PREVIEW_FIXTURE: FitPreviewResponse = {
   assumption: "앞으로의 매수만 조정한다고 가정합니다.",
   exposure: { before: { USD: 0.75 }, after: { USD: 0.68 } },
-  concentration: { topCurrencyCode: "USD", share: 0.68, status: "watch" },
+  concentration: {
+    topCurrencyCode: "USD",
+    share: 0.68,
+    status: "above_threshold",
+  },
   sensitivity1pct: { before: { USD: 60_000 }, after: { USD: 54_000 } },
 };
 

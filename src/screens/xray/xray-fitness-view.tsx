@@ -1,10 +1,18 @@
 import { useState } from "react";
 import { Icon } from "../../components/common/icon";
-import type { FitPreviewRequest } from "../../api/generated/divurve-api";
+import type {
+  ConcentrationStatus,
+  FitPreviewRequest,
+} from "../../api/generated/divurve-api";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
 import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
-import { toFitnessExplanationFacts, toPercent } from "./xray-presenter";
+import {
+  isConcentrationAboveThreshold,
+  isRiskProfileMeasured,
+  toFitnessExplanationFacts,
+  toPercent,
+} from "./xray-presenter";
 
 export type FitPreviewState =
   | { readonly status: "idle" }
@@ -14,7 +22,10 @@ export type FitPreviewState =
       readonly status: "done";
       readonly preview: {
         readonly assumption: string;
-        readonly concentration: { readonly share?: number; readonly status: string };
+        readonly concentration: {
+          readonly share?: number;
+          readonly status: ConcentrationStatus;
+        };
         readonly sensitivity1pct: {
           readonly before: Readonly<Record<string, number>>;
           readonly after: Readonly<Record<string, number>>;
@@ -66,8 +77,8 @@ export function XRayFitnessView({
   const [currencyCode, setCurrencyCode] = useState<string>(otherCurrencies[0]);
   const [deltaSharePct, setDeltaSharePct] = useState(10);
 
-  const isOver = concentration.status === "over";
-  const isMeasured = concentration.riskProfileStatus === "measured";
+  const isOver = isConcentrationAboveThreshold(concentration.status);
+  const isMeasured = isRiskProfileMeasured(concentration.riskProfileStatus);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>

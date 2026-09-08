@@ -1,3 +1,8 @@
+import type {
+  ConcentrationStatus,
+  RiskProfileStatus,
+} from "../api/generated/divurve-api";
+
 export type XRayTabId = "exposure" | "fitness";
 
 export interface ExposureShareItem {
@@ -50,12 +55,12 @@ export interface StressRunResult {
 export interface ConcentrationDiagnosis {
   readonly topCurrencyCode?: string;
   readonly sharePct?: number;
-  readonly status: string;
+  readonly status: ConcentrationStatus;
   readonly statusLabel: string;
   /** 위험성향이 측정된 계정에만 서버가 기준선을 준다. */
   readonly thresholdPct?: number;
   readonly gapPp?: number;
-  readonly riskProfileStatus: string;
+  readonly riskProfileStatus: RiskProfileStatus;
   readonly gradeLabel?: string;
   readonly diagnosedOnLabel?: string;
   readonly basisNote: string;
