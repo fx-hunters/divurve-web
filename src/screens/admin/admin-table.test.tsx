@@ -31,6 +31,20 @@ describe("AdminTable", () => {
     expect(screen.getAllByText("-")).toHaveLength(1);
   });
 
+  it("header가 있으면 그 문구를 헤더로 세운다", () => {
+    render(
+      <AdminTable
+        columns={[{ key: "id", header: "id (내부 식별자)" }]}
+        rows={ROWS}
+        getRowKey={(row) => String(row.id)}
+      />,
+    );
+
+    expect(
+      screen.getByRole("columnheader", { name: "id (내부 식별자)" }),
+    ).toBeInTheDocument();
+  });
+
   it("행이 없으면 안내 문구를 보여준다", () => {
     render(
       <AdminTable columns={COLUMNS} rows={[]} getRowKey={() => "none"} />,

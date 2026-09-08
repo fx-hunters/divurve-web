@@ -5,13 +5,11 @@
  * `email`이 곧 로그인 식별자다 — "아이디" 열을 따로 만들지 않는다.
  */
 import { useCallback, useEffect, useState } from "react";
-import {
-  fetchAdminUsers,
-  type AdminUser,
-  type AdminUserPage,
-} from "../../api/admin";
+import { fetchAdminUsers, type AdminUser } from "../../api/admin";
 import { formatAdminDateTime } from "./admin-datetime";
+import { toIsDemoParam, type AdminDemoFilter } from "./admin-demo-filter";
 import type { AdminAuthFailure } from "./admin-errors";
+import { hasAdminNextPage } from "./admin-paging";
 import {
   AdminErrorPanel,
   AdminLoadingPanel,
@@ -23,15 +21,6 @@ import { formatAdminValue } from "./admin-value";
 import { useAdminRequest } from "./use-admin-request";
 
 export const ADMIN_USERS_PAGE_SIZE = 50;
-
-/** 데모 계정 필터. `전체`는 `is_demo`를 아예 보내지 않는다. */
-export type AdminDemoFilter = "all" | "demoOnly" | "memberOnly";
-
-export function toIsDemoParam(filter: AdminDemoFilter): boolean | undefined {
-  if (filter === "demoOnly") return true;
-  if (filter === "memberOnly") return false;
-  return undefined;
-}
 
 /**
  * 표에 세울 컬럼과 그 순서.
@@ -57,21 +46,6 @@ const COLUMNS: readonly AdminColumn<AdminUser>[] = [
   { key: "name" },
   { key: "email" },
 ];
-
-/**
- * 다음 페이지 버튼을 열어 둘지 정한다.
- *
- * `totalPages`를 서버가 주면 그 값만 믿는다. 주지 않을 때만, 이번 페이지가
- * 가득 찼는지로 버튼을 열어 둔다. 화면에 어떤 수치를 만들어 내지는 않는다.
- */
-export function hasAdminUsersNextPage(
-  page: AdminUserPage,
-  currentPage: number,
-  size: number,
-): boolean {
-  if (page.totalPages !== null) return currentPage + 1 < page.totalPages;
-  return page.items.length >= size;
-}
 
 interface AdminUsersScreenProps {
   readonly onAuthFailure: (failure: AdminAuthFailure) => void;
@@ -204,7 +178,7 @@ export function AdminUsersScreen({
               type="button"
               className="admin-button"
               disabled={
-                !hasAdminUsersNextPage(listing, page, ADMIN_USERS_PAGE_SIZE)
+                !hasAdminNextPage(listing, page, ADMIN_USERS_PAGE_SIZE)
               }
               onClick={() => setPage((previous) => previous + 1)}
             >
