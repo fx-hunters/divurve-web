@@ -1,4 +1,4 @@
-# 0045. 최신 develop 통합과 Planner preview 상태 분리
+# 0066. 최신 develop 통합과 Planner preview 상태 분리
 
 | 항목 | 내용 |
 | --- | --- |
