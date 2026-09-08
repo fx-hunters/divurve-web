@@ -12,8 +12,9 @@ describe("Sidebar", () => {
   it("서비스명 DIVURVE와 내비게이션 탭들을 렌더링한다", () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.getByRole("heading", { name: "DIVURVE" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /홈/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /대시보드/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /환전 플래너/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /환율 전망/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /내 자산/ })).toBeInTheDocument();
   });
 

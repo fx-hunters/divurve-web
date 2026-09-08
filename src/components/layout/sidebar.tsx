@@ -31,10 +31,13 @@ export function Sidebar({
         transition: "background-color 0.2s, border-color 0.2s",
       }}
     >
-      {/* 로고 & 서비스명 */}
+      {/* 로고 & 서비스명 — 헤더와 같은 높이·여백을 써서 기준선을 맞춘다. */}
       <div
         style={{
-          padding: "1.5rem",
+          height: "var(--header-height)",
+          boxSizing: "border-box",
+          padding: "0 1.5rem",
+          flexShrink: 0,
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
@@ -59,6 +62,7 @@ export function Sidebar({
           style={{
             fontSize: "1.125rem",
             fontWeight: 800,
+            lineHeight: 1.2,
             letterSpacing: "0.1em",
             color: "var(--text)",
           }}
