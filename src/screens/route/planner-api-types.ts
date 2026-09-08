@@ -47,7 +47,9 @@ export interface PlannerPlanSummaryViewModel {
   readonly completedRounds: number;
   readonly scheduledRounds: number;
   readonly skippedRounds: number;
+  readonly nextActionSeq: number | null;
   readonly estimatedCostLabel: string | null;
+  readonly budgetStateLabel: string | null;
   readonly policyVersion: string | null;
   readonly calculatedAtLabel: string | null;
   readonly rateAsOfLabel: string | null;

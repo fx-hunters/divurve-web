@@ -7,6 +7,7 @@ import type {
   PlannerScenarioComparisonViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerGoalForm } from "./planner-goal-form";
 import type { PlannerGoalInput } from "./planner-goal-input";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
@@ -14,6 +15,7 @@ import { PlannerJourneyMain } from "./planner-journey-main";
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerScenarioModal } from "./planner-journey-scenario";
 import { PlannerPlanHistory } from "./planner-plan-history";
+import { toPlanSummaryFacts } from "./planner-plan-facts";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
   usePlannerJourneyFlow,
@@ -33,6 +35,7 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
   readonly scenarioComparison: PlannerScenarioComparisonViewModel | null;
   readonly history?: {
     readonly dependencies?: PlanVersionDependencies;
+    readonly explanationRequester?: ExplanationRequester;
   };
   readonly goalCreation: {
     readonly sourceLabel: string;
@@ -180,7 +183,9 @@ export function PlannerJourneyScreen({
             goalId={goal.id}
             goalName={goal.name}
             currencyCode={goal.currencyCode}
+            facts={toPlanSummaryFacts(view)}
             dependencies={history.dependencies}
+            explanationRequester={history.explanationRequester}
             onBack={() => flow.setStage("main")}
           />
         )}

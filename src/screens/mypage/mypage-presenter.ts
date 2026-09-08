@@ -3,6 +3,7 @@ import type {
   NotificationSettingKey,
   SettingsResponse,
 } from "../../api/generated/divurve-api";
+import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import type {
   MyPageViewData,
   NotificationSettingView,
@@ -57,10 +58,12 @@ function toRiskProfileView(bundle: MyPageBundle): RiskProfileView | null {
     return null;
   }
 
-  const gradeLabel = riskProfile.gradeLabel ?? riskProfile.grade ?? "";
+  const grade = riskProfile.grade;
   return {
-    isMeasured: gradeLabel !== "",
-    gradeLabel,
+    // 진단 여부는 서버가 `status`로 알려 준다. 라벨이 비었는지로 넘겨짚지 않는다.
+    isMeasured: isRiskProfileMeasured(riskProfile.status) && grade !== undefined,
+    grade: grade ?? null,
+    gradeLabel: riskProfile.gradeLabel ?? grade ?? "",
     scoreLabel:
       riskProfile.score === undefined ? null : `서버 점수 ${riskProfile.score}`,
     diagnosedOnLabel:
@@ -96,9 +99,9 @@ function toNotificationViews(bundle: MyPageBundle): readonly NotificationView[] 
   return bundle.notifications.notifications.map((notification) => ({
     id: notification.id,
     title: notification.title,
-    message: notification.message,
+    message: notification.body,
     receivedAtLabel: toDateLabel(notification.createdAt),
-    isRead: notification.read,
+    isRead: notification.isRead,
   }));
 }
 

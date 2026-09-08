@@ -75,6 +75,22 @@ const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
   getToday: getPlannerToday,
 };
 
+const skipAmountFormatter = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: 2,
+});
+
+function skipPreviewMessage(result: PlannerStepSkipResponse): string {
+  const before = skipAmountFormatter.format(result.amountBefore);
+  const after = skipAmountFormatter.format(result.amountAfter);
+  const budgetNote = result.exceedsBudget
+    ? " 재분배된 금액이 입력한 예산을 넘습니다."
+    : "";
+  return (
+    `${result.seq}회차를 건너뛰었을 때의 변경안입니다. 아직 계획에 반영되지 않았습니다. ` +
+    `남은 ${result.remainingRounds}회차가 회차당 ${before} → ${after}로 바뀝니다.${budgetNote}`
+  );
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
     ? error.message
@@ -184,7 +200,7 @@ export function usePlannerApi(
         setScenarioPreview(null);
         setActionState({
           status: "success",
-          message: `${sequence}회차 건너뛰기 이후의 계획 미리보기입니다. 아직 계획에는 적용되지 않았습니다.`,
+          message: skipPreviewMessage(result),
           result,
         });
         isActionPendingRef.current = false;

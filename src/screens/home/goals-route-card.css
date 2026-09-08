@@ -1,0 +1,31 @@
+/*
+ * '내 목표' 목록.
+ *
+ * 목표 수만큼 카드가 길어지면 옆 카드와의 배치가 목표 개수에 따라 흔들린다.
+ * 목록에 최대 높이를 두어 카드 높이를 묶고, 넘치는 만큼은 스크롤로 담는다.
+ * 전체 목록과 편집은 플래너가 담당한다.
+ */
+
+.goals-route-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  /*
+   * 목표 약 3.5개 높이. 반 칸이 잘려 보이는 것이 "아래에 더 있다"는 유일한
+   * 신호이므로 딱 떨어지는 값을 쓰지 않는다.
+   */
+  max-height: 16.5rem;
+  overflow-y: auto;
+  /* 스크롤바가 마지막 항목 위에 겹치지 않도록 자리를 둔다. */
+  scrollbar-gutter: stable;
+}
+
+.goals-route-card__list:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}

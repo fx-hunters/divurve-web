@@ -20,6 +20,7 @@ import {
   type PlannerApiDependencies,
 } from "./use-planner-api";
 import { toPlannerGoalCreateRequest } from "./planner-goal-input";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
   readPlannerUiSelection,
@@ -30,6 +31,7 @@ import "./planner-api-screen.css";
 interface PlannerApiScreenProps {
   readonly dependencies?: PlannerApiDependencies;
   readonly planVersionDependencies?: PlanVersionDependencies;
+  readonly explanationRequester?: ExplanationRequester;
   readonly onExploreDemo?: () => void;
   readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
 }
@@ -37,6 +39,7 @@ interface PlannerApiScreenProps {
 export function PlannerApiScreen({
   dependencies,
   planVersionDependencies,
+  explanationRequester,
   onExploreDemo,
   onOpenPlanDetail = () => undefined,
 }: PlannerApiScreenProps) {
@@ -166,7 +169,10 @@ export function PlannerApiScreen({
       view={view}
       feedback={feedback}
       scenarioComparison={comparison}
-      history={{ dependencies: planVersionDependencies }}
+      history={{
+        dependencies: planVersionDependencies,
+        explanationRequester,
+      }}
       goalCreation={{
         sourceLabel: "내 계정",
         canCreateRecurring: false,

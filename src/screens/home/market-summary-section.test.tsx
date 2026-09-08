@@ -4,7 +4,10 @@ import { ApiError, type ApiResult } from "../../api/client";
 import type { ForecastResponse } from "../../api/generated/divurve-api";
 import { FORECAST_API_FIXTURE } from "../../test/api-fixtures";
 import type { HomeMarketSnapshot } from "./home-market";
-import { MarketSummarySection } from "./market-summary-section";
+import {
+  EXPLANATION_TOGGLE_STORAGE_KEY,
+  MarketSummarySection,
+} from "./market-summary-section";
 
 const SUMMARY_SNAPSHOT: HomeMarketSnapshot = {
   pairCode: "USDKRW",
@@ -150,5 +153,28 @@ describe("MarketSummarySection", () => {
 
     expect(explainRequester).not.toHaveBeenCalled();
     expect(screen.queryByText("AI 시장 설명")).not.toBeInTheDocument();
+  });
+
+  it("AI 설명은 펼친 채로 시작하고, 접으면 그 선택을 기억한다", async () => {
+    localStorage.removeItem(EXPLANATION_TOGGLE_STORAGE_KEY);
+    const explainRequester = vi
+      .fn()
+      .mockResolvedValue(explanationResult("변동성이 평시 범위입니다."));
+
+    render(
+      <MarketSummarySection
+        summarySnapshot={SUMMARY_SNAPSHOT}
+        explainRequester={explainRequester}
+      />,
+    );
+
+    const sentence = await screen.findByText("변동성이 평시 범위입니다.");
+    expect(sentence).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "접기" }));
+
+    expect(sentence).not.toBeVisible();
+    expect(localStorage.getItem(EXPLANATION_TOGGLE_STORAGE_KEY)).toBe("closed");
+    localStorage.removeItem(EXPLANATION_TOGGLE_STORAGE_KEY);
   });
 });

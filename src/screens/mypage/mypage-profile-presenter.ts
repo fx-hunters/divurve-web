@@ -3,13 +3,14 @@ import {
   getExplanationLevelLabel,
   getRiskProfileDisplayName,
   toExplanationLevel,
+  toRiskProfileKind,
 } from "../../components/diagnosis/diagnosis-presenter";
+import type { RiskGrade } from "../../api/generated/divurve-api";
 import type {
   DiagnosisProgress,
   ExplanationDomain,
   ExplanationLevel,
   ProfileExplanationPreferences,
-  RiskProfileKind,
 } from "../../types/diagnosis";
 import type { ServerDiagnosisSummary } from "../../components/diagnosis/diagnosis-status-card";
 import type { SettingsView } from "../../types/mypage";
@@ -80,24 +81,15 @@ export function createProfilePreferencesViewModel(
   };
 }
 
-const SERVER_RISK_KIND: Readonly<Record<string, RiskProfileKind>> = {
-  stable: "stable",
-  balanced: "balanced",
-  active: "active",
-  challenge: "challenger",
-  challenger: "challenger",
-  안정형: "stable",
-  균형형: "balanced",
-  적극형: "active",
-  도전형: "challenger",
-  안정항로형: "stable",
-  균형항로형: "balanced",
-  적극항로형: "active",
-  도전항로형: "challenger",
-};
-
+/**
+ * 계정에 저장된 진단 결과를 화면 문구로 옮긴다.
+ *
+ * 서버가 주는 기계 코드 `grade` 로만 판정한다. 한글 라벨(`gradeLabel`)을
+ * 되짚어 코드를 알아내던 예전 방식은 서버가 라벨 문구를 손대는 순간 매칭에
+ * 실패했다 — 라벨은 표시용이지 식별자가 아니다.
+ */
 export function createServerDiagnosisSummary(
-  riskType: string,
+  grade: RiskGrade | null,
   details: Pick<
     ServerDiagnosisSummary,
     "scoreLabel" | "diagnosedOnLabel" | "limitationNote"
@@ -107,12 +99,11 @@ export function createServerDiagnosisSummary(
     limitationNote: null,
   },
 ): ServerDiagnosisSummary {
-  const normalizedRiskType = riskType.trim().toLowerCase().replace(/\s+/g, "");
-  const kind = SERVER_RISK_KIND[normalizedRiskType];
   return {
-    displayName: kind
-      ? getRiskProfileDisplayName(kind)
-      : "기존 진단 결과",
+    displayName:
+      grade === null
+        ? "기존 진단 결과"
+        : getRiskProfileDisplayName(toRiskProfileKind(grade)),
     description:
       "계정에 저장된 진단 결과입니다. 현재 접속에서 진행한 상세 답변과는 구분해 표시합니다.",
     ...details,

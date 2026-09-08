@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
-import { fetchForecastBundle } from "../../api/forecast";
-import type { ForecastBundle } from "../../api/generated/divurve-api";
+import {
+  fetchForecastBundle,
+  type ForecastBundleView,
+} from "../../api/forecast";
 import {
   DEFAULT_FORECAST_PAIR,
   DEFAULT_FORECAST_PERIOD,
@@ -12,15 +14,15 @@ import {
 export type ForecastLoader = (
   pairCode: string,
   horizonDays: number,
-) => Promise<ForecastBundle>;
+) => Promise<ForecastBundleView>;
 
 export type ForecastState =
   | { readonly status: "loading" }
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "empty" }
-  | { readonly status: "success"; readonly data: ForecastBundle };
+  | { readonly status: "success"; readonly data: ForecastBundleView };
 
-function isEmptyForecast(bundle: ForecastBundle): boolean {
+function isEmptyForecast(bundle: ForecastBundleView): boolean {
   return (
     bundle.forecast.history.length === 0 &&
     bundle.forecast.band.length === 0 &&

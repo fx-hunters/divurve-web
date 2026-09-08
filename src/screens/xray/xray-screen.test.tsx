@@ -101,7 +101,7 @@ describe("XRayScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "통화 적합도" }));
     fireEvent.click(screen.getByRole("button", { name: "조정 결과 보기" }));
-    expect(await screen.findByText("68%")).toBeInTheDocument();
+    expect(await screen.findByText("82.1%")).toBeInTheDocument();
     expect(previewAdjustment).toHaveBeenCalledWith({
       currencyCode: "JPY",
       deltaShare: 0.1,

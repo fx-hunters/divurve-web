@@ -1,6 +1,7 @@
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
 import type { GoalsRouteData } from "../../types/home";
+import "./goals-route-card.css";
 
 interface GoalsRouteCardProps {
   readonly data: GoalsRouteData;
@@ -28,8 +29,9 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
         )
       }
       className="goals-route-card"
+      subtitle={data.goals.length > 1 ? "마감이 이른 순" : undefined}
     >
-      {!data.isRouteEnabled && (
+      {data.goals.length === 0 && (
         <p
           style={{
             margin: 0,
@@ -38,27 +40,17 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
             lineHeight: 1.6,
           }}
         >
-          환전 경로 계산 기능은 아직 서버에서 준비 중입니다. 준비되면 목표별 회차
-          계획이 이곳에 표시됩니다.
-        </p>
-      )}
-
-      {data.isRouteEnabled && data.goals.length === 0 && (
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-muted)" }}>
-          등록된 목표가 없습니다.
+          등록된 목표가 없습니다. 플래너에서 목표를 만들면 회차 계획이 이곳에
+          표시됩니다.
         </p>
       )}
 
       {data.goals.length > 0 && (
         <ul
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.75rem",
-          }}
+          // 스크롤되는 영역은 키보드로도 훑을 수 있어야 한다.
+          tabIndex={0}
+          aria-label={`목표 ${data.goals.length}개, 마감이 이른 순`}
+          className="goals-route-card__list"
         >
           {data.goals.map((goal) => (
             <li
@@ -67,7 +59,10 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                gap: "0.75rem",
+                // 좁은 폭에서 금액이 이름·기한을 밀어 날짜가 글자 단위로
+                // 끊기지 않도록, 자리가 모자라면 금액 쪽을 아래로 내린다.
+                flexWrap: "wrap",
+                gap: "0.5rem 0.75rem",
                 padding: "0.75rem 1rem",
                 backgroundColor: "var(--bg)",
                 border: "1px solid var(--border-subtle)",
@@ -75,16 +70,35 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <span>
+              <span style={{ minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 700 }}>
                   {goal.name}
                 </span>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--text-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {goal.targetDateLabel}까지
                 </span>
               </span>
-              <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "0.9375rem", fontWeight: 700 }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  marginLeft: "auto",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.9375rem",
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {goal.currencyCode} {goal.targetAmount.toLocaleString()}
                 </span>
                 <Badge variant="default">{goal.status}</Badge>
@@ -93,6 +107,7 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
           ))}
         </ul>
       )}
+
     </Card>
   );
 }

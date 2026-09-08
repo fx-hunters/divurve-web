@@ -1,11 +1,27 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { NotificationItem } from "../../api/notifications";
+import type {
+  NotificationItem,
+  NotificationKind,
+} from "../../api/notifications";
 import { Icon } from "../common/icon";
 import { useNotifications, type NotificationsState } from "./use-notifications";
 
 const MENU_ROOT_SELECTOR = "[data-notification-menu]";
 const PANEL_ID = "notification-panel";
+
+/**
+ * 알림 종류별 라벨. `Record<NotificationKind, string>`이라 백엔드가 종류를
+ * 추가하면 여기 항목이 빠진 채로는 컴파일되지 않는다.
+ */
+const KIND_LABELS: Record<NotificationKind, string> = {
+  step_due: "회차 일정",
+  regime_shift: "국면 변화",
+  deadline_near: "기한 임박",
+  target_zone: "목표 구간",
+  safe_mode: "안전 모드",
+  concentration: "집중도",
+};
 
 const messageStyle: CSSProperties = {
   padding: "1.25rem 1rem",
@@ -41,17 +57,26 @@ function NotificationRow({ notification }: { notification: NotificationItem }) {
           marginTop: "0.4rem",
           flexShrink: 0,
           borderRadius: "var(--radius-full)",
-          backgroundColor: notification.read
+          backgroundColor: notification.isRead
             ? "var(--border)"
             : "var(--primary)",
         }}
       />
       <div style={{ display: "grid", gap: "0.125rem", textAlign: "left" }}>
+        <span
+          style={{
+            fontSize: "0.6875rem",
+            fontWeight: 600,
+            color: "var(--text-muted)",
+          }}
+        >
+          {KIND_LABELS[notification.kind]}
+        </span>
         <strong style={{ fontSize: "0.8125rem", color: "var(--text)" }}>
           {notification.title}
         </strong>
         <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-          {notification.message}
+          {notification.body}
         </span>
         <time
           dateTime={notification.createdAt}

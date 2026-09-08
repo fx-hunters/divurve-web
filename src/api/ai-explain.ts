@@ -10,10 +10,46 @@
  */
 import { requestWithMeta, type ApiResult } from "./client";
 
+/**
+ * `verification.fallbackReason`. 폴백에 이른 경로 넷을 가른다.
+ *
+ * `fallback: true` 면 반드시 채워지고, 성공이면 `null` 이다. 네 값 모두 서버
+ * enum(`AiService.FallbackReason`)의 snake_case 코드 그대로다.
+ */
+export type AiFallbackReason =
+  | "provider_error"
+  | "blocked_phrases"
+  | "budget_exhausted"
+  | "verification_failed";
+
 export interface ExplainVerification {
-  /** 문장 속 수치가 입력 facts와 일치했는지. 서버가 주지 않으면 null. */
+  /**
+   * 문장 속 수치가 입력 facts와 일치했는지.
+   *
+   * 검증 단계까지 가지 못한 경로(호출 실패·예산 소진)에서는 서버가 `null` 을
+   * 보낸다 — "측정하지 않았다"는 뜻이지 "통과했다"가 아니다.
+   */
   readonly numericMatch: boolean | null;
+  /** 급변 구간을 문장에 고지했는지. 위와 같은 규칙으로 null 이 온다. */
+  readonly regimeDisclosed: boolean | null;
   readonly blockedPhrases: readonly string[];
+  /** 폴백 사유. 성공이면 null. 서버가 모르는 값을 보내면 null 로 떨어뜨린다. */
+  readonly fallbackReason: AiFallbackReason | null;
+}
+
+/**
+ * 서버가 보내는 사유 전체. `Record<AiFallbackReason, true>` 라서 유니온에 값을
+ * 더하면 여기도 채워야 컴파일된다 — 좁히기 함수가 조용히 뒤처지지 않는다.
+ */
+const FALLBACK_REASONS: Readonly<Record<AiFallbackReason, true>> = {
+  provider_error: true,
+  blocked_phrases: true,
+  budget_exhausted: true,
+  verification_failed: true,
+};
+
+function isFallbackReason(value: string): value is AiFallbackReason {
+  return Object.prototype.hasOwnProperty.call(FALLBACK_REASONS, value);
 }
 
 export interface Explanation {
@@ -48,6 +84,16 @@ function readStringArray(source: UnknownRecord, key: string): readonly string[] 
     : [];
 }
 
+function readNullableBoolean(source: UnknownRecord, key: string): boolean | null {
+  const value = source[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function readFallbackReason(source: UnknownRecord): AiFallbackReason | null {
+  const value = source.fallbackReason;
+  return typeof value === "string" && isFallbackReason(value) ? value : null;
+}
+
 export function normalizeExplainResult(data: unknown): ExplainResult {
   const source = isRecord(data) ? data : {};
   const explanation = readRecord(source, "explanation");
@@ -71,11 +117,10 @@ export function normalizeExplainResult(data: unknown): ExplainResult {
         typeof explanation.fallback === "boolean" ? explanation.fallback : null,
     },
     verification: {
-      numericMatch:
-        typeof verification.numericMatch === "boolean"
-          ? verification.numericMatch
-          : null,
+      numericMatch: readNullableBoolean(verification, "numericMatch"),
+      regimeDisclosed: readNullableBoolean(verification, "regimeDisclosed"),
       blockedPhrases: readStringArray(verification, "blockedPhrases"),
+      fallbackReason: readFallbackReason(verification),
     },
   };
 }

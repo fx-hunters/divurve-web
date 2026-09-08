@@ -1,4 +1,4 @@
-import type { ForecastBundle } from "../../api/generated/divurve-api";
+import type { ForecastBundleView } from "../../api/forecast";
 import type { BadgeVariant } from "../../components/common/badge";
 import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
 import { toPercent } from "../../lib/percent";
@@ -11,6 +11,7 @@ import {
   type ForecastEventItem,
   type ForecastPair,
   type ForecastPeriod,
+  type ModelPerformanceScore,
   type PairForecastInfo,
 } from "../../types/forecast";
 
@@ -51,19 +52,41 @@ export function toPeriodLabel(period: ForecastPeriod): string {
   return `향후 ${period}일`;
 }
 
+/** 날짜를 키로 삼아 한 번에 찾을 수 있게 모은다. 같은 날짜가 겹치면 첫 값을 쓴다. */
+function byDate<T extends { readonly d: string }>(
+  points: readonly T[],
+): ReadonlyMap<string, T> {
+  const indexed = new Map<string, T>();
+  for (const point of points) {
+    if (!indexed.has(point.d)) indexed.set(point.d, point);
+  }
+  return indexed;
+}
+
+/**
+ * 세 계열(실제·구간·모델 경로)을 날짜 하나에 한 행으로 합친다.
+ *
+ * 180일 지평이면 행이 수백 개가 되므로 계열마다 훑지 않고 날짜 색인을 만들어
+ * 한 번씩만 찾는다.
+ */
 export function toFanChartData(
-  bundle: ForecastBundle,
+  bundle: ForecastBundleView,
 ): readonly FanChartDataPoint[] {
+  const historyByDate = byDate(bundle.forecast.history);
+  const bandByDate = byDate(bundle.forecast.band);
+  const modelByDate = byDate(bundle.forecast.modelPath);
   const dates = [
-    ...bundle.forecast.history.map((point) => point.d),
-    ...bundle.forecast.band.map((point) => point.d),
-    ...bundle.forecast.modelPath.map((point) => point.d),
-  ].filter((date, index, allDates) => allDates.indexOf(date) === index);
+    ...new Set([
+      ...historyByDate.keys(),
+      ...bandByDate.keys(),
+      ...modelByDate.keys(),
+    ]),
+  ];
 
   return dates.map((day) => {
-    const history = bundle.forecast.history.find((point) => point.d === day);
-    const band = bundle.forecast.band.find((point) => point.d === day);
-    const model = bundle.forecast.modelPath.find((point) => point.d === day);
+    const history = historyByDate.get(day);
+    const band = bandByDate.get(day);
+    const model = modelByDate.get(day);
     return {
       day,
       price: history?.rate ?? null,
@@ -137,7 +160,7 @@ function isRegimeWarn(regime: string): boolean {
   return badge !== null && badge.tone !== "normal";
 }
 
-function toDrivers(bundle: ForecastBundle): readonly ForecastDriverItem[] {
+function toDrivers(bundle: ForecastBundleView): readonly ForecastDriverItem[] {
   const contributions = bundle.factors.factors.map((factor) =>
     Math.abs(factor.contributionPp),
   );
@@ -157,7 +180,7 @@ function toDrivers(bundle: ForecastBundle): readonly ForecastDriverItem[] {
 
 /** 통화쌍을 이루는 두 통화의 일정만 남긴다(예 `EURUSD` 면 EUR·USD). */
 function toEvents(
-  bundle: ForecastBundle,
+  bundle: ForecastBundleView,
   pair: ForecastPair,
 ): readonly ForecastEventItem[] {
   const currencies: readonly string[] = [pair.baseCode, pair.quoteCode];
@@ -171,8 +194,23 @@ function toEvents(
     }));
 }
 
+/**
+ * 모델 성적표. 서버가 이 지평의 성적표를 주지 못하면(검증할 과거 관측 부족)
+ * 카드만 빈 상태로 두도록 `null` 을 그대로 흘린다.
+ */
+export function toModelScore(
+  performance: ForecastBundleView["performance"],
+): ModelPerformanceScore | null {
+  if (performance === null) return null;
+  return {
+    maePct: toPercent(performance.model.mae),
+    inclusion80Pct: toPercent(performance.model.coverage80),
+    randomWalkImprovementPct: toPercent(performance.rwImprovement),
+  };
+}
+
 export function toPairForecastInfo(
-  bundle: ForecastBundle,
+  bundle: ForecastBundleView,
   pair: ForecastPair,
 ): PairForecastInfo {
   const { forecast, performance } = bundle;
@@ -186,12 +224,7 @@ export function toPairForecastInfo(
     },
     drivers: toDrivers(bundle),
     events: toEvents(bundle, pair),
-    modelScore: {
-      hitRatePct: toPercent(performance.model.hitRate),
-      maePct: toPercent(performance.model.mae),
-      inclusion80Pct: toPercent(performance.model.coverage80),
-      randomWalkImprovementPct: toPercent(performance.rwImprovement),
-    },
+    modelScore: toModelScore(performance),
     uncertaintyNote: forecast.uncertaintyNote,
     asOfLabel: toAsOfLabel(bundle.asOf),
   };
@@ -204,7 +237,7 @@ export function toPairForecastInfo(
  * 이 facts 와 대조하므로, 화면 표시용으로 반올림한 값을 보내면 대조에 걸린다.
  * 키 표기는 요청 본문 그대로 나가므로 백엔드 계약의 snake_case 를 쓴다.
  */
-export function toExplanationFacts(bundle: ForecastBundle): ExplanationFacts {
+export function toExplanationFacts(bundle: ForecastBundleView): ExplanationFacts {
   const { forecast } = bundle;
   return {
     pair_code: forecast.pairCode,

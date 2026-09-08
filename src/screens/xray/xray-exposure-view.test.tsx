@@ -153,7 +153,12 @@ function explainResult(
         explainDomain: "fx",
         fallback: overrides.fallback ?? false,
       },
-      verification: { numericMatch: true, blockedPhrases: [] },
+      verification: {
+        numericMatch: true,
+        regimeDisclosed: true,
+        blockedPhrases: [],
+        fallbackReason: null,
+      },
     },
     meta: { asOf: "2026-09-08T00:00:00Z" },
   };
@@ -192,7 +197,7 @@ describe("XRayExposureView의 AI 설명", () => {
         ],
         fx_sensitivity_1pct_krw: 80_000,
         total_return: 0.09,
-        concentration_status: "over",
+        concentration_status: "above_threshold",
         concentration_threshold: 0.6,
       },
     });

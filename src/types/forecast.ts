@@ -29,18 +29,25 @@ export type ForecastCurrency =
 export const DEFAULT_FORECAST_PAIR: ForecastPair = FORECAST_PAIRS[0];
 
 /**
- * 전망 지평(일). 백엔드 `ForecastService.ALLOWED_HORIZON_DAYS = List.of(30, 90)`
- * 이라 그 밖의 값은 400 이다. **프론트 단독으로 넓힐 수 없다** —
- * 선택지 확장은 백엔드 이슈(fx-hunters/divurve-api#121) 배포 후 이 배열에 값을
- * 더하는 후속 작업이다.
+ * 전망 지평(일). 백엔드 `ForecastService.ALLOWED_HORIZON_DAYS` 와 같은 목록이며
+ * 그 밖의 값은 400(`VALIDATION_FAILED`) 이다. 백엔드가 여섯 값을 모두 받도록
+ * 넓힌 뒤(fx-hunters/divurve-api#121) 이 배열도 함께 넓혔다.
+ *
+ * 순서가 곧 화면에 늘어놓는 순서다. 새 지평은 백엔드가 먼저 받아야 한다.
  */
-export const FORECAST_HORIZON_DAYS = [30, 90] as const;
+export const FORECAST_HORIZON_DAYS = [7, 14, 30, 60, 90, 180] as const;
 
 /** 선택된 전망 기간. 값 자체가 서버에 보내는 `horizon_days` 다. */
 export type ForecastPeriod = (typeof FORECAST_HORIZON_DAYS)[number];
 
-/** 화면이 처음 보여 주는 전망 기간. */
-export const DEFAULT_FORECAST_PERIOD: ForecastPeriod = FORECAST_HORIZON_DAYS[0];
+/**
+ * 화면이 처음 보여 주는 전망 기간.
+ *
+ * 목록의 첫 값(7일)이 아니라 30일이다 — 가장 짧은 구간을 첫 화면에 두면 팬
+ * 차트의 폭이 거의 보이지 않는다. 목록 가운데의 기본값에서 양쪽으로 좁히거나
+ * 넓히게 둔다.
+ */
+export const DEFAULT_FORECAST_PERIOD: ForecastPeriod = 30;
 
 export interface FanChartDataPoint {
   readonly day: string;
@@ -75,7 +82,6 @@ export interface ForecastEventItem {
 }
 
 export interface ModelPerformanceScore {
-  readonly hitRatePct: number;
   /** 서버의 mae는 금액이 아니라 비율이라 % 로 표시한다. */
   readonly maePct: number;
   readonly inclusion80Pct: number;
@@ -86,7 +92,11 @@ export interface PairForecastInfo {
   readonly summary: ForecastRangeSummary;
   readonly drivers: readonly ForecastDriverItem[];
   readonly events: readonly ForecastEventItem[];
-  readonly modelScore: ModelPerformanceScore;
+  /**
+   * 모델 성적표. 검증할 과거 관측이 부족한 지평에서는 서버가 성적표만 거절할
+   * 수 있어(§ `api/forecast.ts`) `null` 을 허용한다. 그때도 팬 차트는 그린다.
+   */
+  readonly modelScore: ModelPerformanceScore | null;
   readonly uncertaintyNote: string;
   readonly asOfLabel: string;
 }

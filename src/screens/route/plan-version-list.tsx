@@ -6,6 +6,10 @@
  */
 import { Badge } from "../../components/common/badge";
 import { Spinner } from "../../components/common/spinner";
+import type {
+  PlanStatusCode,
+  PlanStepStatusCode,
+} from "../../api/generated/divurve-api";
 import type { PlanVersion } from "../../api/planner";
 import type {
   PlanVersionDetailState,
@@ -22,7 +26,10 @@ interface PlanVersionListProps {
 }
 
 /** 백엔드 `PlanStatus` 리터럴을 화면 문구로 옮긴다. 값은 서버 계약 그대로다. */
-const STATUS_LABELS: Readonly<Record<string, string>> = {
+type LabelTable<Code extends string> = Readonly<Record<Code, string>> &
+  Readonly<Record<string, string | undefined>>;
+
+const STATUS_LABELS: LabelTable<PlanStatusCode> = {
   draft: "계산됨",
   active: "적용 중",
   needs_review: "재검토 필요",
@@ -31,10 +38,11 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   superseded: "대체됨",
 };
 
-const STEP_STATUS_LABELS: Readonly<Record<string, string>> = {
+const STEP_STATUS_LABELS: LabelTable<PlanStepStatusCode> = {
+  scheduled: "예정",
+  due: "예정일 도래",
   completed: "완료",
   skipped: "건너뜀",
-  pending: "예정",
 };
 
 function statusLabel(status: string): string {
@@ -118,6 +126,14 @@ function PlanVersionRow({
                 <div>
                   <dt>전체 회차</dt>
                   <dd>{detailState.plan.summary.totalRounds}회</dd>
+                </div>
+                <div>
+                  <dt>완료 회차</dt>
+                  <dd>{detailState.plan.summary.completedRounds}회</dd>
+                </div>
+                <div>
+                  <dt>건너뛴 회차</dt>
+                  <dd>{detailState.plan.summary.skippedRounds}회</dd>
                 </div>
               </dl>
               <ol className="plan-version-list__steps">

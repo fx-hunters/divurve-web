@@ -70,7 +70,8 @@ describe("PlannerPlanDetailPage", () => {
     expect(screen.getByText("v2 · active")).toBeInTheDocument();
     expect(screen.getByText("일정 조건 변경")).toBeInTheDocument();
     expect(screen.getAllByText("변경 사유 제공되지 않음")).toHaveLength(2);
-    expect(screen.getAllByText("2026-12-20")).toHaveLength(2);
+    expect(screen.getByText("2026-12-26")).toBeInTheDocument();
+    expect(screen.getByText("2026-12-20")).toBeInTheDocument();
     expect(screen.getByText("날짜 제공되지 않음")).toBeInTheDocument();
     expect(screen.getByText("서버가 제공한 주의사항")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
@@ -87,13 +88,14 @@ describe("PlannerPlanDetailPage", () => {
         calculatedAtLabel: null,
         rateAsOfLabel: null,
         estimatedCostLabel: null,
+        budgetStateLabel: null,
         warnings: [],
       },
     };
     render(
       <PlannerPlanDetailPage view={sparseView} versions={[]} onBack={vi.fn()} />,
     );
-    expect(screen.getAllByText("제공되지 않음")).toHaveLength(4);
+    expect(screen.getAllByText("제공되지 않음")).toHaveLength(5);
     expect(
       screen.getByText("데모에서는 서버 계획 버전 이력을 제공하지 않습니다."),
     ).toBeInTheDocument();

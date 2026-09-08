@@ -33,6 +33,15 @@ export const MARKET_PAIR_OPTIONS: readonly MarketPairOption[] = (
   Object.keys(PAIR_OPTION_LABELS) as readonly HomeMarketPairCode[]
 ).map((code) => ({ code, label: PAIR_OPTION_LABELS[code] }));
 
+/**
+ * 스파크라인 한 점. 두 출처의 키가 달라(홈 요약은 `date`, `/forecast` 는 `d`)
+ * 경계에서 이 모양으로 통일한다.
+ */
+export interface MarketHistoryPoint {
+  readonly date: string;
+  readonly rate: number;
+}
+
 /** 통화쌍 하나의 시세 한 장. 값은 모두 서버가 준 원본 수치다. */
 export interface HomeMarketSnapshot {
   readonly pairCode: HomeMarketPairCode;
@@ -40,6 +49,8 @@ export interface HomeMarketSnapshot {
   readonly lower?: number;
   readonly upper?: number;
   readonly regime?: string;
+  /** 최근 30영업일. 서버가 시간순으로 주므로 재정렬하지 않는다. 없으면 빈 배열. */
+  readonly history?: readonly MarketHistoryPoint[];
 }
 
 export type HomeMarketLoader = (
@@ -62,6 +73,8 @@ export interface MarketSummaryView {
   readonly currentRateLabel?: string;
   readonly lowerLabel?: string;
   readonly upperLabel?: string;
+  /** 추세 그래프에 그릴 관측점. 선이 되지 않으면 빈 배열. */
+  readonly trendPoints: readonly MarketHistoryPoint[];
 }
 
 /** 통화 색 고정 배정(개발 컨벤션 7.2). 상태 색과 섞지 않는다. */
@@ -108,30 +121,44 @@ export function toMarketRateLabel(
   }).format(rate);
 }
 
+/** 추세 그래프 가로축 눈금. 축은 좁으므로 월·일만 적는다. */
+export function toTrendDateLabel(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) return isoDate;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+  }).format(parsed);
+}
+
 /** 홈 요약이 이미 실어 준 forecast 블록. regime은 응답 meta에 온다. */
 export function toSummaryMarketSnapshot(
   result: ApiResult<HomeSummaryResponse>,
 ): HomeMarketSnapshot {
-  const { pairCode, currentRate, interval80 } = result.data.forecast;
+  const { pairCode, currentRate, interval80, history } = result.data.forecast;
   return {
     pairCode: resolveMarketPairCode(pairCode),
     currentRate,
     lower: interval80?.lo,
     upper: interval80?.hi,
     regime: result.meta.regime,
+    history: history ?? [],
   };
 }
 
 export function toForecastMarketSnapshot(
   result: ApiResult<ForecastResponse>,
 ): HomeMarketSnapshot {
-  const { pairCode, currentRate, interval80, volatility } = result.data;
+  const { pairCode, currentRate, interval80, volatility, history } =
+    result.data;
   return {
     pairCode: resolveMarketPairCode(pairCode),
     currentRate,
     lower: interval80.lo,
     upper: interval80.hi,
     regime: volatility.regime,
+    // `/forecast` 는 날짜 키가 `d` 라 홈 요약(`date`)과 다르다. 여기서 맞춘다.
+    history: history.map((point) => ({ date: point.d, rate: point.rate })),
   };
 }
 
@@ -151,6 +178,20 @@ export function toDisplaySnapshot(
   return pairCode === summary.pairCode ? summary : { pairCode };
 }
 
+/**
+ * 추세 그래프에 넘길 관측점. 점이 하나면 선을 그릴 수 없고, 값이 모두 같으면
+ * 진폭이 0 이라 그려도 정보가 없다 — 둘 다 빈 배열로 접어 카드가 그림을 감춘다.
+ *
+ * 축을 그리려면 날짜가 필요하므로 환율만 뽑지 않고 점을 통째로 넘긴다.
+ */
+function toTrendPoints(
+  history: readonly MarketHistoryPoint[] | undefined,
+): readonly MarketHistoryPoint[] {
+  const points = history ?? [];
+  if (points.length < 2) return [];
+  return points.some((point) => point.rate !== points[0]!.rate) ? points : [];
+}
+
 export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
   const { pairCode } = snapshot;
   const format = (rate: number | undefined) =>
@@ -163,6 +204,7 @@ export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
     currentRateLabel: format(snapshot.currentRate),
     lowerLabel: format(snapshot.lower),
     upperLabel: format(snapshot.upper),
+    trendPoints: toTrendPoints(snapshot.history),
   };
 }
 

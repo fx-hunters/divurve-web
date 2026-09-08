@@ -62,12 +62,12 @@ export interface PlannerPlanGoal {
   readonly roundBudgetKrw: number | null;
   readonly allocatedHoldingAmount: number;
   readonly remainingAmount: number;
-  readonly targetDate: string;
+  readonly targetDate: string | null;
 }
 
 export interface PlannerPlanSummary {
   readonly status: string;
-  readonly planEndDate: string;
+  readonly planEndDate: string | null;
   readonly totalRounds: number;
   readonly completedRounds: number;
   readonly scheduledRounds: number;

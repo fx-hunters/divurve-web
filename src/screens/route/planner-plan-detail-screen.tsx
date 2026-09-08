@@ -101,6 +101,7 @@ export function PlannerPlanDetailPage({
           <div><dt>계산 시각</dt><dd>{plan.calculatedAtLabel ?? "제공되지 않음"}</dd></div>
           <div><dt>환율 기준 시각</dt><dd>{plan.rateAsOfLabel ?? "제공되지 않음"}</dd></div>
           <div><dt>비용 범위</dt><dd>{plan.estimatedCostLabel ?? "제공되지 않음"}</dd></div>
+          <div><dt>예산 상태</dt><dd>{plan.budgetStateLabel ?? "제공되지 않음"}</dd></div>
         </dl>
         <p className="planner-api__notice">{plan.disclaimer}</p>
       </section>
