@@ -277,6 +277,14 @@
   padding: 0.5rem 0;
 }
 
+/* 값 표를 읽는 법을 덧붙이는 보조 문구. 값 자체가 아니므로 약하게 둔다. */
+.admin-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0.25rem 0 0.75rem;
+}
+
 .admin-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

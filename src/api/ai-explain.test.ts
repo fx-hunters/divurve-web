@@ -42,15 +42,31 @@ describe("normalizeExplainResult", () => {
         explainDomain: "dev",
         fallback: true,
       },
-      verification: { numericMatch: false, blockedPhrases: ["추천"] },
+      verification: {
+        numericMatch: false,
+        regimeDisclosed: false,
+        blockedPhrases: ["반드시"],
+        fallbackReason: "verification_failed",
+      },
     });
 
     expect(result.explanation.sentences).toEqual(["문장1", "문장2"]);
     expect(result.explanation.fallback).toBe(true);
     expect(result.verification).toEqual({
       numericMatch: false,
-      blockedPhrases: ["추천"],
+      regimeDisclosed: false,
+      blockedPhrases: ["반드시"],
+      fallbackReason: "verification_failed",
     });
+  });
+
+  // 서버가 사유를 늘렸는데 프론트가 모르는 경우. 라벨을 찾지 못한 값을 그대로
+  // 화면에 흘려보내지 않고 null 로 떨어뜨린다.
+  it("모르는 폴백 사유는 null로 둔다", () => {
+    const result = normalizeExplainResult({
+      verification: { fallbackReason: "brand_new_reason" },
+    });
+    expect(result.verification.fallbackReason).toBeNull();
   });
 
   it("값이 없으면 null과 빈 목록으로 둔다", () => {
@@ -62,7 +78,12 @@ describe("normalizeExplainResult", () => {
         explainDomain: null,
         fallback: null,
       },
-      verification: { numericMatch: null, blockedPhrases: [] },
+      verification: {
+        numericMatch: null,
+        regimeDisclosed: null,
+        blockedPhrases: [],
+        fallbackReason: null,
+      },
     });
   });
 

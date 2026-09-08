@@ -297,7 +297,12 @@ function explainResult(
         explainDomain: "fx",
         fallback: overrides.fallback ?? false,
       },
-      verification: { numericMatch: true, blockedPhrases: [] },
+      verification: {
+        numericMatch: true,
+        regimeDisclosed: true,
+        blockedPhrases: [],
+        fallbackReason: null,
+      },
     },
     meta: { asOf: "2026-09-08T00:00:00Z" },
   };
