@@ -147,14 +147,14 @@ describe("detailed diagnosis invitation timing", () => {
 describe("App", () => {
   it("초기에 랜딩 페이지를 렌더링하고, 대시보드 시작하기 클릭 시 온보딩 투어가 표시된다", async () => {
     render(<App />);
-    expect(screen.getByText("가장 지능적인 환전 타이밍")).toBeInTheDocument();
+    expect(screen.getByText("가장 지능적인 환전 가이드")).toBeInTheDocument();
 
     // 랜딩 페이지에서 테마 토글 버튼 클릭 (다크 -> 라이트 -> 다크)
     const landingThemeBtn = screen.getByRole("button", { name: "테마 전환" });
     fireEvent.click(landingThemeBtn);
     fireEvent.click(landingThemeBtn);
 
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -183,7 +183,7 @@ describe("App", () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     render(<App />);
 
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -196,7 +196,7 @@ describe("App", () => {
     localStorage.setItem(TOUR_STORAGE_KEY, eightDaysAgo);
     render(<App />);
 
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -212,7 +212,7 @@ describe("App", () => {
     });
 
     render(<App />);
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -232,7 +232,7 @@ describe("App", () => {
     render(<App />);
 
     // 랜딩 페이지 -> 대시보드 진입
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -275,7 +275,7 @@ describe("App", () => {
   it("헤더의 마이페이지 아바타 버튼 클릭 시 마이페이지로 이동한다", async () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     render(<App />);
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -290,7 +290,7 @@ describe("App", () => {
   it("세션이 없으면 데모 계정을 발급받아 데모 배지와 테마 토글을 표시한다", async () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /대시보드 체험하기/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /무료로 시작하기/ })[0]);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
     expect(await screen.findByText("데모 계정")).toBeInTheDocument();
@@ -307,7 +307,7 @@ describe("App", () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /대시보드 체험하기/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /무료로 시작하기/ })[0]);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
     expect(await screen.findByText("내 계정")).toBeInTheDocument();
@@ -317,7 +317,7 @@ describe("App", () => {
   it("모바일 하단 내비게이션 탭 클릭 시 화면이 전환된다", async () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     render(<App />);
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -340,7 +340,7 @@ describe("App", () => {
     vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
     render(<App />);
     fireEvent.click(
-      screen.getByRole("button", { name: /대시보드 체험하기/ }),
+      screen.getAllByRole("button", { name: /무료로 시작하기/ })[0],
     );
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -354,7 +354,7 @@ describe("App", () => {
     vi.mocked(readApiSession).mockReturnValue(STANDARD_AUTH_SESSION);
     render(<App />);
     fireEvent.click(
-      screen.getByRole("button", { name: /대시보드 체험하기/ }),
+      screen.getAllByRole("button", { name: /무료로 시작하기/ })[0],
     );
     await screen.findByRole("heading", { name: "DIVURVE" });
     await screen.findByRole("heading", { name: "오늘의 핵심" });
@@ -374,7 +374,7 @@ describe("App", () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     vi.mocked(startDemoSession).mockRejectedValue(error);
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /대시보드 체험하기/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /무료로 시작하기/ })[0]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
@@ -391,7 +391,7 @@ describe("App", () => {
         onboarded: true,
       });
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /대시보드 체험하기/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /무료로 시작하기/ })[0]);
     await screen.findByRole("alert");
 
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
@@ -414,7 +414,7 @@ describe("App", () => {
 
   it("온보딩 투어 진행 중 다음 단계 이동 시 해당 탭으로 화면이 자동 전환된다", async () => {
     render(<App />);
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -449,7 +449,7 @@ describe("App", () => {
     const backBtn = screen.getAllByRole("button", { name: /홈/ })[0];
     fireEvent.click(backBtn);
 
-    expect(screen.getByText("가장 지능적인 환전 타이밍")).toBeInTheDocument();
+    expect(screen.getByText("가장 지능적인 환전 가이드")).toBeInTheDocument();
   });
 
   it("로그인 폼을 실제 인증 어댑터와 연결한다", async () => {
@@ -743,11 +743,11 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/");
   });
 
-  it("랜딩 페이지에서 무료 시작 클릭 시 API 회원가입 후 대시보드로 이동한다", async () => {
+  it("랜딩 페이지에서 회원가입 클릭 시 API 회원가입 후 대시보드로 이동한다", async () => {
     localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
     render(<App />);
 
-    const signupBtn = screen.getByRole("button", { name: /무료 시작/ });
+    const signupBtn = screen.getByRole("button", { name: /회원가입/ });
     fireEvent.click(signupBtn);
 
     // AuthPage 회원가입 폼 노출 확인
@@ -774,7 +774,7 @@ describe("App", () => {
     render(<App />);
 
     // 대시보드 진입
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
@@ -788,7 +788,7 @@ describe("App", () => {
     fireEvent.click(logoutBtn);
 
     // 랜딩 페이지로 복귀 확인
-    expect(screen.getByText("가장 지능적인 환전 타이밍")).toBeInTheDocument();
+    expect(screen.getByText("가장 지능적인 환전 가이드")).toBeInTheDocument();
   });
 
   it("마이페이지에서 가이드 투어 다시보기 클릭 시 온보딩 투어가 다시 시작된다", async () => {
@@ -796,7 +796,7 @@ describe("App", () => {
     render(<App />);
 
     // 대시보드 진입
-    const startBtn = screen.getByRole("button", { name: /대시보드 체험하기/ });
+    const startBtn = screen.getAllByRole("button", { name: /무료로 시작하기/ })[0];
     fireEvent.click(startBtn);
     await screen.findByRole("heading", { name: "DIVURVE" });
 
