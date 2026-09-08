@@ -40,7 +40,12 @@ describe("AdminAiExplainScreen", () => {
           explainDomain: "dev",
           fallback: false,
         },
-        verification: { numericMatch: true, blockedPhrases: [] },
+        verification: {
+          numericMatch: true,
+          regimeDisclosed: true,
+          blockedPhrases: [],
+          fallbackReason: null,
+        },
       },
       meta: META,
     });
@@ -78,7 +83,14 @@ describe("AdminAiExplainScreen", () => {
           explainDomain: null,
           fallback: true,
         },
-        verification: { numericMatch: false, blockedPhrases: ["추천", "보장"] },
+        // 금지 표현 경로. 서버는 검출 즉시 폴백하므로 수치 대조까지 가지 못해
+        // numericMatch 는 null 이고 사유는 blocked_phrases 다.
+        verification: {
+          numericMatch: null,
+          regimeDisclosed: null,
+          blockedPhrases: ["반드시", "수익을 보장"],
+          fallbackReason: "blocked_phrases",
+        },
       },
       meta: META,
     });
@@ -86,9 +98,49 @@ describe("AdminAiExplainScreen", () => {
     render(<AdminAiExplainScreen onAuthFailure={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "호출" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("fallback=true");
-    expect(screen.getByText("추천, 보장")).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("fallback=true");
+    // 사유를 문구로 함께 보여준다 — 예전에는 fallback=true 만 뜨고 왜인지는
+    // 서버 로그를 뒤져야 알 수 있었다.
+    expect(alert).toHaveTextContent("금지 표현이 검출됨");
+    expect(
+      screen.getByText("blocked_phrases — 금지 표현이 검출됨"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("반드시, 수익을 보장")).toBeInTheDocument();
+    // 측정 자체가 없었던 것을 "통과" 로 읽지 않도록 덧붙인다.
+    expect(
+      screen.getByText(/검증 단계에 닿지 못했다/),
+    ).toBeInTheDocument();
     expect(screen.getByText("문장이 없습니다.")).toBeInTheDocument();
+  });
+
+  // 서버 계약상 fallback=true 면 사유가 반드시 온다. 그래도 프론트가 모르는
+  // 사유 문자열은 null로 떨어지므로, 그때도 안내가 끊기지 않아야 한다.
+  it("모르는 사유로 폴백하면 사유 없이 verification을 보라고 안내한다", async () => {
+    vi.mocked(requestExplanation).mockResolvedValue({
+      data: {
+        explanation: {
+          sentences: [],
+          sentenceCount: 0,
+          explainLevel: null,
+          explainDomain: null,
+          fallback: true,
+        },
+        verification: {
+          numericMatch: null,
+          regimeDisclosed: null,
+          blockedPhrases: [],
+          fallbackReason: null,
+        },
+      },
+      meta: META,
+    });
+
+    render(<AdminAiExplainScreen onAuthFailure={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "호출" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("아래 verification을 확인하세요.");
   });
 
   it("blockedPhrases가 비면 -로 둔다", async () => {
@@ -101,7 +153,13 @@ describe("AdminAiExplainScreen", () => {
           explainDomain: null,
           fallback: null,
         },
-        verification: { numericMatch: null, blockedPhrases: [] },
+        // 성공 경로. fallbackReason 은 성공이면 항상 null 이다.
+        verification: {
+          numericMatch: true,
+          regimeDisclosed: true,
+          blockedPhrases: [],
+          fallbackReason: null,
+        },
       },
       meta: META,
     });

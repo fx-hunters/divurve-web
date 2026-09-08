@@ -24,7 +24,9 @@ function successState(
     },
     verification: {
       numericMatch: overrides.numericMatch ?? true,
+      regimeDisclosed: true,
       blockedPhrases: [],
+      fallbackReason: null,
     },
     meta: { asOf: "2026-09-08T00:00:00Z" },
   };

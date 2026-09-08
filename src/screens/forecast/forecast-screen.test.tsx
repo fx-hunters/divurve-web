@@ -73,7 +73,12 @@ function explanationResult(regime?: string): ApiResult<ExplainResult> {
         explainDomain: "general",
         fallback: false,
       },
-      verification: { numericMatch: true, blockedPhrases: [] },
+      verification: {
+        numericMatch: true,
+        regimeDisclosed: true,
+        blockedPhrases: [],
+        fallbackReason: null,
+      },
     },
     meta: { asOf: "2026-09-06T22:14:01.070Z", regime },
   };
