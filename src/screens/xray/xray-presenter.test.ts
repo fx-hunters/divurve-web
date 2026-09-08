@@ -8,18 +8,12 @@ import {
   toAsOfLabel,
   toConcentrationStatusLabel,
   toDateLabel,
-  toPercent,
   toShockLabel,
   toStressRunResult,
   toXRayDashboardData,
 } from "./xray-presenter";
 
 describe("표시용 변환", () => {
-  it("비율을 소수 첫째 자리 퍼센트로 바꾼다", () => {
-    expect(toPercent(0.7512)).toBe(75.1);
-    expect(toPercent(0)).toBe(0);
-  });
-
   it("집중도 판정 코드를 한국어 라벨로 바꾸고, 모르는 값은 그대로 둔다", () => {
     expect(toConcentrationStatusLabel("over")).toBe("기준선 초과");
     expect(toConcentrationStatusLabel("ok")).toBe("적정");

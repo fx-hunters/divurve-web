@@ -4,6 +4,7 @@ import type {
   HomeBlockState,
   HomeSummaryResponse,
 } from "../../api/generated/divurve-api";
+import { toPercent } from "../../lib/percent";
 import type {
   ActiveGoalItem,
   AttentionData,
@@ -195,7 +196,7 @@ export function toHomeDashboardData(
       fxRatioPct:
         data.fxStatus.fxRatio === undefined
           ? undefined
-          : Math.round(data.fxStatus.fxRatio * 1000) / 10,
+          : toPercent(data.fxStatus.fxRatio),
       topCurrencyCode: data.fxStatus.topCurrencyCode,
       dayChangeKrw: data.fxStatus.dayChangeKrw,
       sensitivity1pctKrw: data.fxStatus.sensitivity1pctKrw,

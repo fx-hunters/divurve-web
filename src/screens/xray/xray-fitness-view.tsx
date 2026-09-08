@@ -4,7 +4,8 @@ import type { FitPreviewRequest } from "../../api/generated/divurve-api";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
 import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
-import { toFitnessExplanationFacts, toPercent } from "./xray-presenter";
+import { toPercent } from "../../lib/percent";
+import { toFitnessExplanationFacts } from "./xray-presenter";
 
 export type FitPreviewState =
   | { readonly status: "idle" }
