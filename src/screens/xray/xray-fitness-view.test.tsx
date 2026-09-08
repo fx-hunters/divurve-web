@@ -243,22 +243,33 @@ describe("XRayFitnessView", () => {
         explanationRequester={PENDING_REQUESTER}
       />,
     );
-    expect(screen.getByText("75%")).toBeInTheDocument();
-    expect(screen.getByText("68%")).toBeInTheDocument();
+    // 두 값 모두 미리보기 응답에서 온다. 예전에는 '조정 전'이 바깥 X-Ray
+    // 집중도를, '조정 후'가 없는 키를 읽어 각각 다른 값과 "-"를 그렸다.
+    expect(screen.getByText("91.8%")).toBeInTheDocument();
+    expect(screen.getByText("82.1%")).toBeInTheDocument();
     expect(
-      screen.getByText("앞으로의 매수만 조정한다고 가정합니다."),
+      screen.getByText(
+        "외화자산 총액 61,704,920원을 고정한 채 JPY 비중만 10%p 높인 가정입니다.",
+      ),
     ).toBeInTheDocument();
   });
 
-  it("서버가 집중도 값을 주지 않으면 조정 전후를 빈 값으로 표시한다", () => {
+  it("조정 후 판정이 기준선 이내로 바뀌면 그대로 표시한다", () => {
     render(
       <XRayFitnessView
-        data={NOT_MEASURED_DATA}
+        data={DATA}
         previewState={{
           status: "done",
           preview: {
             ...FIT_PREVIEW_FIXTURE,
-            concentration: { status: "unknown" as const },
+            concentration: {
+              ...FIT_PREVIEW_FIXTURE.concentration,
+              after: {
+                topCurrencyCode: "USD",
+                share: 0.55,
+                status: "within_threshold",
+              },
+            },
           },
         }}
         onPreviewAdjustment={vi.fn()}
@@ -266,7 +277,9 @@ describe("XRayFitnessView", () => {
         explanationRequester={PENDING_REQUESTER}
       />,
     );
-    expect(screen.getAllByText("-")).toHaveLength(2);
+    expect(screen.getByText("55%")).toBeInTheDocument();
+    expect(screen.getByText("USD · 기준선 이내")).toBeInTheDocument();
+    expect(screen.getAllByText("USD · 기준선 초과")).toHaveLength(1);
   });
 });
 

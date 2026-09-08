@@ -390,13 +390,30 @@ export interface FitPreviewRequest {
   readonly deltaShare: number;
 }
 
+/**
+ * `FitPreviewResponse.concentration.before`·`after`.
+ *
+ * `/xray` 응답의 `XrayConcentration` 과 이름만 같고 다른 값이다. 여기엔
+ * `threshold` 가 조각마다 붙지 않고 바깥에 한 번만 온다 — 가정 전후로 기준선이
+ * 바뀌지 않기 때문이다. 재사용하면 `share` 가 `undefined` 로 읽힌다.
+ */
+export interface FitPreviewConcentrationPoint {
+  readonly topCurrencyCode: string;
+  readonly share: number;
+  readonly status: ConcentrationStatus;
+}
+
 export interface FitPreviewResponse {
   readonly assumption: string;
   readonly exposure: {
     readonly before: Readonly<Record<string, number>>;
     readonly after: Readonly<Record<string, number>>;
   };
-  readonly concentration: XrayConcentration;
+  readonly concentration: {
+    readonly before: FitPreviewConcentrationPoint;
+    readonly after: FitPreviewConcentrationPoint;
+    readonly threshold: number;
+  };
   readonly sensitivity1pct: {
     readonly before: Readonly<Record<string, number>>;
     readonly after: Readonly<Record<string, number>>;

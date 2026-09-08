@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Icon } from "../../components/common/icon";
 import type {
-  ConcentrationStatus,
+  FitPreviewConcentrationPoint,
   FitPreviewRequest,
+  FitPreviewResponse,
 } from "../../api/generated/divurve-api";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
@@ -10,6 +11,7 @@ import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
 import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import {
   isConcentrationAboveThreshold,
+  toConcentrationStatusLabel,
   toFitnessExplanationFacts,
   toPercent,
 } from "./xray-presenter";
@@ -18,20 +20,51 @@ export type FitPreviewState =
   | { readonly status: "idle" }
   | { readonly status: "running" }
   | { readonly status: "error"; readonly message: string }
-  | {
-      readonly status: "done";
-      readonly preview: {
-        readonly assumption: string;
-        readonly concentration: {
-          readonly share?: number;
-          readonly status: ConcentrationStatus;
-        };
-        readonly sensitivity1pct: {
-          readonly before: Readonly<Record<string, number>>;
-          readonly after: Readonly<Record<string, number>>;
-        };
-      };
-    };
+  // 응답 타입을 그대로 쓴다. 모양을 여기 다시 적으면 서버와 갈라져도 알 수 없다.
+  | { readonly status: "done"; readonly preview: FitPreviewResponse };
+
+/**
+ * 가정 전후 집중도 한 줄.
+ *
+ * 색은 기준선 판정(`status`)을 따른다. 조정 후라고 무조건 안전색을 칠하면
+ * 여전히 기준선을 넘는 결과를 안전한 것처럼 보이게 만든다.
+ */
+function ConcentrationPointRow({
+  label,
+  point,
+}: {
+  readonly label: string;
+  readonly point: FitPreviewConcentrationPoint;
+}) {
+  const isAbove = isConcentrationAboveThreshold(point.status);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: "0.5rem",
+        fontSize: "0.875rem",
+        fontWeight: 600,
+      }}
+    >
+      <span style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+          {point.topCurrencyCode} · {toConcentrationStatusLabel(point.status)}
+        </span>
+        <span
+          style={{
+            color: isAbove ? "var(--danger)" : "var(--normal)",
+            fontWeight: 700,
+          }}
+        >
+          {toPercent(point.share)}%
+        </span>
+      </span>
+    </div>
+  );
+}
 
 interface XRayFitnessViewProps {
   readonly data: XRayDashboardData;
@@ -331,22 +364,14 @@ export function XRayFitnessView({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", fontWeight: 600 }}>
-                <span style={{ color: "var(--text-muted)" }}>조정 전 집중도</span>
-                <span style={{ color: "var(--danger)", fontWeight: 700 }}>
-                  {concentration.sharePct === undefined
-                    ? "-"
-                    : `${concentration.sharePct}%`}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", fontWeight: 600 }}>
-                <span style={{ color: "var(--text-muted)" }}>조정 후 집중도</span>
-                <span style={{ color: "var(--normal)", fontWeight: 700 }}>
-                  {previewState.preview.concentration.share === undefined
-                    ? "-"
-                    : `${toPercent(previewState.preview.concentration.share)}%`}
-                </span>
-              </div>
+              <ConcentrationPointRow
+                label="조정 전 집중도"
+                point={previewState.preview.concentration.before}
+              />
+              <ConcentrationPointRow
+                label="조정 후 집중도"
+                point={previewState.preview.concentration.after}
+              />
               <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
                 {previewState.preview.assumption}
               </p>
