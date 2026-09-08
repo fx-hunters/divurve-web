@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Icon } from "../../components/common/icon";
 import type { FitPreviewRequest } from "../../api/generated/divurve-api";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
-import { toPercent } from "./xray-presenter";
+import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
+import { toFitnessExplanationFacts, toPercent } from "./xray-presenter";
 
 export type FitPreviewState =
   | { readonly status: "idle" }
@@ -25,6 +27,8 @@ interface XRayFitnessViewProps {
   readonly previewState: FitPreviewState;
   readonly onPreviewAdjustment: (input: FitPreviewRequest) => void;
   readonly onNavigateToPlanner: () => void;
+  /** AI 설명 요청 경로 주입 지점. 없으면 공용 훅의 기본 경로를 쓴다. */
+  readonly explanationRequester?: ExplanationRequester;
 }
 
 const CARD_STYLE = {
@@ -52,6 +56,7 @@ export function XRayFitnessView({
   previewState,
   onPreviewAdjustment,
   onNavigateToPlanner,
+  explanationRequester,
 }: XRayFitnessViewProps) {
   const { concentration } = data;
   const otherCurrencies = CANDIDATE_CURRENCIES.filter(
@@ -338,6 +343,14 @@ export function XRayFitnessView({
           )}
         </div>
       </div>
+
+      {/* 3행: 적합도 결과에 대한 AI 설명 */}
+      <XRayAiExplanation
+        surface={XRAY_FITNESS_SURFACE}
+        title="통화 적합도 AI 설명"
+        facts={toFitnessExplanationFacts(data)}
+        requester={explanationRequester}
+      />
     </div>
   );
 }

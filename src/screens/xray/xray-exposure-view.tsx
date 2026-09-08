@@ -1,6 +1,9 @@
 import { DonutChart } from "../../components/common/donut-chart";
 import { Badge } from "../../components/common/badge";
 import { Icon } from "../../components/common/icon";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
+import { XRayAiExplanation, XRAY_EXPOSURE_SURFACE } from "./xray-ai-explanation";
+import { toExposureExplanationFacts } from "./xray-presenter";
 import type {
   StressRunResult,
   XRayDashboardData,
@@ -29,6 +32,8 @@ interface XRayExposureViewProps {
   readonly runState: { readonly status: string; readonly message?: string };
   readonly runResult: StressRunResult | null;
   readonly onSelectScenario: (code: string) => void;
+  /** AI 설명 요청 경로 주입 지점. 없으면 공용 훅의 기본 경로를 쓴다. */
+  readonly explanationRequester?: ExplanationRequester;
 }
 
 const CARD_STYLE = {
@@ -53,6 +58,7 @@ export function XRayExposureView({
   runState,
   runResult,
   onSelectScenario,
+  explanationRequester,
 }: XRayExposureViewProps) {
   return (
     <div
@@ -434,6 +440,16 @@ export function XRayExposureView({
             </div>
           )}
         </div>
+      </div>
+
+      {/* AI 설명은 두 컬럼 아래에 한 줄로 놓는다. */}
+      <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
+        <XRayAiExplanation
+          surface={XRAY_EXPOSURE_SURFACE}
+          title="통화 노출 AI 설명"
+          facts={toExposureExplanationFacts(data)}
+          requester={explanationRequester}
+        />
       </div>
     </div>
   );
