@@ -109,6 +109,25 @@ describe("AuthPage Component", () => {
     expect(onBackMock).toHaveBeenCalledTimes(1);
   });
 
+  it("모드가 바뀌면 onModeChange로 바뀐 모드를 알린다", () => {
+    const onModeChangeMock = vi.fn();
+    render(
+      <AuthPage
+        initialMode="login"
+        onModeChange={onModeChangeMock}
+        onSuccess={onSuccessMock}
+        onBack={onBackMock}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "회원가입" }));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(onModeChangeMock).toHaveBeenCalledWith("signup");
+  });
+
   it("탭 스위처 및 하단 전환 링크 클릭 시 부드럽게 모드가 전환된다", () => {
     render(<AuthPage initialMode="login" onSuccess={onSuccessMock} onBack={onBackMock} />);
 
