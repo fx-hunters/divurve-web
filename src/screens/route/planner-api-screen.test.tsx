@@ -96,6 +96,7 @@ function dependencies(
     skip: vi.fn().mockResolvedValue(skipResult),
     preview: vi.fn().mockResolvedValue(previewPlan),
     create: vi.fn().mockResolvedValue(createdPlan),
+    createGoal: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.goal),
     previewScenario: vi.fn().mockResolvedValue(scenarioResult),
     apply: vi.fn().mockResolvedValue(activePlan),
     createExecutionKey: vi.fn(() => "screen-key"),

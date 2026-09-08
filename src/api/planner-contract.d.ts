@@ -3,6 +3,29 @@ export interface PlannerPlanRequest {
   readonly currencyCode: string;
 }
 
+export type PlannerGoalKind = "deadline" | "recurring";
+
+export type PlannerGoalPurpose =
+  | "TRAVEL"
+  | "TUITION"
+  | "ONE_TIME_PURCHASE"
+  | "STOCK_ACCUMULATION";
+
+/** 현재 GoalCreateRequest가 실제로 받는 필드만 표현한다. */
+export interface PlannerGoalCreateRequest {
+  readonly name: string;
+  readonly kind: PlannerGoalKind;
+  readonly purpose: PlannerGoalPurpose;
+  readonly currencyCode: string;
+  readonly targetAmount: number;
+  readonly targetDate: string | null;
+  readonly recurInterval: string | null;
+  readonly budgetAmount: number;
+  readonly budgetCurrencyCode: "KRW";
+  readonly budgetPeriod: string | null;
+  readonly isSpeculative: false;
+}
+
 export interface PlannerCostRange {
   readonly lowKrw: number;
   readonly baseKrw: number;

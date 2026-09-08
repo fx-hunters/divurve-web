@@ -36,7 +36,7 @@ const scenarioResult: PlannerScenarioPreviewResponse = {
 };
 
 function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies {
-  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
+  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), createGoal: vi.fn().mockResolvedValue(overview().items[0]!.goal), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -239,6 +239,74 @@ describe("usePlannerApi", () => {
     expect(result.current.actionState).toMatchObject({
       status: "success",
       message: expect.stringContaining("최신 활성 계획을 확인했습니다"),
+    });
+  });
+
+  it("목표 생성은 중복 요청을 막고 서버 재조회 뒤 결과를 반환한다", async () => {
+    const pending = deferred<ReturnType<typeof overview>["items"][number]["goal"]>();
+    const createGoal = vi.fn().mockReturnValue(pending.promise);
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ createGoal, load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const input = {
+      name: "여행",
+      kind: "deadline" as const,
+      purpose: "TRAVEL" as const,
+      currencyCode: "USD",
+      targetAmount: 100,
+      targetDate: "2027-01-01",
+      recurInterval: "monthly",
+      budgetAmount: 0,
+      budgetCurrencyCode: "KRW" as const,
+      budgetPeriod: null,
+      isSpeculative: false as const,
+    };
+
+    act(() => {
+      void result.current.createGoal(input);
+      void result.current.createGoal(input);
+    });
+    expect(createGoal).toHaveBeenCalledOnce();
+    await act(async () => pending.resolve(overview().items[0]!.goal));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("서버에서 다시 확인"),
+    });
+  });
+
+  it("목표 생성 실패를 표시하고 재조회하지 않는다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({
+      load,
+      createGoal: vi.fn().mockRejectedValue(new ApiError("목표 생성 실패", 400)),
+    });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      expect(
+        await result.current.createGoal({
+          name: "여행",
+          kind: "deadline",
+          purpose: "TRAVEL",
+          currencyCode: "USD",
+          targetAmount: 100,
+          targetDate: "2027-01-01",
+          recurInterval: null,
+          budgetAmount: 0,
+          budgetCurrencyCode: "KRW",
+          budgetPeriod: null,
+          isSpeculative: false,
+        }),
+      ).toBeNull();
+    });
+
+    expect(load).toHaveBeenCalledOnce();
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message: "목표 생성 실패",
     });
   });
 

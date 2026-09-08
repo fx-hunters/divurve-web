@@ -5,6 +5,7 @@ import type {
   PlannerCalculationMeta,
   PlannerCostRange,
   PlannerPlanGoal,
+  PlannerGoalCreateRequest,
   PlannerPlanRequest,
   PlannerPlanResponse,
   PlannerPlanStep,
@@ -283,6 +284,22 @@ export async function fetchPlanVersions(
 /** 계획 버전 하나의 상세(`GET /api/v1/plans/{id}`). 회차까지 함께 온다. */
 export function fetchPlanDetail(planId: string): Promise<PlannerPlanResponse> {
   return requestPlan(`/api/v1/plans/${encodeURIComponent(planId)}`);
+}
+
+/**
+ * 로그인한 회원의 목표를 생성한다.
+ *
+ * 현재 배포 계약에는 목표별 보유 외화 배정과 우선 조건 입력이 없으므로 이
+ * 함수는 GoalCreateRequest 필드만 전달한다. 누락된 계약을 임의 필드로 보충하지
+ * 않는다.
+ */
+export function createPlannerGoal(
+  input: PlannerGoalCreateRequest,
+): Promise<GoalResponse> {
+  return request<GoalResponse>("/api/v1/goals", {
+    method: "POST",
+    body: input,
+  });
 }
 
 export function completePlanStep(

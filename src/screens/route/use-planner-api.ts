@@ -4,6 +4,7 @@ import type { GoalResponse } from "../../api/generated/divurve-api";
 import {
   applyDraftPlan,
   completePlanStep,
+  createPlannerGoal,
   createGoalPlan,
   createPlannerExecutionKey,
   fetchPlannerOverview,
@@ -14,6 +15,7 @@ import {
 } from "../../api/planner";
 import type {
   PlannerPlanResponse,
+  PlannerGoalCreateRequest,
   PlannerScenarioPreviewRequest,
   PlannerScenarioPreviewResponse,
   PlannerStepCompleteResponse,
@@ -28,6 +30,7 @@ export type PlannerApiState =
   | { readonly status: "success"; readonly data: PlannerApiOverview };
 
 type PlannerActionResult =
+  | GoalResponse
   | PlannerPlanResponse
   | PlannerScenarioPreviewResponse
   | PlannerStepCompleteResponse
@@ -49,6 +52,7 @@ export interface PlannerApiDependencies {
   readonly skip: typeof skipPlanStep;
   readonly preview: typeof previewGoalPlan;
   readonly create: typeof createGoalPlan;
+  readonly createGoal: typeof createPlannerGoal;
   readonly previewScenario: typeof previewPlanScenario;
   readonly apply: typeof applyDraftPlan;
   readonly createExecutionKey: () => string;
@@ -65,6 +69,7 @@ const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
   skip: skipPlanStep,
   preview: previewGoalPlan,
   create: createGoalPlan,
+  createGoal: createPlannerGoal,
   previewScenario: previewPlanScenario,
   apply: applyDraftPlan,
   createExecutionKey: createPlannerExecutionKey,
@@ -272,6 +277,31 @@ export function usePlannerApi(
     [dependencies],
   );
 
+  const createGoal = useCallback(
+    async (input: PlannerGoalCreateRequest): Promise<GoalResponse | null> => {
+      if (isActionPendingRef.current) return null;
+      isActionPendingRef.current = true;
+      setActionState({ status: "loading" });
+      try {
+        const result = await dependencies.createGoal(input);
+        const refreshed = await dependencies.load();
+        setState({ status: "success", data: refreshed });
+        setActionState({
+          status: "success",
+          message: "목표를 만들고 서버에서 다시 확인했습니다.",
+          result,
+        });
+        isActionPendingRef.current = false;
+        return result;
+      } catch (error) {
+        setActionState({ status: "error", message: errorMessage(error) });
+        isActionPendingRef.current = false;
+        return null;
+      }
+    },
+    [dependencies],
+  );
+
   const previewScenario = useCallback(
     async (
       planId: string,
@@ -346,6 +376,7 @@ export function usePlannerApi(
     skip,
     preview,
     create,
+    createGoal,
     previewScenario,
     apply,
     clearTransient,

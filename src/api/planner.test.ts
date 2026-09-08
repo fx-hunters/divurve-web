@@ -6,6 +6,7 @@ import {
   applyDraftPlan,
   completePlanStep,
   createGoalPlan,
+  createPlannerGoal,
   createPlannerExecutionKey,
   fetchPlanDetail,
   fetchPlanVersions,
@@ -204,6 +205,30 @@ describe("planner API", () => {
     expect(request).toHaveBeenNthCalledWith(2, "/api/v1/goals/goal%2Fa/plans", {
       method: "POST",
       body: { goalId: "goal/a", currencyCode: "USD" },
+    });
+  });
+
+  it("목표 생성은 현재 서버 GoalCreateRequest 필드만 전달한다", async () => {
+    const input = {
+      name: "일본 여행",
+      kind: "deadline" as const,
+      purpose: "TRAVEL" as const,
+      currencyCode: "JPY",
+      targetAmount: 180_000,
+      targetDate: "2027-03-01",
+      recurInterval: "monthly",
+      budgetAmount: 500_000,
+      budgetCurrencyCode: "KRW" as const,
+      budgetPeriod: "monthly",
+      isSpeculative: false as const,
+    };
+    const goal = { ...firstItem.goal, ...input, id: "created-goal" };
+    vi.mocked(request).mockResolvedValue(goal);
+
+    await expect(createPlannerGoal(input)).resolves.toEqual(goal);
+    expect(request).toHaveBeenCalledWith("/api/v1/goals", {
+      method: "POST",
+      body: input,
     });
   });
 
