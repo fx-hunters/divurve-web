@@ -4,7 +4,7 @@ import { presentPlannerOverview } from "./planner-api-presenter";
 import { toPlanSummaryFacts } from "./planner-plan-facts";
 
 describe("toPlanSummaryFacts", () => {
-  it("활성 계획과 목표의 서버 값을 그대로 옮긴다", () => {
+  it("활성 계획의 배정액과 완료 기록이 반영된 현재 확보액을 옮긴다", () => {
     const view = presentPlannerOverview(PLANNER_API_FIXTURE, "goal-usd");
 
     expect(toPlanSummaryFacts(view)).toEqual({
@@ -18,7 +18,7 @@ describe("toPlanSummaryFacts", () => {
       policy_version: "planner-v1",
       currency_code: "USD",
       target_amount: 3_000,
-      held_amount: 1_260,
+      held_amount: 1_405,
       target_date: "2026-12-31",
     });
   });

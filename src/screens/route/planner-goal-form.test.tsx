@@ -17,6 +17,7 @@ describe("PlannerGoalForm", () => {
     );
 
     expect(screen.getByRole("radio", { name: /반복형/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /마감형/ }));
     fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
       target: { value: "일본 여행" },
     });
@@ -68,6 +69,8 @@ describe("PlannerGoalForm", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("radio", { name: /반복형/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /마감형/ }));
     fireEvent.click(screen.getByRole("radio", { name: /반복형/ }));
     fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
       target: { value: "ETF 준비" },

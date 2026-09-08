@@ -25,6 +25,7 @@ import {
 } from "../api/diagnosis-progress-store";
 import {
   dashboardRoute,
+  plannerDetailRoute,
   resolvePostAuthRoute,
   DIAGNOSIS_RESULT_ROUTE,
   LANDING_ROUTE,
@@ -258,6 +259,7 @@ export function App({ ensureSession }: AppProps = {}) {
 
   const activeTab = route.tab;
   const showDiagnosisResult = route.view === "diagnosisResult";
+  const plannerDetail = route.view === "plannerDetail" ? route : null;
   const isDemoAccount = sessionState.accountKind === "demo";
   const currentTabItem = NAV_ITEMS.find((item) => item.id === activeTab);
   const activeTabTitle = currentTabItem!.label;
@@ -288,7 +290,23 @@ export function App({ ensureSession }: AppProps = {}) {
               <HomeScreen onNavigate={handleNavigate} />
             )}
             {activeTab === "planner" && (
-              <RouteScreen mode={isDemoAccount ? "demo" : "api"} onNavigate={handleNavigate} />
+              <RouteScreen
+                mode={isDemoAccount ? "demo" : "api"}
+                onNavigate={handleNavigate}
+                detailRoute={
+                  plannerDetail === null
+                    ? undefined
+                    : {
+                        source: plannerDetail.source,
+                        goalId: plannerDetail.goalId,
+                        planId: plannerDetail.planId,
+                      }
+                }
+                onOpenPlanDetail={(source, goalId, planId) =>
+                  navigate(plannerDetailRoute(source, goalId, planId))
+                }
+                onBackFromDetail={() => navigate(dashboardRoute("planner"))}
+              />
             )}
             {activeTab === "assets" && (
               <XRayScreen onNavigate={handleNavigate} />

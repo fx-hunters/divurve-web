@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import type {
   PlannerPlanResponse,
@@ -109,10 +109,12 @@ async function openAction(deps = dependencies()) {
   render(<PlannerApiScreen dependencies={deps} />);
   await screen.findByRole("region", { name: "API 플래너" });
   fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
-  fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-  fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
   return deps;
 }
+
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
 
 describe("PlannerApiScreen", () => {
   it("로딩, 오류 재시도, 빈 목표를 각각 표시한다", async () => {
@@ -167,7 +169,7 @@ describe("PlannerApiScreen", () => {
       }),
     );
     expect(
-      await screen.findByText("미국 ETF 준비의 현재 위치입니다"),
+      await screen.findByRole("heading", { name: "미국 ETF 준비" }),
     ).toBeInTheDocument();
   });
 
@@ -186,7 +188,8 @@ describe("PlannerApiScreen", () => {
     render(<PlannerApiScreen dependencies={deps} />);
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 미리보기" }));
 
     expect(await screen.findByRole("heading", { name: "이 계획을 만들기 전에 확인해 주세요" })).toBeInTheDocument();
     expect(deps.preview).toHaveBeenCalledOnce();
@@ -194,9 +197,9 @@ describe("PlannerApiScreen", () => {
     expect(screen.getByText(/아직 활성 계획으로 저장되지 않았습니다/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "현재 상태로" }));
     expect(
-      screen.getByRole("heading", { name: "일본 여행 준비의 현재 위치입니다" }),
+      screen.getByRole("heading", { name: "일본 여행 준비" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 미리보기" }));
     expect(
       await screen.findByRole("heading", {
         name: "이 계획을 만들기 전에 확인해 주세요",
@@ -211,15 +214,21 @@ describe("PlannerApiScreen", () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 
-  it("Curve, 다음 행동과 상세 drawer를 단계별로 표시한다", async () => {
-    await openAction();
+  it("현재 상태, Curve와 다음 행동을 함께 표시하고 상세 경로를 요청한다", async () => {
+    const onOpenPlanDetail = vi.fn();
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        onOpenPlanDetail={onOpenPlanDetail}
+      />,
+    );
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "2회차를 확인할까요?" })).toBeInTheDocument();
     const detail = screen.getByRole("button", { name: "전체 계획 상세 보기" });
     fireEvent.click(detail);
-    expect(screen.getByRole("dialog")).toHaveTextContent("활성 계획 v2");
-    fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(detail).toHaveFocus();
+    expect(onOpenPlanDetail).toHaveBeenCalledWith("goal-usd", "plan-usd");
   });
 
   it("완료 입력을 검증하고 안정적인 execution key로 한 번만 제출한다", async () => {
@@ -243,7 +252,9 @@ describe("PlannerApiScreen", () => {
     expect(complete).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "서버에 반영 중…" })).toBeDisabled();
     resolveComplete(completeResult);
-    expect(await screen.findByText("이번 회차 기록을 마쳤습니다")).toBeInTheDocument();
+    expect(
+      await screen.findByText("2회차 기록 후 최신 계획을 확인했습니다."),
+    ).toBeInTheDocument();
     expect(deps.complete).toHaveBeenCalledWith("plan-usd", 2, {
       executedAmount: 150,
       executedRate: 1395,
@@ -255,9 +266,20 @@ describe("PlannerApiScreen", () => {
   it("건너뛰기는 저장 완료가 아닌 미리보기로 안내한다", async () => {
     const deps = await openAction();
     fireEvent.click(screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }));
-    expect(await screen.findByRole("heading", { name: "상황이 달라지면 경로를 비교해 보세요" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "어떤 변화가 생겼나요?" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("아직 계획에는 적용되지 않았습니다");
     expect(screen.queryByText(/저장되었습니다|반영되었습니다/)).not.toBeInTheDocument();
+    expect(screen.getByText("변경 160 USD")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "적용 가능한 변경안 비교" }),
+    );
+    await waitFor(() =>
+      expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
+        scenarioCode: "STEP_SKIPPED",
+        skippedSeq: 2,
+      }),
+    );
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
     expect(deps.skip).toHaveBeenCalledWith("plan-usd", 2);
     expect(deps.load).toHaveBeenCalledTimes(1);
   });
@@ -266,17 +288,15 @@ describe("PlannerApiScreen", () => {
     const deps = await openAction();
     fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
     fireEvent.click(screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }));
-    expect(await screen.findByText("변경 후 2회")).toBeInTheDocument();
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
     expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
       scenarioCode: "RATE_UP",
     });
     expect(deps.apply).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "변경 내용 확인" }));
-    expect(deps.apply).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "이 계획 적용" }));
-    expect(await screen.findByText("대체 계획을 적용했습니다")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "변경안 적용" }));
+    expect(await screen.findByText(/최신 활성 계획을 확인했습니다/)).toBeInTheDocument();
     expect(deps.apply).toHaveBeenCalledWith("draft-usd");
-    fireEvent.click(screen.getByRole("button", { name: "다른 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
     expect(
       screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" }),
     ).toBeInTheDocument();
@@ -294,13 +314,15 @@ describe("PlannerApiScreen", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }),
     );
-    expect(await screen.findByText("변경 후 2회")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "변경 내용 확인" }));
-    fireEvent.click(screen.getByRole("button", { name: "이 계획 적용" }));
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
+    const apply = screen.getByRole("button", { name: "변경안 적용" });
+    expect(apply).toBeDisabled();
+    apply.removeAttribute("disabled");
+    fireEvent.click(apply);
 
     expect(deps.apply).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("heading", { name: "이 변경 계획을 적용할까요?" }),
+      screen.getByRole("heading", { name: "어떤 변화가 생겼나요?" }),
     ).toBeInTheDocument();
   });
 
@@ -317,7 +339,7 @@ describe("PlannerApiScreen", () => {
         skippedSeq: 2,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "다음 행동으로 돌아가기" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "상황 비교 닫기" })[1]!);
     expect(
       screen.getByRole("heading", { name: "2회차를 확인할까요?" }),
     ).toBeInTheDocument();
@@ -366,11 +388,8 @@ describe("PlannerApiScreen", () => {
     );
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
     expect(screen.getByRole("heading", { name: "남은 회차가 없습니다" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("API 작업 실패를 fixture로 대체하지 않고 복구 메시지를 남긴다", async () => {
@@ -410,8 +429,8 @@ describe("PlannerApiScreen", () => {
     fireEvent.click(activeVersion);
     expect(await screen.findByText("전체 회차")).toBeInTheDocument();
     expect(planVersionDependencies.loadDetail).toHaveBeenCalledWith("plan-usd");
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
-    expect(screen.getByText("미국 ETF 준비의 현재 위치입니다")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "현재 계획으로 돌아가기" }));
+    expect(screen.getByRole("heading", { name: "미국 ETF 준비" })).toBeInTheDocument();
   });
 
   it("활성 계획이 없는 목표에서도 빈 계획 이력을 확인한다", async () => {
@@ -427,6 +446,7 @@ describe("PlannerApiScreen", () => {
     );
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
 
     expect(

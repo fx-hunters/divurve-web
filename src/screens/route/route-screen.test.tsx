@@ -1,18 +1,20 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import { loadRoutePlan } from "../../api/route";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import { RouteScreen } from "./route-screen";
+import { PlannerDemoScreen } from "./planner-demo-screen";
+import type { PlannerPlanDetailDependencies } from "./planner-plan-detail-screen";
 import type { PlannerApiDependencies } from "./use-planner-api";
+import { writePlannerGoalSelection } from "./planner-ui-selection";
 
 async function enterDemoAction(goalName = "미국 ETF 정기 투자") {
   render(<RouteScreen />);
   fireEvent.click(
     await screen.findByRole("button", { name: new RegExp(goalName) }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-  fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
+  fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
 }
 
 beforeEach(() => {
@@ -36,19 +38,17 @@ describe("RouteScreen", () => {
     expect(screen.getByTestId("planner-journey-screen")).toBeInTheDocument();
   });
 
-  it("목표 선택부터 현재 상태, Curve, 다음 행동을 장면별로 이동한다", async () => {
+  it("목표 선택 뒤 현재 상태, Curve, 다음 행동을 한 화면에 연결한다", async () => {
     render(<RouteScreen />);
     fireEvent.click(
       await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }),
     );
 
-    expect(screen.getByText("미국 ETF 정기 투자의 현재 위치입니다")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "계획 Curve" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("heading", { name: "미국 ETF 정기 투자" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "계획 경로" })).toBeInTheDocument();
-    expect(screen.queryByText("실행 외화 금액")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
+    expect(screen.getByText("계획 누적액")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이번 회차 데모 기록" })).toBeInTheDocument();
   });
 
@@ -67,21 +67,24 @@ describe("RouteScreen", () => {
       expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
     }
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }),
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }),
+      );
+    });
+    expect(screen.getAllByText(/기존 /).length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-curve-role="alternative"]')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/외화 누적 경로를 바꿀 날짜·금액이 응답에 없어/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("최종 버튼을 누르기 전까지 현재 활성 계획은 유지됩니다.")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "데모에 적용" }));
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "서버 데이터는 바뀌지 않았습니다",
     );
-    expect(screen.getAllByText(/변경 전/).length).toBeGreaterThan(0);
-    expect(document.querySelector('[data-curve-role="alternative"]')).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "이 계획 적용" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "변경 내용 확인" }));
-    expect(screen.getByText("이 버튼을 누르기 전까지 현재 활성 계획은 변경되지 않습니다.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "비교로 돌아가기" }));
-    expect(screen.getByRole("heading", { name: "상황이 달라지면 경로를 비교해 보세요" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "변경 내용 확인" }));
-    fireEvent.click(screen.getByRole("button", { name: "이 계획 적용" }));
-    expect(await screen.findByText("대체 경로를 데모에 적용했습니다")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("서버 데이터는 바뀌지 않았습니다");
+    fireEvent.animationEnd(document.querySelector(".planner-main")!);
   });
 
   it("데모 기록과 건너뛰기는 Planner API를 호출하지 않는다", async () => {
@@ -101,12 +104,9 @@ describe("RouteScreen", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "이번 회차 데모 기록" }));
-    expect(await screen.findByText("이번 회차를 데모로 기록했습니다")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "최신 Curve 확인" }));
-    fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("데모 화면에서만 기록했습니다");
     fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
     fireEvent.click(screen.getByRole("button", { name: /이번 회차를 놓치면/ }));
 
@@ -123,7 +123,7 @@ describe("RouteScreen", () => {
     );
     expect(
       await screen.findByRole("heading", {
-        name: "상황이 달라지면 경로를 비교해 보세요",
+        name: "어떤 변화가 생겼나요?",
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -137,20 +137,117 @@ describe("RouteScreen", () => {
 
   it("마감형 목표도 같은 장면 구조와 fixture 표시값을 사용한다", async () => {
     await enterDemoAction("일본 여행 준비");
-    expect(screen.getByRole("heading", { name: "첫 마감 보호 회차 확인" }).parentElement).toHaveTextContent("35,000 JPY");
-    fireEvent.click(screen.getByRole("button", { name: "Curve로 돌아가기" }));
-    expect(screen.getByRole("status")).toHaveTextContent("보호 1");
+    expect(screen.getByRole("heading", { name: "1회차 준비 내용 확인" }).parentElement).toHaveTextContent("35,000 JPY");
+    expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
   });
 
-  it("계획 상세를 열고 Escape로 닫은 뒤 트리거에 포커스를 돌려준다", async () => {
-    await enterDemoAction();
+  it("같은 세션에서 선택한 데모 목표를 다시 열 때 복원한다", async () => {
+    writePlannerGoalSelection("jpy-travel-deadline-demo");
+    render(<RouteScreen />);
+
+    const selected = await screen.findByRole("button", { name: /일본 여행 준비/ });
+    expect(selected).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("heading", { name: "일본 여행 준비" })).toBeInTheDocument();
+  });
+
+  it("새 데모 목표는 서버 저장 없이 현재 화면에만 추가한다", async () => {
+    render(<RouteScreen />);
+    await screen.findByRole("region", { name: "데모 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "유럽 여행 준비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 통화"), {
+      target: { value: "EUR" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "2400" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-12-31" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "데모 목표 추가" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "유럽 여행 준비" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("2,400 EUR")).toHaveLength(2);
+    expect(screen.getByText(/목표를 데모 화면에만 추가했습니다/)).toBeInTheDocument();
+    expect(screen.getByText("아직 확인할 계획 Curve가 없습니다")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
+    expect(screen.getByRole("button", { name: /유럽 여행 준비/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("계획 상세 버튼은 선택 목표와 계획 식별자로 전용 경로 이동을 요청한다", async () => {
+    const onOpenPlanDetail = vi.fn();
+    render(<RouteScreen onOpenPlanDetail={onOpenPlanDetail} />);
+    fireEvent.click(await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     const trigger = screen.getByRole("button", { name: "전체 계획 상세 보기" });
     fireEvent.click(trigger);
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("체험용 fixture")).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(trigger).toHaveFocus();
+    expect(onOpenPlanDetail).toHaveBeenCalledWith(
+      "demo",
+      "usd-etf-recurring-demo",
+      "usd-etf-recurring-demo",
+    );
+  });
+
+  it("API 상세 경로를 공통 상세 화면으로 열고 플래너 복귀를 위임한다", async () => {
+    const onBack = vi.fn();
+    const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
+    const detailDependencies: PlannerPlanDetailDependencies = {
+      loadOverview: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+      loadPlan: vi.fn().mockResolvedValue(activePlan),
+      loadVersions: vi.fn().mockResolvedValue([]),
+    };
+    render(
+      <RouteScreen
+        mode="api"
+        detailRoute={{ source: "api", goalId: "goal-usd", planId: "plan-usd" }}
+        detailDependencies={detailDependencies}
+        onBackFromDetail={onBack}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "미국 ETF 준비" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("데모 상세 경로를 같은 상세 화면으로 열고 기본 복귀 동작도 안전하다", async () => {
+    render(
+      <RouteScreen
+        detailRoute={{
+          source: "demo",
+          goalId: "usd-etf-recurring-demo",
+          planId: "usd-etf-recurring-demo",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+  });
+
+  it("기본 상세 열기 콜백이 없어도 데모 여정은 안전하게 동작한다", async () => {
+    await enterDemoAction();
+    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
+  });
+
+  it("독립 데모 화면도 상세 이동 콜백 없이 안전하게 사용할 수 있다", async () => {
+    const data = await loadRoutePlan();
+    if (data === null) throw new Error("데모 플래너 데이터가 필요합니다.");
+    render(<PlannerDemoScreen data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
   });
 
   it("loading, empty, API 오류와 재시도를 각각 표시한다", async () => {
@@ -176,6 +273,7 @@ describe("RouteScreen", () => {
   });
 
   it("API 모드에서는 서버 목표와 동일한 공통 Journey 트리만 표시한다", async () => {
+    const onOpenPlanDetail = vi.fn();
     const apiDependencies: PlannerApiDependencies = {
       load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
       complete: vi.fn(),
@@ -188,7 +286,13 @@ describe("RouteScreen", () => {
       createExecutionKey: vi.fn(() => "api-key"),
       getToday: vi.fn(() => "2026-09-08"),
     };
-    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+    render(
+      <RouteScreen
+        mode="api"
+        apiDependencies={apiDependencies}
+        onOpenPlanDetail={onOpenPlanDetail}
+      />,
+    );
 
     const region = await screen.findByRole("region", { name: "API 플래너" });
     expect(region).toHaveAttribute("data-source", "sample");
@@ -196,6 +300,9 @@ describe("RouteScreen", () => {
     expect(screen.getByRole("button", { name: /미국 ETF 준비/ })).toBeInTheDocument();
     expect(screen.queryByText("미국 ETF 정기 투자")).not.toBeInTheDocument();
     expect(screen.getByTestId("planner-journey-screen")).toBe(region);
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
+    expect(onOpenPlanDetail).toHaveBeenCalledWith("api", "goal-usd", "plan-usd");
   });
 
   it("회원은 저장 없이 데모를 둘러본 뒤 계정 플래너로 돌아온다", async () => {

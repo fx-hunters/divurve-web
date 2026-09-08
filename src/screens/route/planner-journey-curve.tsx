@@ -1,19 +1,20 @@
 import { useId } from "react";
-import type {
-  PlannerCurveViewModel,
-  PlannerStepViewModel,
-} from "./planner-api-types";
+import type { PlannerCurveViewModel } from "./planner-api-types";
 
 interface PlannerCurveCanvasProps {
   readonly curve: PlannerCurveViewModel;
   readonly alternativeCurve?: PlannerCurveViewModel | null;
   readonly changedNodeIds?: readonly string[];
+  readonly selectedSequence?: number | null;
+  readonly onSelect?: (sequence: number) => void;
 }
 
 export function PlannerCurveCanvas({
   curve,
   alternativeCurve = null,
   changedNodeIds = [],
+  selectedSequence = null,
+  onSelect,
 }: PlannerCurveCanvasProps) {
   const descriptionId = useId();
   const changedIds = new Set(changedNodeIds);
@@ -87,6 +88,29 @@ export function PlannerCurveCanvas({
             className="planner-api-curve__svg-node"
             data-kind={node.status}
             data-changed={changedIds.has(node.id) || undefined}
+            data-selected={node.sequence === selectedSequence || undefined}
+            role={onSelect === undefined ? undefined : "button"}
+            tabIndex={onSelect === undefined ? undefined : 0}
+            aria-label={
+              onSelect === undefined
+                ? undefined
+                : `${node.roundLabel}, ${node.dateLabel}, 누적 ${node.cumulativeAmountLabel}, ${node.statusLabel}`
+            }
+            onClick={
+              onSelect === undefined
+                ? undefined
+                : () => onSelect(node.sequence)
+            }
+            onKeyDown={
+              onSelect === undefined
+                ? undefined
+                : (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(node.sequence);
+                    }
+                  }
+            }
           >
             <circle r={node.status === "next" ? 9 : 7} />
             {node.status === "completed" && <text className="planner-api-curve__mark" y="5">✓</text>}
@@ -114,96 +138,5 @@ export function PlannerCurveCanvas({
         </g>
       )}
     </svg>
-  );
-}
-
-interface PlannerJourneyCurveProps {
-  readonly curve: PlannerCurveViewModel;
-  readonly steps: readonly PlannerStepViewModel[];
-  readonly selectedSequence: number | null;
-  readonly onSelect: (sequence: number) => void;
-  readonly onContinue: () => void;
-  readonly onBack: () => void;
-}
-
-export function PlannerJourneyCurve({
-  curve,
-  steps,
-  selectedSequence,
-  onSelect,
-  onContinue,
-  onBack,
-}: PlannerJourneyCurveProps) {
-  const selected =
-    steps.find((step) => step.sequence === selectedSequence) ??
-    steps.find((step) => step.status === "next") ??
-    steps[0];
-  return (
-    <section
-      className="planner-api-journey__scene planner-api-journey__scene--curve"
-      aria-labelledby="planner-api-curve-question"
-    >
-      <p className="planner-api-journey__eyebrow">3 / 5 전체 계획</p>
-      <h2 id="planner-api-curve-question">
-        계획 Curve를 따라 다음 회차를 확인하세요
-      </h2>
-      <p className="planner-api-journey__lead">
-        가로축은 날짜, 세로축은 누적 확보 외화입니다. 점선은 환율 전망이 아니라 계획대로 준비했을 때의 금액입니다.
-      </p>
-      <div className="planner-api-curve" role="region" aria-label="계획 Curve">
-        <PlannerCurveCanvas curve={curve} />
-        <div className="planner-api-curve__nodes">
-          {curve.nodes.map((node) => (
-            <button
-              key={node.id}
-              type="button"
-              className="planner-api-curve__node"
-              data-kind={node.status}
-              data-selected={node.sequence === selected?.sequence}
-              aria-label={`${node.roundLabel} ${node.statusLabel}`}
-              onClick={() => onSelect(node.sequence)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(node.sequence);
-                }
-              }}
-            >
-              <span aria-hidden="true" />
-              <strong>{node.roundLabel}</strong>
-              <small>{node.statusLabel}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-      {curve.dataNotice !== null && (
-        <p className="planner-api__notice">{curve.dataNotice}</p>
-      )}
-      {selected !== undefined && (
-        <div className="planner-api-curve__selection" role="status">
-          <strong>{selected.sequenceLabel}</strong>
-          <span>
-            {selected.scheduledDate} · 이번 회차 {selected.amountLabel} · 누적 {selected.cumulativeAmountLabel}
-          </span>
-          <span>{selected.actionLabel} · {selected.calculationBasis}</span>
-        </div>
-      )}
-      <div className="planner-api-journey__buttons">
-        <button
-          type="button"
-          className="planner-api-journey__secondary"
-          onClick={onBack}
-        >
-          현재 상태
-        </button>
-        <button
-          type="button"
-          className="planner-api-journey__primary"
-          onClick={onContinue}
-        >
-          다음 행동 보기
-        </button>
-      </div>
-    </section>
   );
 }

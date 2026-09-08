@@ -53,7 +53,7 @@ export function PlannerPlanHistory({
           className="planner-api-journey__secondary"
           onClick={onBack}
         >
-          현재 상태
+          현재 계획으로 돌아가기
         </button>
       </div>
     </section>

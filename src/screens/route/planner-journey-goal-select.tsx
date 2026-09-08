@@ -22,7 +22,7 @@ export function PlannerJourneyGoalSelect({
   const hasGoals = goals.length > 0;
   return (
     <section className="planner-api-journey__scene" aria-labelledby="planner-api-goal-question">
-    <p className="planner-api-journey__eyebrow">1 / 5 목표 선택</p>
+    <p className="planner-api-journey__eyebrow">1 / 3 목표 선택</p>
     <h2 id="planner-api-goal-question">
       {hasGoals ? "어떤 외화 목표를 이어갈까요?" : "첫 외화 목표를 만들어 보세요"}
     </h2>

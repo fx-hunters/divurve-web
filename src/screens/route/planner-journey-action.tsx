@@ -17,8 +17,8 @@ interface PlannerJourneyActionProps {
   readonly onSkip: () => void;
   readonly onExplore: () => void;
   readonly onDetail: () => void;
-  readonly onBack: () => void;
   readonly detailButtonRef: RefObject<HTMLButtonElement>;
+  readonly scenarioButtonRef: RefObject<HTMLButtonElement>;
 }
 
 export function PlannerJourneyAction({
@@ -33,8 +33,8 @@ export function PlannerJourneyAction({
   onSkip,
   onExplore,
   onDetail,
-  onBack,
   detailButtonRef,
+  scenarioButtonRef,
 }: PlannerJourneyActionProps) {
   const [amount, setAmount] = useState("");
   const [rate, setRate] = useState("");
@@ -57,10 +57,10 @@ export function PlannerJourneyAction({
 
   return (
     <section
-      className="planner-api-journey__scene"
+      className="planner-main-action"
       aria-labelledby="planner-api-action-question"
     >
-      <p className="planner-api-journey__eyebrow">4 / 5 다음 행동</p>
+      <p className="planner-api-journey__eyebrow">다음 행동</p>
       <h2 id="planner-api-action-question">
         {action.title ?? `${action.sequence}회차를 확인할까요?`}
       </h2>
@@ -130,7 +130,8 @@ export function PlannerJourneyAction({
         )}
         {canExplore && (
           <button
-            className="planner-api-journey__text-button"
+            ref={scenarioButtonRef}
+            className="planner-api-journey__secondary"
             type="button"
             disabled={isPending}
             onClick={onExplore}
@@ -141,16 +142,9 @@ export function PlannerJourneyAction({
       </div>
       <div className="planner-api-journey__buttons">
         <button
-          type="button"
-          className="planner-api-journey__secondary"
-          onClick={onBack}
-        >
-          Curve로 돌아가기
-        </button>
-        <button
           ref={detailButtonRef}
           type="button"
-          className="planner-api-journey__text-button"
+          className="planner-api-journey__secondary"
           onClick={onDetail}
         >
           전체 계획 상세 보기

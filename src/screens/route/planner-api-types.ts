@@ -2,12 +2,11 @@ import type { PlannerApiItem } from "../../api/planner";
 import type { PlannerScenarioCode } from "../../api/planner-contract";
 import type { DataSourceKind } from "../../types/data-source";
 
-export type PlannerNodeStatus =
+export type PlannerStepNodeStatus =
   | "completed"
   | "next"
   | "upcoming"
-  | "skipped"
-  | "destination";
+  | "skipped";
 
 export interface PlannerGoalItemViewModel {
   readonly id: string;
@@ -62,7 +61,7 @@ export interface PlannerCurveNodeViewModel {
   readonly sequence: number;
   readonly x: number;
   readonly y: number;
-  readonly status: PlannerNodeStatus;
+  readonly status: PlannerStepNodeStatus;
   readonly statusLabel: string;
   readonly roundLabel: string;
   readonly date: string;
@@ -133,7 +132,7 @@ export interface PlannerStepViewModel {
   readonly cumulativeAmountLabel: string;
   readonly actionLabel: string;
   readonly calculationBasis: string;
-  readonly status: PlannerNodeStatus;
+  readonly status: PlannerStepNodeStatus;
   readonly statusLabel: string;
   readonly sequenceLabel: string;
 }
@@ -169,6 +168,7 @@ export interface PlannerScenarioComparisonViewModel {
   readonly reason: string;
   readonly nextAction: string;
   readonly draftPlanId: string | null;
+  readonly canRequestDraft?: boolean;
   readonly rows: readonly PlannerComparisonRowViewModel[];
   readonly baseCurve: PlannerCurveViewModel | null;
   readonly alternativeCurve: PlannerCurveViewModel | null;

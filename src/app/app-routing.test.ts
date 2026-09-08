@@ -5,6 +5,7 @@ import {
   LANDING_ROUTE,
   dashboardRoute,
   normalizePathname,
+  plannerDetailRoute,
   resolveAppRoute,
   resolvePostAuthRoute,
   toPathname,
@@ -38,6 +39,37 @@ describe("resolveAppRoute", () => {
 
   it("모르는 경로는 대시보드 홈으로 흡수한다", () => {
     expect(resolveAppRoute("/unknown", true)).toEqual(dashboardRoute("home"));
+  });
+
+  it.each([
+    [
+      "/route/goals/goal-usd/plans/plan-2",
+      plannerDetailRoute("api", "goal-usd", "plan-2"),
+    ],
+    [
+      "/route/demo/goals/demo%20goal/plans/demo%2Fplan",
+      plannerDetailRoute("demo", "demo goal", "demo/plan"),
+    ],
+  ] as const)("%s 계획 상세 경로를 출처와 식별자로 해석한다", (pathname, expected) => {
+    expect(resolveAppRoute(pathname, true)).toEqual(expected);
+  });
+
+  it("데모·비회원 세션은 API 계획 상세를 직접 조회하지 않는다", () => {
+    expect(
+      resolveAppRoute("/route/goals/goal-usd/plans/plan-2", false),
+    ).toEqual(dashboardRoute("planner"));
+    expect(
+      resolveAppRoute(
+        "/route/demo/goals/goal-demo/plans/plan-demo",
+        false,
+      ),
+    ).toEqual(plannerDetailRoute("demo", "goal-demo", "plan-demo"));
+  });
+
+  it("잘못 인코딩된 계획 상세 경로는 대시보드 홈으로 안전하게 되돌린다", () => {
+    expect(resolveAppRoute("/route/goals/%E0%A4%A/plans/plan", true)).toEqual(
+      dashboardRoute("home"),
+    );
   });
 
   it.each([
@@ -77,6 +109,14 @@ describe("toPathname", () => {
     [dashboardRoute("home"), APP_PATHS.dashboard],
     [dashboardRoute("assets"), APP_PATHS.assets],
     [DIAGNOSIS_RESULT_ROUTE, APP_PATHS.diagnosisResult],
+    [
+      plannerDetailRoute("api", "goal usd", "plan/2"),
+      "/route/goals/goal%20usd/plans/plan%2F2",
+    ],
+    [
+      plannerDetailRoute("demo", "goal-demo", "plan-demo"),
+      "/route/demo/goals/goal-demo/plans/plan-demo",
+    ],
   ] as const)("%o 라우트를 %s 경로로 되돌린다", (route, expected) => {
     expect(toPathname(route as AppRoute)).toBe(expected);
   });

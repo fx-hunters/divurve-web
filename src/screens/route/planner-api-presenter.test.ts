@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PlannerApiOverview } from "../../api/planner";
-import type { PlannerScenarioPreviewResponse } from "../../api/planner-contract";
+import type {
+  PlannerScenarioPreviewResponse,
+  PlannerStepSkipResponse,
+} from "../../api/planner-contract";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import {
   presentPlannerOverview,
   presentPlannerScenarioComparison,
+  presentPlannerSkipComparison,
 } from "./planner-api-presenter";
 import {
   rejectUnsupportedPlannerOperation,
@@ -362,6 +366,103 @@ describe("presentPlannerOverview", () => {
       after: "75 외화",
     });
     expect(emptyComparison.alternativeCurve).toBeNull();
+
+    const unchanged = presentPlannerScenarioComparison(
+      {
+        ...response,
+        changedSteps: [
+          {
+            seq: 3,
+            changeType: "amount_changed",
+            dateBefore: "2026-10-10",
+            dateAfter: "2026-10-10",
+            amountBefore: 30,
+            amountAfter: 30,
+          },
+        ],
+      },
+      model,
+      option,
+    );
+    expect(unchanged.baseCurve).toBe(model.curve);
+    expect(unchanged.alternativeCurve).toBeNull();
+
+    const staleView: PlannerViewModel = {
+      ...model,
+      curve: {
+        ...model.curve!,
+        currentDate: null,
+        targetDate: null,
+      },
+      curveNodes: [],
+      steps: [],
+    };
+    const safelyPartial = presentPlannerScenarioComparison(
+      response,
+      staleView,
+      option,
+    );
+    expect(safelyPartial.baseCurve).toBeNull();
+    expect(safelyPartial.alternativeCurve).not.toBeNull();
+
+    const withoutNodeIds = presentPlannerScenarioComparison(
+      response,
+      { ...model, curveNodes: [] },
+      option,
+    );
+    expect(withoutNodeIds.alternativeCurve?.nodes[0]?.id).toBe("scenario-1");
+  });
+
+  it("건너뛰기 응답은 저장되지 않은 재분배 영향으로만 표시한다", () => {
+    const model = presentPlannerOverview(overview());
+    const option = model.scenarioOptions!.find(
+      (candidate) => candidate.id === "missedRound",
+    )!;
+    const response: PlannerStepSkipResponse = {
+      seq: 2,
+      applied: false,
+      amountBefore: 20,
+      amountAfter: 30,
+      remainingAmount: 60,
+      remainingRounds: 2,
+      perRoundCostKrw: 42_000,
+      exceedsBudget: true,
+      adjustmentOptions: ["EXTEND_TARGET_DATE", "REDUCE_TARGET_AMOUNT"],
+    };
+
+    expect(presentPlannerSkipComparison(response, model, option)).toMatchObject({
+      id: "missedRound",
+      draftPlanId: null,
+      canRequestDraft: true,
+      alternativeCurve: null,
+      changedNodeIds: [],
+      rows: [
+        { label: "회차 준비 금액", before: "20 USD", after: "30 USD" },
+        { label: "남은 목표 금액", before: "기존 값 제공되지 않음", after: "60 USD" },
+        { label: "재분배할 회차", before: "기존 값 제공되지 않음", after: "2회" },
+        { label: "회차 예상 원화", before: "기존 값 제공되지 않음", after: "42,000원" },
+      ],
+      warnings: [
+        "재분배 후 회차 금액이 설정한 예산 범위를 넘습니다.",
+        "서버가 2개의 추가 조정 선택지를 제공했습니다.",
+      ],
+    });
+
+    expect(
+      presentPlannerSkipComparison(
+        { ...response, perRoundCostKrw: null, exceedsBudget: false, adjustmentOptions: [] },
+        { ...model, selectedGoal: null },
+        option,
+      ),
+    ).toMatchObject({
+      rows: [
+        { before: "20 외화", after: "30 외화" },
+        { after: "60 외화" },
+        { after: "2회" },
+        { after: "계산 근거 제공되지 않음" },
+      ],
+      warnings: [],
+    });
   });
 
   it("지원하지 않는 공급처 동작은 서버 호출 없이 false를 반환한다", async () => {

@@ -81,23 +81,6 @@ function errorMessage(error: unknown): string {
     : "플래너 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.";
 }
 
-export function replaceActivePlanState(
-  state: PlannerApiState,
-  goalId: string,
-  plan: PlannerPlanResponse,
-): PlannerApiState {
-  if (state.status !== "success") return state;
-  return {
-    status: "success",
-    data: {
-      ...state.data,
-      items: state.data.items.map((item) =>
-        item.goal.id === goalId ? { ...item, activePlan: plan } : item,
-      ),
-    },
-  };
-}
-
 export function usePlannerApi(
   dependencies: PlannerApiDependencies = DEFAULT_DEPENDENCIES,
 ) {
@@ -111,6 +94,8 @@ export function usePlannerApi(
   } | null>(null);
   const [scenarioPreview, setScenarioPreview] =
     useState<PlannerScenarioPreviewResponse | null>(null);
+  const [skipPreview, setSkipPreview] =
+    useState<PlannerStepSkipResponse | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const isActionPendingRef = useRef(false);
   const executionRef = useRef<{
@@ -168,13 +153,15 @@ export function usePlannerApi(
           executedDate: dependencies.getToday(),
           executionKey: executionRef.current.key,
         });
+        const refreshed = await dependencies.load();
+        setState({ status: "success", data: refreshed });
+        setSkipPreview(null);
         setActionState({
           status: "success",
-          message: `${result.seq}회차 기록을 서버에 저장했습니다.`,
+          message: `${result.seq}회차 기록 후 최신 계획을 확인했습니다.`,
           result,
         });
         executionRef.current = null;
-        setReloadKey((key) => key + 1);
         isActionPendingRef.current = false;
         return true;
       } catch (error) {
@@ -193,6 +180,8 @@ export function usePlannerApi(
       setActionState({ status: "loading" });
       try {
         const result = await dependencies.skip(planId, sequence);
+        setSkipPreview(result);
+        setScenarioPreview(null);
         setActionState({
           status: "success",
           message: `${sequence}회차 건너뛰기 이후의 계획 미리보기입니다. 아직 계획에는 적용되지 않았습니다.`,
@@ -217,6 +206,7 @@ export function usePlannerApi(
       try {
         const result = await dependencies.preview(goal);
         setPlanPreview({ goalId: goal.id, plan: result });
+        setSkipPreview(null);
         setScenarioPreview(null);
         setActionState({
           status: "success",
@@ -256,6 +246,7 @@ export function usePlannerApi(
         }
         setState({ status: "success", data: refreshed });
         setPlanPreview(null);
+        setSkipPreview(null);
         setActionState({
           status: "success",
           message: "계획을 만들고 최신 활성 계획을 확인했습니다.",
@@ -307,6 +298,7 @@ export function usePlannerApi(
       setActionState({ status: "loading" });
       try {
         const result = await dependencies.previewScenario(planId, input);
+        setSkipPreview(null);
         setScenarioPreview(result);
         setActionState({
           status: "success",
@@ -332,14 +324,27 @@ export function usePlannerApi(
       setActionState({ status: "loading" });
       try {
         const result = await dependencies.apply(draftPlanId);
-        setState((current) => replaceActivePlanState(current, goalId, result));
+        const refreshed = await dependencies.load();
+        const refreshedPlan = refreshed.items.find(
+          (item) => item.goal.id === goalId,
+        )?.activePlan;
+        if (typeof refreshedPlan?.planId !== "string") {
+          setActionState({
+            status: "error",
+            message:
+              "변경안 적용 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+          });
+          isActionPendingRef.current = false;
+          return false;
+        }
+        setState({ status: "success", data: refreshed });
+        setSkipPreview(null);
         setScenarioPreview(null);
         setActionState({
           status: "success",
-          message: "확인한 대체 계획을 적용했습니다.",
+          message: "변경안을 적용하고 최신 활성 계획을 확인했습니다.",
           result,
         });
-        setReloadKey((key) => key + 1);
         isActionPendingRef.current = false;
         return true;
       } catch (error) {
@@ -357,6 +362,7 @@ export function usePlannerApi(
   }, []);
   const clearTransient = useCallback(() => {
     setPlanPreview(null);
+    setSkipPreview(null);
     setScenarioPreview(null);
     setActionState({ status: "idle" });
   }, []);
@@ -365,6 +371,7 @@ export function usePlannerApi(
     state,
     actionState,
     planPreview,
+    skipPreview,
     scenarioPreview,
     reload,
     complete,

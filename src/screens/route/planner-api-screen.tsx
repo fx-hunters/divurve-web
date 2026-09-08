@@ -3,6 +3,7 @@ import { ApiStateView } from "../../components/common/api-state-view";
 import {
   presentPlannerOverview,
   presentPlannerScenarioComparison,
+  presentPlannerSkipComparison,
   replacePlannerPlan,
 } from "./planner-api-presenter";
 import {
@@ -20,21 +21,29 @@ import {
 } from "./use-planner-api";
 import { toPlannerGoalCreateRequest } from "./planner-goal-input";
 import type { PlanVersionDependencies } from "./use-plan-versions";
+import {
+  readPlannerUiSelection,
+  writePlannerGoalSelection,
+} from "./planner-ui-selection";
 import "./planner-api-screen.css";
 
 interface PlannerApiScreenProps {
   readonly dependencies?: PlannerApiDependencies;
   readonly planVersionDependencies?: PlanVersionDependencies;
   readonly onExploreDemo?: () => void;
+  readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
 }
 
 export function PlannerApiScreen({
   dependencies,
   planVersionDependencies,
   onExploreDemo,
+  onOpenPlanDetail = () => undefined,
 }: PlannerApiScreenProps) {
   const planner = usePlannerApi(dependencies);
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(
+    () => readPlannerUiSelection().goalId,
+  );
   const [selectedOption, setSelectedOption] =
     useState<PlannerScenarioOptionViewModel | null>(null);
 
@@ -74,6 +83,9 @@ export function PlannerApiScreen({
   const rawGoal = baseOverview.items.find(
     (item) => item.goal.id === activeGoalId,
   )?.goal;
+  const skippedOption = view.scenarioOptions?.find(
+    (option) => option.id === "missedRound",
+  );
   const comparison =
     planner.scenarioPreview !== null && selectedOption !== null
       ? presentPlannerScenarioComparison(
@@ -81,10 +93,17 @@ export function PlannerApiScreen({
           view,
           selectedOption,
         )
+      : planner.skipPreview !== null && skippedOption !== undefined
+        ? presentPlannerSkipComparison(
+            planner.skipPreview,
+            view,
+            skippedOption,
+          )
       : null;
 
   const handleSelectGoal = (goalId: string) => {
     setSelectedGoalId(goalId);
+    writePlannerGoalSelection(goalId);
     setSelectedOption(null);
     planner.clearTransient();
   };
@@ -98,6 +117,7 @@ export function PlannerApiScreen({
     const result = await planner.createGoal(toPlannerGoalCreateRequest(input));
     if (result === null) return null;
     setSelectedGoalId(result.id);
+    writePlannerGoalSelection(result.id);
     return result.id;
   };
   const handleClearTransient = () => {
@@ -131,14 +151,10 @@ export function PlannerApiScreen({
     };
     return planner.previewScenario(planId, input);
   };
-  const handleApply = async () => {
-    const draftPlanId = comparison?.draftPlanId;
-    if (typeof draftPlanId !== "string") {
-      return false;
-    }
-    if (activeGoalId === null) return false;
-    return planner.apply(activeGoalId, draftPlanId);
-  };
+  const handleApply = async () =>
+    typeof comparison?.draftPlanId === "string" && activeGoalId !== null
+      ? planner.apply(activeGoalId, comparison.draftPlanId)
+      : false;
   const feedback: PlannerJourneyFeedback =
     planner.actionState.status === "success"
       ? { status: "success", message: planner.actionState.message }
@@ -158,6 +174,7 @@ export function PlannerApiScreen({
         onCreate: handleCreateGoal,
       }}
       onExploreDemo={onExploreDemo}
+      onOpenPlanDetail={onOpenPlanDetail}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={handlePreviewPlan}
       onDiscardPlanPreview={handleClearTransient}

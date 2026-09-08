@@ -4,6 +4,7 @@ import type {
   PlannerPlanResponse,
   PlannerScenarioPreviewResponse,
   PlannerScenarioSide,
+  PlannerStepSkipResponse,
 } from "../../api/planner-contract";
 import {
   getDataSourceCopy,
@@ -11,7 +12,7 @@ import {
 } from "../../components/common/data-source-badge";
 import type {
   PlannerCurveViewModel,
-  PlannerNodeStatus,
+  PlannerStepNodeStatus,
   PlannerSourceItem,
   PlannerScenarioComparisonViewModel,
   PlannerScenarioOptionViewModel,
@@ -105,7 +106,7 @@ function progressPercent(heldAmount: number, targetAmount: number): number {
   return Math.min(100, Math.max(0, (heldAmount / targetAmount) * 100));
 }
 
-function statusLabel(status: PlannerNodeStatus): string {
+function statusLabel(status: PlannerStepNodeStatus): string {
   switch (status) {
     case "completed":
       return "완료";
@@ -115,8 +116,6 @@ function statusLabel(status: PlannerNodeStatus): string {
       return "예정";
     case "skipped":
       return "건너뜀";
-    case "destination":
-      return "목표 도착";
   }
 }
 
@@ -147,7 +146,7 @@ function nextStepIndex(item: PlannerSourceItem): number {
   );
 }
 
-function nodeStatus(status: string, isNext: boolean): PlannerNodeStatus {
+function nodeStatus(status: string, isNext: boolean): PlannerStepNodeStatus {
   if (status === "completed") return "completed";
   if (status === "skipped") return "skipped";
   return isNext ? "next" : "upcoming";
@@ -246,13 +245,15 @@ export function presentPlannerOverview(
       : undefined;
   const dataSourceKind = toApiDataSourceKind(overview.isSampleData);
   const curve = selected === null ? null : toCurve(selected, nextIndex);
-  const selectedCurrentAmount = selected === null ? null : currentAmount(selected);
+  const selectedCurrentAmount = selected === null ? 0 : currentAmount(selected);
   const planTargetAmount =
-    activePlan?.goal.targetAmount ?? selected?.goal.targetAmount ?? null;
-  const remainingAmount =
-    selectedCurrentAmount === null || planTargetAmount === null
-      ? null
-      : Math.max(0, planTargetAmount - selectedCurrentAmount);
+    selected === null
+      ? 0
+      : activePlan?.goal.targetAmount ?? selected.goal.targetAmount;
+  const remainingAmount = Math.max(
+    0,
+    planTargetAmount - selectedCurrentAmount,
+  );
 
   return {
     goalItems: overview.items.map((item) => ({
@@ -283,22 +284,20 @@ export function presentPlannerOverview(
               selected.goal.currencyCode,
             ),
             heldAmountLabel: formatAmount(
-              selectedCurrentAmount ?? selected.goal.heldAmount,
+              selectedCurrentAmount,
               selected.goal.currencyCode,
             ),
             remainingAmountLabel:
               activePlan === undefined || activePlan === null
                 ? "목표별 배정 후 확인"
-                : remainingAmount === null
-                  ? "제공되지 않음"
-                  : formatAmount(remainingAmount, selected.goal.currencyCode),
+                : formatAmount(remainingAmount, selected.goal.currencyCode),
             heldAmountBasisLabel:
               activePlan === undefined || activePlan === null
                 ? "같은 통화의 전체 보유액이며 목표별 배정액은 아닙니다."
                 : "목표 배정 외화와 완료 기록을 합산한 현재 값입니다.",
             progressPercent: progressPercent(
-              selectedCurrentAmount ?? selected.goal.heldAmount,
-              planTargetAmount ?? selected.goal.targetAmount,
+              selectedCurrentAmount,
+              planTargetAmount,
             ),
             progressLabel:
               activePlan === undefined || activePlan === null
@@ -545,5 +544,66 @@ export function presentPlannerScenarioComparison(
       .filter((node) => changedSequences.has(node.sequence))
       .map((node) => node.id),
     warnings: response.warnings,
+  };
+}
+
+/**
+ * 회차 건너뛰기 응답은 저장 가능한 draft가 아니라 재분배 영향만 담은 미리보기다.
+ * 서버가 직접 제공한 전후 값만 비교하고, 누락된 기존 값이나 Curve는 만들지 않는다.
+ */
+export function presentPlannerSkipComparison(
+  response: PlannerStepSkipResponse,
+  view: PlannerViewModel,
+  option: PlannerScenarioOptionViewModel,
+): PlannerScenarioComparisonViewModel {
+  const currencyCode = view.selectedGoal?.currencyCode ?? "외화";
+  const rows = [
+    {
+      label: "회차 준비 금액",
+      before: formatAmount(response.amountBefore, currencyCode),
+      after: formatAmount(response.amountAfter, currencyCode),
+    },
+    {
+      label: "남은 목표 금액",
+      before: "기존 값 제공되지 않음",
+      after: formatAmount(response.remainingAmount, currencyCode),
+    },
+    {
+      label: "재분배할 회차",
+      before: "기존 값 제공되지 않음",
+      after: `${response.remainingRounds}회`,
+    },
+    {
+      label: "회차 예상 원화",
+      before: "기존 값 제공되지 않음",
+      after:
+        response.perRoundCostKrw === null
+          ? "계산 근거 제공되지 않음"
+          : formatKrw(response.perRoundCostKrw),
+    },
+  ];
+  const adjustmentNotice =
+    response.adjustmentOptions.length === 0
+      ? []
+      : [
+          `서버가 ${response.adjustmentOptions.length}개의 추가 조정 선택지를 제공했습니다.`,
+        ];
+  const warnings = response.exceedsBudget
+    ? ["재분배 후 회차 금액이 설정한 예산 범위를 넘습니다.", ...adjustmentNotice]
+    : adjustmentNotice;
+
+  return {
+    id: option.id,
+    label: option.label,
+    reason: `${response.seq}회차를 건너뛴 조건으로 서버가 남은 금액의 재분배 영향을 계산했습니다.`,
+    nextAction:
+      "이 미리보기는 저장되지 않았습니다. 적용 가능한 변경 계획을 한 번 더 비교해 주세요.",
+    draftPlanId: null,
+    canRequestDraft: true,
+    rows,
+    baseCurve: view.curve,
+    alternativeCurve: null,
+    changedNodeIds: [],
+    warnings,
   };
 }

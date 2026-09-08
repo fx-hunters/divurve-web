@@ -16,20 +16,31 @@ import {
 } from "./planner-journey-screen";
 import type { PlannerGoalInput, PlannerLocalGoal } from "./planner-goal-input";
 import { getPlannerToday } from "./use-planner-api";
+import {
+  readPlannerUiSelection,
+  writePlannerGoalSelection,
+} from "./planner-ui-selection";
 
 interface PlannerDemoScreenProps {
   readonly data: RoutePlanData;
   readonly onExitDemo?: () => void;
   readonly createGoalId?: () => string;
+  readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
 }
 
 export function PlannerDemoScreen({
   data,
   onExitDemo,
   createGoalId = () => crypto.randomUUID(),
+  onOpenPlanDetail = () => undefined,
 }: PlannerDemoScreenProps) {
   const initialPlan = data.plans[0];
-  const [selectedGoalId, setSelectedGoalId] = useState(initialPlan.id);
+  const [selectedGoalId, setSelectedGoalId] = useState(() => {
+    const storedGoalId = readPlannerUiSelection().goalId;
+    return data.plans.some((plan) => plan.id === storedGoalId)
+      ? storedGoalId!
+      : initialPlan.id;
+  });
   const [appliedScenarioId, setAppliedScenarioId] = useState<string>(
     initialPlan.baseScenarioId,
   );
@@ -51,10 +62,19 @@ export function PlannerDemoScreen({
   const handleSelectGoal = (goalId: string) => {
     const plan = findDemoPlan(data, goalId);
     setSelectedGoalId(goalId);
+    writePlannerGoalSelection(goalId);
     setAppliedScenarioId(plan.baseScenarioId);
     setRecordedRound(false);
     setComparison(null);
-    setFeedback({ status: "idle" });
+    setFeedback(
+      goalId.startsWith("demo-")
+        ? {
+            status: "success",
+            message:
+              "목표를 데모 화면에만 추가했습니다. 서버에는 저장하지 않았습니다.",
+          }
+        : { status: "idle" },
+    );
   };
   const handleRecord = async () => {
     setRecordedRound(true);
@@ -113,11 +133,8 @@ export function PlannerDemoScreen({
     const id = `demo-${createGoalId()}`;
     setLocalGoals((current) => [...current, { id, input }]);
     setSelectedGoalId(id);
+    writePlannerGoalSelection(id);
     setComparison(null);
-    setFeedback({
-      status: "success",
-      message: "목표를 데모 화면에만 추가했습니다. 서버에는 저장하지 않았습니다.",
-    });
     return id;
   };
 
@@ -134,6 +151,7 @@ export function PlannerDemoScreen({
         onCreate: handleCreateGoal,
       }}
       onExitDemo={onExitDemo}
+      onOpenPlanDetail={onOpenPlanDetail}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={rejectUnsupportedPlannerOperation}
       onDiscardPlanPreview={handleClearTransient}

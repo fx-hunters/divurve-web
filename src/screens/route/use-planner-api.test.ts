@@ -9,7 +9,6 @@ import type {
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import {
   getPlannerToday,
-  replaceActivePlanState,
   usePlannerApi,
   type PlannerApiDependencies,
 } from "./use-planner-api";
@@ -52,13 +51,6 @@ describe("usePlannerApi", () => {
     vi.useRealTimers();
   });
 
-  it("활성 계획 교체는 성공 상태에서만 선택 목표에 적용한다", () => {
-    expect(replaceActivePlanState({ status: "loading" }, "goal", planResult)).toEqual({
-      status: "loading",
-    });
-    const state = { status: "success" as const, data: overview() };
-    expect(replaceActivePlanState(state, "other", planResult)).toEqual(state);
-  });
   it("목표가 없어도 생성 가능한 성공 상태이며 재시도하면 최신 목록을 표시한다", async () => {
     const load = vi.fn().mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce(overview());
     const deps = dependencies({ load });
@@ -149,6 +141,8 @@ describe("usePlannerApi", () => {
     await act(async () => result.current.skip("plan", 1));
     expect(load).toHaveBeenCalledTimes(2);
     expect(deps.skip).toHaveBeenCalledWith("plan", 1);
+    expect(result.current.skipPreview).toEqual(skipResult);
+    expect(result.current.scenarioPreview).toBeNull();
     expect(result.current.actionState).toMatchObject({
       status: "success",
       message: expect.stringContaining("아직 계획에는 적용되지 않았습니다"),
@@ -214,6 +208,7 @@ describe("usePlannerApi", () => {
     });
     act(() => result.current.clearTransient());
     expect(result.current.planPreview).toBeNull();
+    expect(result.current.skipPreview).toBeNull();
     expect(result.current.scenarioPreview).toBeNull();
     expect(result.current.actionState).toEqual({ status: "idle" });
   });
@@ -333,7 +328,18 @@ describe("usePlannerApi", () => {
   });
 
   it("scenario preview와 사용자 승인 apply를 분리하고 성공 뒤 재조회한다", async () => {
-    const load = vi.fn().mockResolvedValue(overview());
+    const refreshed: PlannerApiOverview = {
+      items: [
+        {
+          goal: overview().items[0]!.goal,
+          activePlan: { ...planResult, goalId: "goal" },
+        },
+      ],
+    };
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(overview())
+      .mockResolvedValueOnce(refreshed);
     const deps = dependencies({ load });
     const { result } = renderHook(() => usePlannerApi(deps));
     await waitFor(() => expect(result.current.state.status).toBe("success"));
@@ -343,6 +349,7 @@ describe("usePlannerApi", () => {
       ).toBe(true);
     });
     expect(result.current.scenarioPreview).toBe(scenarioResult);
+    expect(result.current.skipPreview).toBeNull();
     expect(deps.apply).not.toHaveBeenCalled();
     await act(async () => {
       expect(await result.current.apply("goal", "draft")).toBe(true);
@@ -350,6 +357,23 @@ describe("usePlannerApi", () => {
     expect(deps.apply).toHaveBeenCalledWith("draft");
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(result.current.scenarioPreview).toBeNull();
+  });
+
+  it("apply 후 활성 계획을 재조회하지 못하면 성공으로 표시하지 않는다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      expect(await result.current.apply("goal", "draft")).toBe(false);
+    });
+
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message:
+        "변경안 적용 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+    });
   });
 
   it("preview·create·scenario·apply 실패와 진행 중 중복 요청을 보존한다", async () => {

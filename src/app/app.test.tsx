@@ -134,6 +134,33 @@ describe("detailed diagnosis invitation timing", () => {
 });
 
 describe("App", () => {
+  it("데모 계획 상세 URL과 플래너 복귀·재진입을 History에 동기화한다", async () => {
+    const demoSession = {
+      ...STANDARD_AUTH_SESSION,
+      isDemo: true,
+    };
+    vi.mocked(readApiSession).mockReturnValue(demoSession);
+    window.history.replaceState(
+      null,
+      "",
+      "/route/demo/goals/usd-etf-recurring-demo/plans/usd-etf-recurring-demo",
+    );
+    render(<App ensureSession={async () => demoSession} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    expect(window.location.pathname).toBe("/route");
+
+    fireEvent.click(await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
+    expect(window.location.pathname).toBe(
+      "/route/demo/goals/usd-etf-recurring-demo/plans/usd-etf-recurring-demo",
+    );
+  });
+
   it("초기에 랜딩 페이지를 렌더링하고, 대시보드 시작하기 클릭 시 온보딩 투어가 표시된다", async () => {
     render(<App />);
     expect(screen.getByText("가장 지능적인 환전 가이드")).toBeInTheDocument();

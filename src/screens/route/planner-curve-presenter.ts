@@ -1,7 +1,7 @@
 import type {
   PlannerCurveNodeViewModel,
   PlannerCurveViewModel,
-  PlannerNodeStatus,
+  PlannerStepNodeStatus,
 } from "./planner-api-types";
 
 const VIEWBOX = "0 0 1000 440";
@@ -28,7 +28,7 @@ export interface PlannerCurveStepInput {
   readonly plannedAmount: number;
   readonly executedAmount: number;
   readonly executedDate: string | null;
-  readonly status: PlannerNodeStatus;
+  readonly status: PlannerStepNodeStatus;
 }
 
 export interface PlannerCurveInput {
@@ -54,7 +54,7 @@ interface AmountPoint {
   readonly epoch: number;
   readonly cumulativeAmount: number;
   readonly roundAmount: number;
-  readonly status: PlannerNodeStatus;
+  readonly status: PlannerStepNodeStatus;
 }
 
 function formatAmount(value: number, currencyCode: string): string {
@@ -84,7 +84,7 @@ function safeAmount(value: number, issues: string[]): number {
   return 0;
 }
 
-function actionLabel(status: PlannerNodeStatus): string {
+function actionLabel(status: PlannerStepNodeStatus): string {
   switch (status) {
     case "completed":
       return "완료한 확보 기록 확인";
@@ -94,12 +94,10 @@ function actionLabel(status: PlannerNodeStatus): string {
       return "예정된 준비 금액 확인";
     case "skipped":
       return "건너뛴 회차 확인";
-    case "destination":
-      return "목표 조건 확인";
   }
 }
 
-function statusLabel(status: PlannerNodeStatus): string {
+function statusLabel(status: PlannerStepNodeStatus): string {
   switch (status) {
     case "completed":
       return "완료";
@@ -109,8 +107,6 @@ function statusLabel(status: PlannerNodeStatus): string {
       return "예정";
     case "skipped":
       return "건너뜀";
-    case "destination":
-      return "목표 기준";
   }
 }
 
@@ -304,7 +300,7 @@ export function presentPlannerCurve(
           x: x(toEpoch(targetDate)),
           y: y(targetAmount),
           status: "destination" as const,
-          statusLabel: statusLabel("destination"),
+          statusLabel: "목표 기준",
           label: "목표 기준",
           targetAmountLabel: formatAmount(targetAmount, input.currencyCode),
           targetDateLabel: formatDate(targetDate),

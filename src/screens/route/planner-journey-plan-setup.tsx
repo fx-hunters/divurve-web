@@ -18,7 +18,7 @@ export function PlannerJourneyPlanSetup({
       className="planner-api-journey__scene"
       aria-labelledby="planner-api-preview-title"
     >
-      <p className="planner-api-journey__eyebrow">계획 미리보기</p>
+      <p className="planner-api-journey__eyebrow">2 / 3 계획 미리보기</p>
       <h2 id="planner-api-preview-title">이 계획을 만들기 전에 확인해 주세요</h2>
       <p className="planner-api-journey__lead">
         서버가 계산한 미리보기이며 아직 활성 계획으로 저장되지 않았습니다.

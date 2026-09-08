@@ -3,17 +3,17 @@ import type {
   PlannerScenarioOptionViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+import {
+  readPlannerUiSelection,
+  writePlannerGoalSelection,
+  writePlannerStepSelection,
+} from "./planner-ui-selection";
 
 export type JourneyStage =
   | "goal"
-  | "status"
+  | "main"
   | "planSetup"
-  | "history"
-  | "curve"
-  | "action"
-  | "scenario"
-  | "confirm"
-  | "result";
+  | "history";
 
 export interface PlannerJourneyOperations {
   readonly onSelectGoal: (goalId: string) => void;
@@ -36,24 +36,54 @@ export function usePlannerJourneyFlow(
   operations: PlannerJourneyOperations,
 ) {
   const [stage, setStage] = useState<JourneyStage>("goal");
-  const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
+  const [selectedSequence, setSelectedSequenceState] = useState<number | null>(
+    () => {
+      const stored = readPlannerUiSelection();
+      return stored.goalId === view.selectedGoal?.id ? stored.sequence : null;
+    },
+  );
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(
     null,
   );
-  const [resultTitle, setResultTitle] = useState("현재 계획을 확인했습니다");
-
   useEffect(() => {
-    setSelectedSequence(view.nextAction?.sequence ?? view.steps[0]?.sequence ?? null);
+    const stored = readPlannerUiSelection();
+    const storedSequence =
+      stored.goalId === view.selectedGoal?.id &&
+      view.steps.some((step) => step.sequence === stored.sequence)
+        ? stored.sequence
+        : null;
+    setSelectedSequenceState((current) =>
+      current !== null && view.steps.some((step) => step.sequence === current)
+        ? current
+        : storedSequence ??
+          view.nextAction?.sequence ??
+          view.steps[0]?.sequence ??
+          null,
+    );
   }, [view.nextAction?.sequence, view.selectedGoal?.id, view.steps]);
+
+  const setSelectedSequence = (sequence: number | null) => {
+    setSelectedSequenceState(sequence);
+    if (sequence !== null) {
+      writePlannerStepSelection(view.selectedGoal?.id ?? null, sequence);
+    }
+  };
 
   const selectGoal = (goalId: string) => {
     operations.onSelectGoal(goalId);
+    writePlannerGoalSelection(goalId);
     setSelectedScenarioId(null);
-    setStage("status");
+    setStage("main");
   };
+  const chooseGoal = (goalId: string) => {
+    operations.onSelectGoal(goalId);
+    writePlannerGoalSelection(goalId);
+    setSelectedScenarioId(null);
+  };
+  const enterSelectedGoal = () => setStage("main");
   const continueFromStatus = async () => {
     if (view.plan?.planSource === "active") {
-      setStage("curve");
+      setStage("main");
       return;
     }
     if (view.plan?.planSource === "preview") {
@@ -64,30 +94,25 @@ export function usePlannerJourneyFlow(
   };
   const returnFromPlanSetup = () => {
     operations.onDiscardPlanPreview();
-    setStage("status");
+    setStage("main");
   };
   const createPlan = async () => {
     if (await operations.onCreatePlan()) {
-      setStage("curve");
+      setStage("main");
     }
   };
   const complete = async (amount: number, rate: number) => {
-    if (await operations.onComplete(amount, rate)) {
-      setResultTitle("이번 회차 기록을 마쳤습니다");
-      setStage("result");
-    }
+    return operations.onComplete(amount, rate);
   };
   const recordDemo = async () => {
-    if (await operations.onRecordDemo()) {
-      setResultTitle("이번 회차를 데모로 기록했습니다");
-      setStage("result");
-    }
+    return operations.onRecordDemo();
   };
   const skip = async () => {
     if (await operations.onSkip()) {
       setSelectedScenarioId("missedRound");
-      setStage("scenario");
+      return true;
     }
+    return false;
   };
   const previewScenario = async (
     option: PlannerScenarioOptionViewModel,
@@ -101,14 +126,7 @@ export function usePlannerJourneyFlow(
     operations.onClearScenario();
   };
   const applyScenario = async () => {
-    if (await operations.onApplyScenario()) {
-      setResultTitle(
-        view.dataSource.kind === "demo"
-          ? "대체 경로를 데모에 적용했습니다"
-          : "대체 계획을 적용했습니다",
-      );
-      setStage("result");
-    }
+    return operations.onApplyScenario();
   };
 
   return {
@@ -117,8 +135,9 @@ export function usePlannerJourneyFlow(
     selectedSequence,
     setSelectedSequence,
     selectedScenarioId,
-    resultTitle,
     selectGoal,
+    chooseGoal,
+    enterSelectedGoal,
     continueFromStatus,
     returnFromPlanSetup,
     createPlan,

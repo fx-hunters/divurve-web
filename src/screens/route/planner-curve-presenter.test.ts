@@ -118,4 +118,26 @@ describe("planner curve presenter", () => {
       }),
     ).toBeNull();
   });
+
+  it("현재 날짜가 없으면 제공된 미래 회차끼리만 잇고 중복 현재점은 제거한다", () => {
+    const futureOnly = presentPlannerCurve({
+      ...input,
+      dataNotice: "",
+      currentDate: null,
+      steps: input.steps.slice(1),
+    })!;
+    expect(futureOnly.currentPoint).toBeNull();
+    expect(futureOnly.plannedPath).toContain("L");
+    expect(futureOnly.dataNotice).toBeNull();
+
+    const sameAsCompleted = presentPlannerCurve({
+      ...input,
+      currentDate: "2026-09-02",
+      targetDate: null,
+      targetAmount: null,
+      steps: [input.steps[0]!],
+    })!;
+    expect(sameAsCompleted.currentPoint).toMatchObject({ amount: 115 });
+    expect(sameAsCompleted.actualPath).toBeNull();
+  });
 });

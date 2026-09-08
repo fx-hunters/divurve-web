@@ -7,20 +7,12 @@ import type {
   PlannerScenarioComparisonViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
-import { PlannerJourneyAction } from "./planner-journey-action";
-import { PlannerJourneyCurve } from "./planner-journey-curve";
-import { PlannerJourneyDetail } from "./planner-journey-detail";
-import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
 import { PlannerGoalForm } from "./planner-goal-form";
 import type { PlannerGoalInput } from "./planner-goal-input";
-import {
-  PlannerJourneyConfirm,
-  PlannerJourneyNoAction,
-  PlannerJourneyResult,
-} from "./planner-journey-outcome";
+import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
+import { PlannerJourneyMain } from "./planner-journey-main";
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
-import { PlannerJourneyScenario } from "./planner-journey-scenario";
-import { PlannerJourneyStatus } from "./planner-journey-status";
+import { PlannerScenarioModal } from "./planner-journey-scenario";
 import { PlannerPlanHistory } from "./planner-plan-history";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
@@ -48,6 +40,7 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
     readonly today: string;
     readonly onCreate: (input: PlannerGoalInput) => Promise<string | null>;
   };
+  readonly onOpenPlanDetail: (goalId: string, planId: string) => void;
   readonly onExploreDemo?: () => void;
   readonly onExitDemo?: () => void;
 }
@@ -71,23 +64,53 @@ export function PlannerJourneyScreen({
   scenarioComparison,
   history,
   goalCreation,
+  onOpenPlanDetail,
   onExploreDemo,
   onExitDemo,
   ...operations
 }: PlannerJourneyScreenProps) {
   const flow = usePlannerJourneyFlow(view, operations);
-  const [isDetailOpen, setDetailOpen] = useState(false);
   const [isGoalFormOpen, setGoalFormOpen] = useState(false);
+  const [isScenarioOpen, setScenarioOpen] = useState(false);
+  const [isPlanChanged, setPlanChanged] = useState(false);
   const detailTrigger = useRef<HTMLButtonElement>(null);
+  const scenarioTrigger = useRef<HTMLButtonElement>(null);
   const goal = view.selectedGoal;
   const isPending = feedback.status === "loading";
   const sourceCopy = getDataSourceCopy(view.dataSource.kind);
+
   const handleCreateGoal = async (input: PlannerGoalInput) => {
     const goalId = await goalCreation.onCreate(input);
     if (goalId === null) return false;
     setGoalFormOpen(false);
     flow.selectGoal(goalId);
     return true;
+  };
+
+  const handleOpenDetail = () => {
+    if (goal === null || typeof view.plan?.id !== "string") return;
+    onOpenPlanDetail(goal.id, view.plan.id);
+  };
+
+  const handleOpenScenario = () => {
+    flow.clearScenario();
+    setScenarioOpen(true);
+  };
+
+  const handleCloseScenario = () => {
+    flow.clearScenario();
+    setScenarioOpen(false);
+  };
+
+  const handleSkip = async () => {
+    if (await flow.skip()) setScenarioOpen(true);
+  };
+
+  const handleApplyScenario = async () => {
+    if (await flow.applyScenario()) {
+      setScenarioOpen(false);
+      setPlanChanged(true);
+    }
   };
 
   return (
@@ -106,14 +129,6 @@ export function PlannerJourneyScreen({
         <DataSourceBadge kind={view.dataSource.kind} />
       </header>
 
-      {flow.stage !== "goal" && goal !== null && (
-        <div className="planner-api__recap" aria-label="선택한 목표 요약">
-          <span>{goal.name}</span>
-          <strong>{goal.heldAmountLabel}</strong>
-          <small>목표 {goal.targetAmountLabel}</small>
-        </div>
-      )}
-
       <div className="planner-api-journey" data-stage={flow.stage}>
         {flow.stage === "goal" && isGoalFormOpen && (
           <PlannerGoalForm
@@ -129,27 +144,35 @@ export function PlannerJourneyScreen({
           <PlannerJourneyGoalSelect
             goals={view.goalItems}
             selectedGoalId={goal?.id ?? ""}
-            onSelect={flow.selectGoal}
-            onContinue={() => flow.setStage("status")}
+            onSelect={flow.chooseGoal}
+            onContinue={flow.enterSelectedGoal}
             onCreateGoal={() => setGoalFormOpen(true)}
             onExploreDemo={onExploreDemo}
             onExitDemo={onExitDemo}
           />
         )}
-        {flow.stage === "status" && goal !== null && (
-          <PlannerJourneyStatus
-            goal={goal}
-            onBack={() => flow.setStage("goal")}
-            onContinue={() => void flow.continueFromStatus()}
-            canContinue={
-              view.plan !== null || view.supportedActions.canPreviewPlan
-            }
-            planAvailabilityMessage={view.planAvailabilityMessage}
-            onHistory={
+        {flow.stage === "main" && (
+          <PlannerJourneyMain
+            view={view}
+            selectedSequence={flow.selectedSequence}
+            isPending={isPending}
+            detailButtonRef={detailTrigger}
+            scenarioButtonRef={scenarioTrigger}
+            isPlanChanged={isPlanChanged}
+            onSelectSequence={flow.setSelectedSequence}
+            onPreviewPlan={() => void flow.continueFromStatus()}
+            onComplete={(amount, rate) => void flow.complete(amount, rate)}
+            onRecordDemo={() => void flow.recordDemo()}
+            onSkip={() => void handleSkip()}
+            onExploreScenario={handleOpenScenario}
+            onOpenDetail={handleOpenDetail}
+            onOpenHistory={
               history === undefined
                 ? undefined
                 : () => flow.setStage("history")
             }
+            onBackToGoals={() => flow.setStage("goal")}
+            onPlanChangeAnimationEnd={() => setPlanChanged(false)}
           />
         )}
         {flow.stage === "history" && history !== undefined && goal !== null && (
@@ -158,7 +181,7 @@ export function PlannerJourneyScreen({
             goalName={goal.name}
             currencyCode={goal.currencyCode}
             dependencies={history.dependencies}
-            onBack={() => flow.setStage("status")}
+            onBack={() => flow.setStage("main")}
           />
         )}
         {flow.stage === "planSetup" && view.plan !== null && (
@@ -169,83 +192,26 @@ export function PlannerJourneyScreen({
             onCreate={() => void flow.createPlan()}
           />
         )}
-        {flow.stage === "curve" && view.curve !== null && (
-          <PlannerJourneyCurve
-            curve={view.curve}
-            steps={view.steps}
-            selectedSequence={flow.selectedSequence}
-            onSelect={flow.setSelectedSequence}
-            onBack={() => flow.setStage("status")}
-            onContinue={() => flow.setStage("action")}
-          />
-        )}
-        {flow.stage === "action" && view.nextAction !== null && (
-          <PlannerJourneyAction
-            action={view.nextAction}
-            sourceKind={view.dataSource.kind}
-            isPending={isPending}
-            canComplete={view.supportedActions.canCompleteStep}
-            canSkip={view.supportedActions.canSkipStep}
-            canExplore={view.supportedActions.canPreviewScenario}
-            detailButtonRef={detailTrigger}
-            onComplete={(amount, rate) => void flow.complete(amount, rate)}
-            onRecordDemo={() => void flow.recordDemo()}
-            onSkip={() => void flow.skip()}
-            onExplore={() => flow.setStage("scenario")}
-            onBack={() => flow.setStage("curve")}
-            onDetail={() => setDetailOpen(true)}
-          />
-        )}
-        {flow.stage === "action" && view.nextAction === null && (
-          <PlannerJourneyNoAction
-            detailButtonRef={detailTrigger}
-            onDetail={() => setDetailOpen(true)}
-          />
-        )}
-        {flow.stage === "scenario" &&
-          view.curve !== null &&
-          view.scenarioOptions !== undefined && (
-            <PlannerJourneyScenario
-              sourceKind={view.dataSource.kind}
-              baseCurve={view.curve}
-              options={view.scenarioOptions}
-              comparison={scenarioComparison}
-              selectedOptionId={flow.selectedScenarioId}
-              isPending={isPending}
-              onSelect={(option, budget) =>
-                void flow.previewScenario(option, budget)
-              }
-              onClear={flow.clearScenario}
-              onContinue={() => flow.setStage("confirm")}
-              onBack={() => flow.setStage("action")}
-            />
-          )}
-        {flow.stage === "confirm" && scenarioComparison !== null && (
-          <PlannerJourneyConfirm
-            comparison={scenarioComparison}
-            isPending={isPending}
-            onBack={() => flow.setStage("scenario")}
-            onApply={() => void flow.applyScenario()}
-          />
-        )}
-        {flow.stage === "result" && (
-          <PlannerJourneyResult
-            title={flow.resultTitle}
-            onGoals={() => flow.setStage("goal")}
-            onCurve={() => flow.setStage("curve")}
-          />
-        )}
         <FeedbackView feedback={feedback} />
       </div>
 
-      {isDetailOpen && view.plan !== null && (
-        <PlannerJourneyDetail
-          plan={view.plan}
-          steps={view.steps}
-          returnFocus={detailTrigger.current}
-          onClose={() => setDetailOpen(false)}
-        />
-      )}
+      {isScenarioOpen &&
+        view.curve !== null &&
+        view.scenarioOptions !== undefined && (
+          <PlannerScenarioModal
+            sourceKind={view.dataSource.kind}
+            baseCurve={view.curve}
+            options={view.scenarioOptions}
+            comparison={scenarioComparison}
+            selectedOptionId={flow.selectedScenarioId}
+            isPending={isPending}
+            returnFocus={scenarioTrigger.current}
+            onSelect={(option, budget) => void flow.previewScenario(option, budget)}
+            onClear={flow.clearScenario}
+            onClose={handleCloseScenario}
+            onApply={() => void handleApplyScenario()}
+          />
+        )}
     </section>
   );
 }

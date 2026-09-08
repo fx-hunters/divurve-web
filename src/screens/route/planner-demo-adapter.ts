@@ -7,7 +7,7 @@ import type {
 import type { PlannerScenarioCode } from "../../api/planner-contract";
 import type {
   PlannerCurveViewModel,
-  PlannerNodeStatus,
+  PlannerStepNodeStatus,
   PlannerScenarioComparisonViewModel,
   PlannerScenarioOptionViewModel,
   PlannerStepViewModel,
@@ -42,7 +42,7 @@ function demoStepStatus(
   status: "completed" | "next" | "upcoming" | "skipped",
   index: number,
   hasRecordedRound: boolean,
-): PlannerNodeStatus {
+): PlannerStepNodeStatus {
   if (!hasRecordedRound) return status;
   if (index === 0) return "completed";
   if (index === 1) return "next";
@@ -89,8 +89,9 @@ function toSteps(
   plan: PlannerPlan,
   hasRecordedRound: boolean,
   curve: PlannerCurveViewModel | null,
+  curveData = plan.curveData,
 ): readonly PlannerStepViewModel[] {
-  return plan.curveData.steps.map((step, index) => {
+  return curveData.steps.map((step, index) => {
       const status = demoStepStatus(step.status, index, hasRecordedRound);
       const point = curve?.nodes.find((node) => node.sequence === step.sequence);
       const isRecorded = hasRecordedRound && index === 0;
@@ -221,8 +222,9 @@ export function presentDemoPlanner(
   }
   const plan = findDemoPlan(data, selectedGoalId);
   const scenario = findScenario(plan, appliedScenarioId);
-  const curve = toCurve(plan, hasRecordedRound);
-  const steps = toSteps(plan, hasRecordedRound, curve);
+  const appliedCurveData = scenario.curveData ?? plan.curveData;
+  const curve = toCurve(plan, hasRecordedRound, appliedCurveData);
+  const steps = toSteps(plan, hasRecordedRound, curve, appliedCurveData);
   const nextStep = steps.find((step) => step.status === "next");
   const nextActionCopy = hasRecordedRound
     ? plan.recordedState.action
