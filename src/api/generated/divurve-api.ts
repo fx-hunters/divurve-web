@@ -48,12 +48,6 @@ export type HomeBlockState = "filled" | "empty" | "not_measured";
  * (`calm`·`normal`·`elevated`·`stress`)을 이 3종으로 옮겨 실어 준다. 매핑 책임은
  * 서버에 있으므로 프론트는 이 값을 그대로 그리기만 한다(API 명세 v2 §2).
  */
-/**
- * 위험성향 등급. 백엔드 `HomeSummaryResponse.ProfileFitDto.grade`와
- * `RiskProfileResponse`의 `allowableValues` 4종과 같은 리터럴이다.
- */
-export type RiskGrade = "stable" | "balanced" | "aggressive" | "challenging";
-
 export type HomeBadge = "normal" | "caution" | "turbulent";
 
 export interface HomeBlock {
@@ -242,7 +236,11 @@ export type ConcentrationStatus =
 /** `FitResponse.RiskProfile.status`. 진단 전에도 200 + `not_measured` 로 온다. */
 export type RiskProfileStatus = "not_measured" | "simple_done" | "detail_done";
 
-/** `FitResponse.RiskProfile.grade`. 한글 표기는 서버가 `gradeLabel` 로 함께 준다. */
+/**
+ * 위험성향 등급. `FitResponse.RiskProfile.grade` 와
+ * `HomeSummaryResponse.ProfileFitDto.grade`·`RiskProfileResponse.grade` 가 같은 4종을 쓴다.
+ * 한글 표기는 서버가 `gradeLabel` 로 함께 준다.
+ */
 export type RiskGrade = "stable" | "balanced" | "aggressive" | "challenging";
 
 /** `FitResponse.Relation.code`. 사실값만 담고 판단 문구는 담지 않는다. */
