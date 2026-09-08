@@ -9,7 +9,6 @@ describe("Icon", () => {
     "assets",
     "range",
     "mypage",
-    "connectivity",
     "sun",
     "moon",
     "bell",

@@ -9,14 +9,14 @@ describe("Header", () => {
 
     render(
       <Header
-        activeTabTitle="환율 범위"
+        activeTabTitle="환율 전망"
         isDark={true}
         onNavigateToMypage={onNavigateToMypage}
         onToggleTheme={onToggleTheme}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "환율 범위" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "환율 전망" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "마이페이지 이동" }));
     expect(onNavigateToMypage).toHaveBeenCalled();
@@ -34,7 +34,7 @@ describe("Header", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "홈" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "대시보드" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "다크 모드로 변경" }),
     ).toBeInTheDocument();

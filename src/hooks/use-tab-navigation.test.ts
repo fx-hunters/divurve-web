@@ -14,7 +14,6 @@ describe("getTabFromPathname", () => {
     ["/forecast", "range"],
     ["/mypage", "mypage"],
     ["/mypage/diagnosis", "mypage"],
-    ["/connectivity", "connectivity"],
     ["/", "home"],
     ["/unknown", "home"],
   ] as const)("%s 경로를 %s 탭으로 해석한다", (pathname, tab) => {

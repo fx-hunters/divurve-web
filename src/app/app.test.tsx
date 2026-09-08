@@ -1,6 +1,5 @@
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { fetchConnectivityChecks } from "../api/connectivity";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import {
   App,
   shouldShowTour,
@@ -32,11 +31,6 @@ const STANDARD_AUTH_SESSION = {
   onboarded: true,
 };
 
-vi.mock("../api/connectivity", () => ({
-  fetchConnectivityChecks: vi.fn().mockResolvedValue([]),
-  createConnectivityCheck: vi.fn(),
-}));
-
 vi.mock("../api/auth", () => ({
   login: vi.fn().mockResolvedValue(undefined),
   logout: vi.fn(),
@@ -64,7 +58,6 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   window.history.replaceState(null, "", "/");
-  vi.mocked(fetchConnectivityChecks).mockResolvedValue([]);
   vi.mocked(login).mockResolvedValue(STANDARD_AUTH_SESSION);
   vi.mocked(readApiSession).mockReturnValue(null);
   vi.mocked(startDemoSession).mockResolvedValue({
@@ -103,10 +96,6 @@ function completeQuickInitialSetup() {
   }
   fireEvent.click(screen.getByRole("button", { name: "홈 시작하기" }));
 }
-
-afterEach(() => {
-  vi.mocked(fetchConnectivityChecks).mockClear();
-});
 
 describe("shouldShowTour helper", () => {
   it("최초 접속(null)이거나 레거시/비정상 값이면 true를 반환한다", async () => {
@@ -252,24 +241,15 @@ describe("App", () => {
     fireEvent.click(assetsBtns[0]);
     expect(screen.getByRole("heading", { name: "내 자산", level: 2 })).toBeInTheDocument();
 
-    // 환율 범위 탭으로 이동
-    const rangeBtns = screen.getAllByRole("button", { name: /환율 범위/ });
+    // 환율 전망 탭으로 이동
+    const rangeBtns = screen.getAllByRole("button", { name: /환율 전망/ });
     fireEvent.click(rangeBtns[0]);
-    expect(screen.getByRole("heading", { name: "환율 범위", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "환율 전망", level: 2 })).toBeInTheDocument();
 
     // 마이페이지 탭으로 이동
     const mypageBtns = screen.getAllByRole("button", { name: /마이페이지/ });
     fireEvent.click(mypageBtns[0]);
     expect(screen.getByRole("heading", { name: "마이페이지", level: 2 })).toBeInTheDocument();
-
-    // 연결 확인 탭으로 이동
-    const connBtns = screen.getAllByRole("button", { name: /연결 확인/ });
-    fireEvent.click(connBtns[0]);
-    expect(screen.getByRole("heading", { name: "연결 확인 (Connectivity Check)" })).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(fetchConnectivityChecks).toHaveBeenCalled();
-    });
   });
 
   it("헤더의 마이페이지 아바타 버튼 클릭 시 마이페이지로 이동한다", async () => {
@@ -431,7 +411,7 @@ describe("App", () => {
     fireEvent.click(nextBtn);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "환율 범위", level: 2 })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "환율 전망", level: 2 })).toBeInTheDocument();
     });
   });
 
@@ -557,7 +537,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "마이페이지" })[0]!);
     expect(await screen.findByRole("region", { name: "마이페이지" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "상세 진단 시작" })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "홈" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "대시보드" })[0]!);
     expect(
       await screen.findByRole("heading", { name: "오늘의 핵심" }),
     ).toBeInTheDocument();
