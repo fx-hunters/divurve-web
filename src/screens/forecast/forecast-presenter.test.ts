@@ -15,7 +15,6 @@ import {
   toPair,
   toPairForecastInfo,
   toPairLabel,
-  toPercent,
   toPercentileLabel,
   toPeriodLabel,
   toRateLabel,
@@ -98,11 +97,6 @@ describe("선택지 표시", () => {
 });
 
 describe("표시용 변환", () => {
-  it("비율을 소수 첫째 자리 퍼센트로 바꾼다", () => {
-    expect(toPercent(0.6666)).toBe(66.7);
-    expect(toPercent(0)).toBe(0);
-  });
-
   it("변동성 백분위를 5년 분포 기준 문구로 만든다", () => {
     expect(toPercentileLabel(0.63)).toBe("5년 중 63백분위");
   });

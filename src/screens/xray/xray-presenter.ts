@@ -3,6 +3,7 @@ import type {
   XrayBundle,
 } from "../../api/generated/divurve-api";
 import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
+import { toPercent } from "../../lib/percent";
 import type {
   ConcentrationDiagnosis,
   ExposureShareItem,
@@ -11,11 +12,6 @@ import type {
   StressScenarioItem,
   XRayDashboardData,
 } from "../../types/xray";
-
-/** 비율(0~1)을 소수 첫째 자리까지의 퍼센트 수치로 바꾼다. 표시 단위 변환이다. */
-export function toPercent(ratio: number): number {
-  return Math.round(ratio * 1000) / 10;
-}
 
 export const CONCENTRATION_STATUS_LABELS: Readonly<Record<string, string>> = {
   ok: "적정",
