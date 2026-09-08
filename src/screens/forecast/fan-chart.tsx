@@ -9,9 +9,14 @@ import {
 } from "recharts";
 import type { FanChartDataPoint } from "../../types/forecast";
 
+const DEFAULT_PAIR_LABEL = "USD/KRW";
+
 interface FanChartProps {
   readonly data: readonly FanChartDataPoint[];
-  readonly currency: string;
+  /** 통화쌍 표기(예 `USD/KRW`). 축약하지 않고 서버 코드와 같은 순서로 적는다. */
+  readonly pairLabel: string;
+  /** 기준통화에 고정 배정된 색 토큰(컨벤션 7.2). 상태색과 섞지 않는다. */
+  readonly accentColor: string;
 }
 
 export interface FanChartTooltipProps {
@@ -23,7 +28,8 @@ export interface FanChartTooltipProps {
     readonly dataKey?: string;
   }[];
   readonly label?: string | number;
-  readonly currency?: string;
+  readonly pairLabel?: string;
+  readonly accentColor?: string;
 }
 
 export function formatYTick(v: number | string, idx: number): string {
@@ -47,7 +53,8 @@ export function FanChartTooltip({
   active,
   payload,
   label,
-  currency = "USD",
+  pairLabel = DEFAULT_PAIR_LABEL,
+  accentColor = "var(--primary)",
 }: FanChartTooltipProps) {
   if (!active || !payload || payload.length === 0) {
     return null;
@@ -87,12 +94,12 @@ export function FanChartTooltip({
             fontWeight: 700,
             padding: "0.125rem 0.375rem",
             borderRadius: "var(--radius-sm)",
-            backgroundColor: "var(--primary-subtle)",
-            color: "var(--primary)",
-            border: "1px solid var(--primary-border)",
+            backgroundColor: "var(--surface-subtle)",
+            color: accentColor,
+            border: "1px solid var(--border)",
           }}
         >
-          {currency}/KRW
+          {pairLabel}
         </span>
       </div>
 
@@ -121,7 +128,7 @@ export function FanChartTooltip({
                     width: "8px",
                     height: "8px",
                     borderRadius: "50%",
-                    backgroundColor: isMain ? "var(--primary)" : "var(--text-muted)",
+                    backgroundColor: isMain ? accentColor : "var(--text-muted)",
                     display: "inline-block",
                   }}
                 />
@@ -154,7 +161,7 @@ export function FanChartTooltip({
   );
 }
 
-export function FanChart({ data, currency }: FanChartProps) {
+export function FanChart({ data, pairLabel, accentColor }: FanChartProps) {
   if (data.length === 0) {
     return (
       <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -187,7 +194,7 @@ export function FanChart({ data, currency }: FanChartProps) {
         minHeight: "280px",
       }}
       role="img"
-      aria-label={`시뮬레이션 팬 차트 (${currency}/KRW)`}
+      aria-label={`시뮬레이션 팬 차트 (${pairLabel})`}
     >
       <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <ComposedChart data={chartData} margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
@@ -206,7 +213,9 @@ export function FanChart({ data, currency }: FanChartProps) {
           />
           <Tooltip
             cursor={{ stroke: "var(--text-muted)", strokeWidth: 1, strokeDasharray: "3 3" }}
-            content={<FanChartTooltip currency={currency} />}
+            content={
+              <FanChartTooltip pairLabel={pairLabel} accentColor={accentColor} />
+            }
           />
           <Area
             type="monotone"
@@ -244,7 +253,7 @@ export function FanChart({ data, currency }: FanChartProps) {
             type="monotone"
             dataKey="price"
             name="실제 환율"
-            stroke="var(--primary)"
+            stroke={accentColor}
             strokeWidth={2.5}
             dot={false}
           />
@@ -252,7 +261,7 @@ export function FanChart({ data, currency }: FanChartProps) {
             type="monotone"
             dataKey="projected"
             name="투영 시나리오"
-            stroke="var(--primary)"
+            stroke={accentColor}
             strokeWidth={2}
             strokeDasharray="5 5"
             dot={false}

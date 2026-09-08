@@ -8,7 +8,7 @@ describe("FanChart", () => {
   it("데이터가 있을 때 팬 차트 컨테이너를 렌더링한다", () => {
     const data = toFanChartData(FORECAST_API_FIXTURE);
 
-    render(<FanChart data={data} currency="USD" />);
+    render(<FanChart data={data} pairLabel="USD/KRW" accentColor="var(--usd)" />);
 
     const chartEl = screen.getByRole("img", { name: "시뮬레이션 팬 차트 (USD/KRW)" });
     expect(chartEl).toBeInTheDocument();
@@ -23,7 +23,7 @@ describe("FanChart", () => {
   });
 
   it("데이터가 비어 있을 때 안내 텍스트를 표시한다", () => {
-    render(<FanChart data={[]} currency="USD" />);
+    render(<FanChart data={[]} pairLabel="USD/KRW" accentColor="var(--usd)" />);
     expect(screen.getByText("데이터가 없습니다.")).toBeInTheDocument();
   });
 
@@ -56,12 +56,14 @@ describe("FanChart", () => {
           active={true}
           payload={payload}
           label="09/06 (D+10)"
-          currency="USD"
+          pairLabel="USD/KRW"
+          accentColor="var(--usd)"
         />
       );
 
       expect(screen.getByText("09/06 (D+10)")).toBeInTheDocument();
-      expect(screen.getByText("USD/KRW")).toBeInTheDocument();
+      // 통화 색은 고정 배정을 따르고 상태색과 섞지 않는다(컨벤션 7.2).
+      expect(screen.getByText("USD/KRW")).toHaveStyle({ color: "var(--usd)" });
       expect(screen.getByText("실제 환율")).toBeInTheDocument();
       expect(screen.getByText("₩1,350")).toBeInTheDocument();
       expect(screen.getByText("투영 시나리오")).toBeInTheDocument();
@@ -72,7 +74,7 @@ describe("FanChart", () => {
       expect(screen.getByText("미정")).toBeInTheDocument();
     });
 
-    it("currency가 주어지지 않으면 기본값 USD로 표시된다", () => {
+    it("통화쌍이 주어지지 않으면 기본 표기로 그린다", () => {
       render(
         <FanChartTooltip
           active={true}
@@ -95,11 +97,11 @@ describe("FanChart", () => {
           active={true}
           payload={payload}
           label="내일"
-          currency="EUR"
+          pairLabel="EUR/USD"
         />
       );
 
-      expect(screen.getByText("EUR/KRW")).toBeInTheDocument();
+      expect(screen.getByText("EUR/USD")).toBeInTheDocument();
       expect(screen.getByText("unmapped_key")).toBeInTheDocument();
       expect(screen.getByText("항목")).toBeInTheDocument();
     });

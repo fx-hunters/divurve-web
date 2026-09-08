@@ -6,7 +6,8 @@ import {
   EMPTY_FORECAST_API_FIXTURE,
   FORECAST_API_FIXTURE,
 } from "../../test/api-fixtures";
-import { horizonDaysOf, useForecast } from "./use-forecast";
+import { FORECAST_PAIRS } from "../../types/forecast";
+import { useForecast } from "./use-forecast";
 
 vi.mock("../../api/forecast", () => ({
   fetchForecastBundle: vi.fn(),
@@ -24,21 +25,14 @@ function deferred<T>() {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("horizonDaysOf", () => {
-  it("기간 토글을 서버가 받는 일수로 바꾼다", () => {
-    expect(horizonDaysOf("30D")).toBe(30);
-    expect(horizonDaysOf("90D")).toBe(90);
-  });
-});
-
 describe("useForecast", () => {
-  it("기본 통화와 기간으로 조회해 성공 상태가 된다", async () => {
+  it("기본 통화쌍과 기간으로 조회해 성공 상태가 된다", async () => {
     const loader = vi.fn().mockResolvedValue(FORECAST_API_FIXTURE);
     const { result } = renderHook(() => useForecast(loader));
 
     expect(result.current.state.status).toBe("loading");
     await waitFor(() => expect(result.current.state.status).toBe("success"));
-    expect(loader).toHaveBeenCalledWith("USD_KRW", 30);
+    expect(loader).toHaveBeenCalledWith("USDKRW", 30);
   });
 
   it("통화와 기간을 바꾸면 해당 조건으로 다시 조회한다", async () => {
@@ -46,18 +40,16 @@ describe("useForecast", () => {
     const { result } = renderHook(() => useForecast(loader));
     await waitFor(() => expect(result.current.state.status).toBe("success"));
 
-    act(() => result.current.setCurrency("JPY"));
-    act(() => result.current.setPeriod("90D"));
-    await waitFor(() =>
-      expect(loader).toHaveBeenLastCalledWith("JPY_KRW", 90),
-    );
+    act(() => result.current.setPair(FORECAST_PAIRS[1]));
+    act(() => result.current.setPeriod(90));
+    await waitFor(() => expect(loader).toHaveBeenLastCalledWith("USDJPY", 90));
   });
 
   it("loader를 넘기지 않으면 기본 API 함수를 쓴다", async () => {
     vi.mocked(fetchForecastBundle).mockResolvedValue(FORECAST_API_FIXTURE);
     const { result } = renderHook(() => useForecast());
     await waitFor(() => expect(result.current.state.status).toBe("success"));
-    expect(fetchForecastBundle).toHaveBeenCalledWith("USD_KRW", 30);
+    expect(fetchForecastBundle).toHaveBeenCalledWith("USDKRW", 30);
   });
 
   it("history·band·modelPath가 모두 비면 빈 상태가 된다", async () => {

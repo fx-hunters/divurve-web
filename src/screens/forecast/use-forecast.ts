@@ -2,11 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import { fetchForecastBundle } from "../../api/forecast";
 import type { ForecastBundle } from "../../api/generated/divurve-api";
-import type { ForecastCurrency, ForecastPeriod } from "../../types/forecast";
+import {
+  DEFAULT_FORECAST_PAIR,
+  DEFAULT_FORECAST_PERIOD,
+  type ForecastPair,
+  type ForecastPeriod,
+} from "../../types/forecast";
 
 export type ForecastLoader = (
   pairCode: string,
-  horizon: number,
+  horizonDays: number,
 ) => Promise<ForecastBundle>;
 
 export type ForecastState =
@@ -23,13 +28,10 @@ function isEmptyForecast(bundle: ForecastBundle): boolean {
   );
 }
 
-export function horizonDaysOf(period: ForecastPeriod): number {
-  return period === "30D" ? 30 : 90;
-}
-
 export function useForecast(loader: ForecastLoader = fetchForecastBundle) {
-  const [currency, setCurrency] = useState<ForecastCurrency>("USD");
-  const [period, setPeriod] = useState<ForecastPeriod>("30D");
+  // 선택 상태는 이 화면에서만 쓰이므로 전역으로 올리지 않는다(AGENTS.md §7.5).
+  const [pair, setPair] = useState<ForecastPair>(DEFAULT_FORECAST_PAIR);
+  const [period, setPeriod] = useState<ForecastPeriod>(DEFAULT_FORECAST_PERIOD);
   const [state, setState] = useState<ForecastState>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -38,11 +40,16 @@ export function useForecast(loader: ForecastLoader = fetchForecastBundle) {
   const loaderRef = useRef(loader);
   loaderRef.current = loader;
 
+  // 통화쌍 객체를 그대로 의존성에 넣으면 참조가 바뀔 때마다 재조회한다.
+  // 실제 요청을 가르는 값은 코드 하나뿐이므로 그것만 본다.
+  const pairCode = pair.code;
+
   useEffect(() => {
     let isActive = true;
     setState({ status: "loading" });
 
-    void loaderRef.current(`${currency}_KRW`, horizonDaysOf(period))
+    void loaderRef
+      .current(pairCode, period)
       .then((data) => {
         if (!isActive) return;
         setState(
@@ -65,8 +72,8 @@ export function useForecast(loader: ForecastLoader = fetchForecastBundle) {
     return () => {
       isActive = false;
     };
-  }, [currency, period, reloadKey]);
+  }, [pairCode, period, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
-  return { currency, period, state, setCurrency, setPeriod, reload };
+  return { pair, period, state, setPair, setPeriod, reload };
 }
