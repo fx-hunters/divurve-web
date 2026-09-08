@@ -50,7 +50,7 @@ describe("MyPageScreen", () => {
     expect(screen.getByText("내 계정")).toBeInTheDocument();
     expect(screen.getByText("균형항로형")).toBeInTheDocument();
     expect(screen.getByText("서버 결과")).toBeInTheDocument();
-    expect(screen.getByText("서버 점수 72")).toBeInTheDocument();
+    expect(screen.getByText("서버 점수 4")).toBeInTheDocument();
     expect(screen.getByText(/진단일 2026/)).toBeInTheDocument();
     expect(screen.getByText(/해커톤 MVP용 가설/)).toBeInTheDocument();
     expect(

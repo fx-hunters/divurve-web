@@ -81,21 +81,23 @@ describe("mypage profile presenter", () => {
   it.each([
     ["stable", "안정항로형"],
     ["balanced", "균형항로형"],
-    ["active", "적극항로형"],
-    ["challenge", "도전항로형"],
-    ["challenger", "도전항로형"],
-    ["안정형", "안정항로형"],
-    ["균형형", "균형항로형"],
-    ["적극형", "적극항로형"],
-    ["도전형", "도전항로형"],
-    [" 안정항로형 ", "안정항로형"],
-    ["균형항로형", "균형항로형"],
-    ["적극항로형", "적극항로형"],
-    ["도전항로형", "도전항로형"],
-    ["unknown", "기존 진단 결과"],
-  ])("서버 위험성향 %s를 %s로 안전하게 표시한다", (value, expected) => {
-    const result = createServerDiagnosisSummary(value);
-    expect(result.displayName).toBe(expected);
-    expect(result.description).toContain("계정에 저장된 진단 결과");
+    ["aggressive", "적극항로형"],
+    ["challenging", "도전항로형"],
+  ] as const)(
+    "서버 등급 %s를 %s로 표시한다",
+    (grade, expected) => {
+      const result = createServerDiagnosisSummary(grade);
+      expect(result.displayName).toBe(expected);
+      expect(result.description).toContain("계정에 저장된 진단 결과");
+    },
+  );
+
+  // 예전에는 여기에 `active`·`challenge`·`안정형` 같은 값이 늘어서 있었다.
+  // 서버가 보내지 않는 값이었고, 정작 실제 값인 `aggressive`·`challenging`
+  // 두 개가 빠져 있었다. 이제 `Record<RiskGrade, …>` 가 누락을 컴파일 단계에서
+  // 막으므로 목록이 다시 어긋날 수 없다.
+  it("진단 전이면 등급 없이 기존 결과로만 표시한다", () => {
+    const result = createServerDiagnosisSummary(null);
+    expect(result.displayName).toBe("기존 진단 결과");
   });
 });

@@ -1,4 +1,7 @@
-import type { NotificationSettingKey } from '../api/generated/divurve-api';
+import type {
+  NotificationSettingKey,
+  RiskGrade,
+} from '../api/generated/divurve-api';
 
 /**
  * 마이페이지 표시 데이터.
@@ -16,8 +19,10 @@ export interface UserProfileView {
 }
 
 export interface RiskProfileView {
-  /** 진단을 마쳤는지. BE가 `status: "not_measured"`로 알려 준다. */
+  /** 진단을 마쳤는지. BE의 `status`로 판정한다. */
   readonly isMeasured: boolean;
+  /** 서버 등급 코드. 표시 문구는 이 값으로 고른다. 미진단이면 null. */
+  readonly grade: RiskGrade | null;
   readonly gradeLabel: string;
   readonly scoreLabel: string | null;
   readonly diagnosedOnLabel: string | null;

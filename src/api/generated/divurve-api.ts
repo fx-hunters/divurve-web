@@ -457,9 +457,10 @@ export interface RiskProfileDetail {
 }
 
 export interface RiskProfileResponse {
-  /** 예: "not_measured". 진단 전에도 200으로 내려온다. */
-  readonly status: string;
-  readonly grade?: string;
+  /** 진단 전에도 200 + `not_measured` 로 내려온다. */
+  readonly status: RiskProfileStatus;
+  readonly grade?: RiskGrade;
+  /** 서버가 만든 한글 표기. 화면 표시는 `grade` 로 판정하고 이 값에 기대지 않는다. */
   readonly gradeLabel?: string;
   readonly score?: number;
   readonly diagnosedOn?: string;

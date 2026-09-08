@@ -1,6 +1,5 @@
 import type {
   ConcentrationStatus,
-  RiskProfileStatus,
   StressRunResponse,
   XrayBundle,
 } from "../../api/generated/divurve-api";
@@ -57,17 +56,6 @@ export function isConcentrationAboveThreshold(
   status: ConcentrationStatus,
 ): boolean {
   return CONCENTRATION_ABOVE_THRESHOLD[status];
-}
-
-/** 위험성향 진단이 끝났는지. 간편·상세 어느 쪽이든 기준선이 나온다. */
-const RISK_PROFILE_MEASURED: Readonly<Record<RiskProfileStatus, boolean>> = {
-  not_measured: false,
-  simple_done: true,
-  detail_done: true,
-};
-
-export function isRiskProfileMeasured(status: RiskProfileStatus): boolean {
-  return RISK_PROFILE_MEASURED[status];
 }
 
 export function toDateLabel(value: string | undefined): string | undefined {
