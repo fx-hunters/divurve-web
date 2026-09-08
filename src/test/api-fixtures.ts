@@ -4,6 +4,7 @@ import type {
   ForecastBundle,
   HomeSummaryResponse,
   MyPageBundle,
+  NotificationDto,
   SettingsResponse,
   StressRunResponse,
   XrayBundle,
@@ -246,6 +247,24 @@ export const MY_PAGE_SETTINGS_FIXTURE: SettingsResponse = {
   notifyConcentration: true,
 };
 
+/**
+ * `GET /api/v1/notifications` 응답.
+ *
+ * 2026-09-08 데모 세션 토큰으로 받은 **실제 응답을 그대로** 옮겼다
+ * (`client.ts`가 `is_read`→`isRead`로 바꾼 뒤의 형태). FE 타입에서 역산하지
+ * 않는다 — 필드명이 어긋난 채로 커버리지 100%가 유지된 것이 이슈 #52다.
+ */
+export const NOTIFICATIONS_FIXTURE: readonly NotificationDto[] = [
+  {
+    id: "0fc0bc6e-9277-4ed3-8d98-4b10ee2eb802",
+    kind: "target_zone",
+    title: "목표 구간에 가까워지고 있어요",
+    body: "미국 대학원 학비 목표가 목표 금액의 약 70%에 도달했습니다.",
+    createdAt: "2026-09-08T04:26:39.969510Z",
+    isRead: false,
+  },
+];
+
 export const MY_PAGE_API_FIXTURE: MyPageBundle = {
   profile: {
     userId: "user-1",
@@ -266,18 +285,7 @@ export const MY_PAGE_API_FIXTURE: MyPageBundle = {
     limitationNote:
       "이 판정은 해커톤 MVP용 가설이며 통계적으로 검증된 금융회사 표준 진단이 아닙니다.",
   },
-  notifications: {
-    notifications: [
-      {
-        id: "notice-1",
-        type: "plan",
-        title: "회차 확인",
-        message: "다음 준비 일정을 확인하세요.",
-        createdAt: "2026-09-07T00:00:00Z",
-        read: false,
-      },
-    ],
-  },
+  notifications: { notifications: NOTIFICATIONS_FIXTURE },
 };
 
 export const PLANNER_API_FIXTURE: PlannerApiOverview = {

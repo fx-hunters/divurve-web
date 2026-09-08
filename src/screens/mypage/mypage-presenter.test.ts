@@ -67,8 +67,9 @@ describe("toMyPageViewData", () => {
     expect(data.riskProfile?.diagnosedOnLabel).toMatch(/진단일 2026/);
     expect(data.notifications).toHaveLength(1);
     expect(data.notifications[0]).toMatchObject({
-      id: "notice-1",
-      title: "회차 확인",
+      id: "0fc0bc6e-9277-4ed3-8d98-4b10ee2eb802",
+      title: "목표 구간에 가까워지고 있어요",
+      message: "미국 대학원 학비 목표가 목표 금액의 약 70%에 도달했습니다.",
       isRead: false,
     });
   });
