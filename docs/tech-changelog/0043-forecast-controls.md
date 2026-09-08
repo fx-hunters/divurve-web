@@ -55,7 +55,8 @@
   | `high` · `extreme` (백엔드가 내보내지 않는 값) | 경고 | 평상 |
 
 - **일정 필터 범위가 넓어진다.** 기존에는 선택 통화 하나의 일정만 남겼는데, 이제 통화쌍을 이루는 두 통화의 일정을 함께 보여 준다(`USDJPY` → USD·JPY).
-- **기간 선택지는 이번 PR에서 넓히지 않았다.** 백엔드 `ForecastService.ALLOWED_HORIZON_DAYS = List.of(30, 90)` 이라 그 밖의 값은 400 이다. **기간 선택지 확장은 BE 이슈 divurve-api#121 선행** — 배포 확인 후 `FORECAST_HORIZON_DAYS` 에 값을 더하는 후속 PR 로 처리한다.
+- **기간 선택지는 이번 PR에서 넓히지 않았다.** 작성 시점의 백엔드는 `ForecastService.ALLOWED_HORIZON_DAYS = List.of(30, 90)` 이라 그 밖의 값이 400 이었다.
+  → **(2026-09-08 갱신, 해소됨)** BE 이슈 divurve-api#121 이 PR #131 로 머지되어 백엔드가 `List.of(7, 14, 30, 60, 90, 180)` 을 받는다. 프론트 선택지 확장은 후속 이슈 #56 / 변경 로그 [0052](0052-forecast-horizon-expand.md) 에서 완료했다. 이 항목은 더 이상 제약이 아니다.
 - 통화쌍·기간을 바꾸면 화면이 전체 로딩 상태로 돌아갔다 다시 그려진다(기존 동작 그대로). 부분 로딩으로 다듬는 것은 이 변경 범위 밖이다.
 - `components/common/**` · `components/ai/**` · `app/app.tsx` · `vite.config.ts` 는 손대지 않았다.
 

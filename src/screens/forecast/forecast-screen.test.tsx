@@ -7,6 +7,7 @@ import {
   EMPTY_FORECAST_API_FIXTURE,
   FORECAST_API_FIXTURE,
 } from "../../test/api-fixtures";
+import { FORECAST_HORIZON_DAYS } from "../../types/forecast";
 import { ForecastScreen } from "./forecast-screen";
 
 /**
@@ -115,6 +116,65 @@ describe("ForecastScreen", () => {
     expect(onNavigate).toHaveBeenCalledWith("planner");
   });
 
+  it("여섯 지평을 모두 칩으로 늘어놓고, 고른 값을 그대로 서버에 보낸다", async () => {
+    const loader = loaderByPair();
+    render(
+      <ForecastScreen
+        loader={loader}
+        explanationRequester={explanationRequester()}
+      />,
+    );
+
+    // 기본은 30일이고, 여섯 선택지가 모두 눌러 볼 수 있게 놓인다.
+    await waitFor(() => expect(loader).toHaveBeenLastCalledWith("USDKRW", 30));
+    for (const days of FORECAST_HORIZON_DAYS) {
+      expect(
+        screen.getByRole("button", { name: `향후 ${days}일` }),
+      ).toBeInTheDocument();
+    }
+
+    for (const days of FORECAST_HORIZON_DAYS) {
+      fireEvent.click(screen.getByRole("button", { name: `향후 ${days}일` }));
+      await waitFor(() =>
+        expect(loader).toHaveBeenLastCalledWith("USDKRW", days),
+      );
+      const selected = await screen.findByRole("button", {
+        name: `향후 ${days}일`,
+      });
+      expect(selected).toHaveAttribute("aria-pressed", "true");
+      expect(
+        await screen.findByText(`80% 범위 (향후 ${days}일)`),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "시뮬레이션 팬 차트 (USD/KRW)" }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("성적표가 없는 지평에서도 팬 차트는 그리고 성적표 카드만 빈 상태로 둔다", async () => {
+    render(
+      <ForecastScreen
+        explanationRequester={explanationRequester()}
+        loader={vi.fn().mockResolvedValue({
+          ...FORECAST_API_FIXTURE,
+          performance: null,
+        })}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "이 기간의 성적표는 아직 표시할 수 없습니다. 검증할 과거 관측이 쌓이면 나타납니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("적중률")).not.toBeInTheDocument();
+    // 팬 차트와 요약 카드는 그대로 보인다.
+    expect(
+      screen.getByRole("heading", { name: "시뮬레이션 팬 차트 (USD/KRW)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1,350.00 ~ 1,450.00")).toBeInTheDocument();
+  });
+
   it("전망 기간 컨트롤은 무엇에 대한 기간인지 라벨과 보조 설명으로 알린다", async () => {
     render(
       <ForecastScreen
@@ -138,6 +198,14 @@ describe("ForecastScreen", () => {
       "aria-pressed",
       "false",
     );
+
+    // 여섯 칩은 좁은 폭에서 줄바꿈으로 넘어간다 — 가로로 삐져나가지 않는다.
+    const chip = screen.getByRole("button", { name: "향후 180일" });
+    expect(chip).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(chip.parentElement).toHaveStyle({
+      flexWrap: "wrap",
+      maxWidth: "100%",
+    });
   });
 
   it("통화쌍 3종을 전환하면 팬 차트·동인·성적표가 모두 갱신된다", async () => {
