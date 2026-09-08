@@ -7,7 +7,7 @@
 | 변경 유형 | feat / refactor / ui |
 | 영향 범위 | Planner 화면 / API·데모 adapter / 라우팅 / 접근성 / 테스트 |
 | 관련 브랜치 | `feat/planner-api-demo-ui-sync` |
-| 관련 커밋 | `04895e0`, `9a349bc`, `6848dad`, `86a7cd8`, `495eea5`, `9a18bf7` |
+| 관련 커밋 | `04895e0`, `9a349bc`, `6848dad`, `86a7cd8`, `495eea5`, `9a18bf7`, `4f41084` |
 | 관련 이슈·PR | 미지정 |
 
 ## 변경 사유 (Why)
@@ -75,7 +75,7 @@
 - [x] `npm test -- --run` — 125개 파일, 1,054개 테스트 통과
 - [x] `npm run test -- --coverage` — 125개 파일, 1,054개 테스트 통과,
   statements/branches/functions/lines 100%
-- [x] `npm run build` — 787개 모듈, production build 성공
+- [x] `npm run build` — 791개 모듈, production build 성공
 - [x] `git diff --check` — whitespace 오류 0개
 
 coverage 보강 전 첫 실행에서는 일부 방어 분기가 남아 branches 98.94%까지 낮아졌고,
