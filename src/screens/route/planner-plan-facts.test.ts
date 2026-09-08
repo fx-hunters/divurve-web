@@ -7,10 +7,14 @@ describe("toPlanSummaryFacts", () => {
   it("활성 계획과 목표의 서버 값을 그대로 옮긴다", () => {
     const view = presentPlannerOverview(PLANNER_API_FIXTURE, "goal-usd");
 
+    // 백엔드 PlanResponse 에 없는 safe_ratio·split_count 대신 summary 값을 싣는다
     expect(toPlanSummaryFacts(view)).toEqual({
       plan_version: 2,
-      safe_ratio: 0.6,
-      split_count: 3,
+      plan_status: "active",
+      total_rounds: 2,
+      completed_rounds: 1,
+      skipped_rounds: 0,
+      next_action_seq: 2,
       currency_code: "USD",
       target_amount: 3_000,
       held_amount: 1_260,

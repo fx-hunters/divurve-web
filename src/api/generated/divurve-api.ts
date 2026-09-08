@@ -476,26 +476,163 @@ export interface GoalListResponse {
   readonly goals: readonly GoalResponse[];
 }
 
+/**
+ * 계획 상태 (백엔드 `PlanStatus`, 플래너 명세 §13.1).
+ *
+ * 저장 값은 소문자다. 새 값이 생기면 라벨 테이블이 컴파일 에러로 알린다.
+ */
+export type PlanStatusCode =
+  | "draft"
+  | "active"
+  | "needs_review"
+  | "completed"
+  | "paused"
+  | "superseded";
+
+/**
+ * 회차 상태 (백엔드 `PlanStepStatus`, 플래너 명세 §13.2).
+ *
+ * `scheduled → due → completed`, 또는 `due → skipped`. 예전 `pending` 은
+ * `scheduled` 로 바뀌었다(백엔드 주석).
+ */
+export type PlanStepStatusCode = "scheduled" | "due" | "completed" | "skipped";
+
+/**
+ * 예산 가능 상태 (백엔드 `BudgetState`, 명세 §9.6). 이 값만 대문자로 온다.
+ *
+ * `COVERED_IN_RANGE` 는 목표 달성을 뜻하지 않는다 — 현재 환율 범위 안에서
+ * 예산으로 감당된다는 조건부 판정이다.
+ */
+export type PlanBudgetState =
+  | "COVERED_IN_RANGE"
+  | "RANGE_SENSITIVE"
+  | "CONSTRAINT_ADJUSTMENT_REQUIRED"
+  | "BUDGET_NOT_PROVIDED";
+
+/** 계획 경고 코드 (명세 §20·§21-8). 저장된 계획 조회에서는 항상 빈 배열이다. */
+export type PlanWarningCode =
+  | "BUDGET_SHORTFALL"
+  | "TARGET_ALREADY_MET"
+  | "FORECAST_UNAVAILABLE";
+
+/** 조정 선택지 코드 (백엔드 `AdjustmentOption`, 명세 §15·§17). */
+export type PlanAdjustmentOption =
+  | "CHANGE_ROUND_BUDGET"
+  | "CHANGE_TARGET_AMOUNT"
+  | "CHANGE_TARGET_DATE"
+  | "PAUSE_PLAN";
+
+/** 환율 범위별 예상 원화 비용 (명세 §9.3). */
+export interface PlanCostRange {
+  readonly lowKrw: number;
+  readonly baseKrw: number;
+  readonly highKrw: number;
+}
+
+/** 같은 예산으로 확보할 수 있는 외화 범위 (명세 §10.2). 비용과 방향이 반대다. */
+export interface PlanAcquisitionRange {
+  readonly low: number;
+  readonly base: number;
+  readonly high: number;
+}
+
+/**
+ * 계산 기준·가정·출처 (명세 §11.1).
+ *
+ * `PlanResponseMapper` 는 V16 이전에 저장된 계획에 이 값을 지어내지 않고 통째로
+ * 비운다. 그래서 저장된 계획 조회에서는 없을 수 있다.
+ */
+export interface PlanCalculationMeta {
+  readonly calculatedAt: string;
+  readonly rateAsOf: string;
+  /** 구간을 얻지 못했으면 오지 않는다. */
+  readonly forecastAsOf?: string;
+  readonly policyVersion: string;
+  readonly currencyCode: string;
+  /** 원본 고시 단위(JPY 100). 환율은 이미 1단위로 정규화돼 있다. */
+  readonly quoteUnit: number;
+  /** 계산에 쓴 환율 범위(외화 1단위당 원화). 방향 전망이 아니다. */
+  readonly rates: {
+    readonly low: number;
+    readonly base: number;
+    readonly high: number;
+  };
+  readonly spreadRatio: number;
+  readonly feeKrw: number;
+}
+
+/** 목표 요약 (명세 §11.2). */
+export interface PlanGoalSummary {
+  /** `deadline` / `recurring`. */
+  readonly goalType: string;
+  readonly purpose: string;
+  readonly currencyCode: string;
+  /** 마감형 목표 외화 총액. 정기형은 오지 않는다. */
+  readonly targetAmount?: number;
+  /** 정기형 회차 예산. 마감형은 오지 않는다. */
+  readonly roundBudgetKrw?: number;
+  readonly allocatedHoldingAmount: number;
+  readonly remainingAmount: number;
+  readonly targetDate?: string;
+}
+
+/** 계획 요약 (명세 §11.3). 회차 수·다음 행동은 전부 서버가 센 값이다. */
+export interface PlanSummary {
+  readonly status: PlanStatusCode;
+  /** 계획 종료일 — 마감 버퍼를 뺀 날 (명세 §9.4). */
+  readonly planEndDate?: string;
+  readonly totalRounds: number;
+  readonly completedRounds: number;
+  readonly scheduledRounds: number;
+  readonly skippedRounds: number;
+  /** 지금 확인·기록할 회차 번호. 남은 회차가 없으면 오지 않는다. */
+  readonly nextActionSeq?: number;
+  /** 비용 요약이 없는 과거 계획에는 오지 않는다. */
+  readonly estimatedCost?: PlanCostRange;
+  /** 정기형이거나 비용 요약이 없으면 오지 않는다. */
+  readonly budgetState?: PlanBudgetState;
+  /** 정기형 점검 시점의 누적 확보 외화 범위 (명세 §10.3). */
+  readonly cumulativeAcquisition?: PlanAcquisitionRange;
+}
+
+/** 회차 (명세 §11.4). */
 export interface PlanStep {
   readonly seq: number;
   readonly scheduledDate: string;
   readonly amount: number;
-  readonly krwEstimate: number;
-  readonly executedAmount?: number;
-  readonly status: string;
+  /** 정기형 회차 예산. 마감형은 오지 않는다. */
+  readonly budgetKrw?: number;
+  readonly estimatedCost?: PlanCostRange;
+  /** 정기형 확보 가능 외화 범위. 마감형은 오지 않는다. */
+  readonly acquisition?: PlanAcquisitionRange;
+  readonly executedAmount: number;
+  readonly executedRate?: number;
+  readonly executedDate?: string;
+  readonly status: PlanStepStatusCode;
+  /** 지금 확인·기록할 다음 행동인지. `summary.nextActionSeq` 와 같은 회차를 가리킨다. */
+  readonly nextAction: boolean;
 }
 
-export interface ActivePlanResponse {
-  readonly id: string;
-  readonly goalId: string;
-  readonly version: number;
-  readonly isActive: boolean;
-  readonly reason: string;
-  readonly safeRatio: number;
-  readonly splitCount: number;
-  readonly opportunityAmount: number;
-  readonly opportunityTriggerRate: number;
+/**
+ * 계획 응답 (백엔드 `PlanResponse`, 플래너 명세 §11).
+ *
+ * 미리보기와 확정·조회가 **같은 구조**를 쓴다. 미리보기에는 아직 저장 전이라
+ * `planId`·`version` 이 없다.
+ */
+export interface PlanResponse {
+  /** 저장된 계획 ID. 미리보기에는 없다. */
+  readonly planId?: string;
+  /** 목표 ID. 목표 저장 전 미리보기에는 없다. */
+  readonly goalId?: string;
+  /** 계획 버전. 미리보기에는 없다. */
+  readonly version?: number;
+  readonly calculationMeta?: PlanCalculationMeta;
+  readonly goal: PlanGoalSummary;
+  readonly summary: PlanSummary;
   readonly steps: readonly PlanStep[];
+  readonly warnings: readonly PlanWarningCode[];
+  /** 이 계획이 보장하는 것과 보장하지 않는 것 (명세 §2·§26). 서버 문장을 그대로 쓴다. */
+  readonly disclaimer: string;
 }
 
 export interface StepCompleteRequest {
@@ -505,23 +642,32 @@ export interface StepCompleteRequest {
 
 export interface StepCompleteResponse {
   readonly seq: number;
-  readonly status: string;
+  readonly status: PlanStepStatusCode;
   readonly executedAmount: number;
-  readonly executedRate: number;
+  readonly executedRate?: number;
+  readonly executedDate?: string;
   readonly remainingAmount: number;
+  /** 남은 회차가 없으면 오지 않는다. */
+  readonly nextActionSeq?: number;
+  /** 이미 반영된 요청의 재전송이었는지. 참이면 아무것도 저장되지 않았다 (§21-12). */
+  readonly alreadyApplied: boolean;
 }
 
+/**
+ * 회차 건너뛰기 응답 (백엔드 `StepSkipResponse`, 명세 §15).
+ *
+ * **변경 계획 미리보기이며 아무것도 저장되지 않는다.** `applied` 는 항상
+ * `false` 다 — 승인 전에는 계획이 바뀌지 않는다(§21-9).
+ */
 export interface StepSkipResponse {
-  readonly redistributed: {
-    readonly perStepBefore: number;
-    readonly perStepAfter: number;
-    readonly increasePct: number;
-  };
-  readonly achieveProb: {
-    readonly before: number;
-    readonly after: number;
-  };
-  readonly consecutiveSkips: number;
-  readonly safeModeTriggered: boolean;
-  readonly newPlanVersion: number;
+  readonly seq: number;
+  readonly applied: boolean;
+  readonly amountBefore: number;
+  readonly amountAfter: number;
+  readonly remainingAmount: number;
+  readonly remainingRounds: number;
+  /** 계산 근거가 없으면 오지 않는다. */
+  readonly perRoundCostKrw?: number;
+  readonly exceedsBudget: boolean;
+  readonly adjustmentOptions: readonly PlanAdjustmentOption[];
 }

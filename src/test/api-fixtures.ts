@@ -280,6 +280,25 @@ export const MY_PAGE_API_FIXTURE: MyPageBundle = {
   },
 };
 
+/**
+ * 플래너 픽스처.
+ *
+ * 계획 부분은 실제 백엔드 응답(`POST /api/v1/plans/preview`, 2026-09-08)과
+ * `PlanResponse` DTO 를 그대로 옮겼다 — 프론트 타입에서 역산하지 않는다.
+ * 예전 픽스처가 프론트 타입 기준이라 계약 드리프트(H2)가 커버리지 100% 인
+ * 채로 살아남았다.
+ *
+ * 저장된 계획 조회는 `planId`·`version` 이 있고 `warnings` 가 빈 배열이며
+ * (`PlanResponseMapper.toPlanResponse`), 미리보기는 그 반대다.
+ */
+/**
+ * 서버가 모든 계획 응답에 실어 보내는 고지 문장 (백엔드 `PlanResponse.DISCLAIMER`,
+ * 명세 §2·§26). 프론트가 다시 쓰지 않고 응답 값을 그대로 표시한다.
+ */
+export const PLAN_DISCLAIMER =
+  "이 계획은 조건부 계산 결과이며 목표 달성이나 환율 범위를 보장하지 않습니다. " +
+  "Divurve 는 환전을 실행하지 않으며 환율 방향이나 매매 시점을 추천하지 않습니다.";
+
 export const PLANNER_API_FIXTURE: PlannerApiOverview = {
   items: [
     {
@@ -296,32 +315,64 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
         heldAmount: 1_260,
       },
       activePlan: {
-        id: "plan-usd",
+        planId: "plan-usd",
         goalId: "goal-usd",
         version: 2,
-        isActive: true,
-        reason: "서버가 반환한 계획 설명입니다.",
-        safeRatio: 0.6,
-        splitCount: 3,
-        opportunityAmount: 200,
-        opportunityTriggerRate: 1_350,
+        calculationMeta: {
+          calculatedAt: "2026-09-08T04:34:58.567601733Z",
+          rateAsOf: "2026-09-08T00:00:00Z",
+          forecastAsOf: "2026-09-08T00:00:00Z",
+          policyVersion: "plan-2026.09.1-equal-split",
+          currencyCode: "USD",
+          quoteUnit: 1,
+          rates: { low: 1_313.2211410234067, base: 1_342.6, high: 1_372.6361110781652 },
+          spreadRatio: 0.009625000000000002,
+          feeKrw: 10_000,
+        },
+        goal: {
+          goalType: "deadline",
+          purpose: "investment",
+          currencyCode: "USD",
+          targetAmount: 3_000,
+          allocatedHoldingAmount: 1_260,
+          remainingAmount: 1_740,
+          targetDate: "2026-12-31",
+        },
+        summary: {
+          status: "active",
+          planEndDate: "2026-12-26",
+          totalRounds: 2,
+          completedRounds: 1,
+          scheduledRounds: 1,
+          skippedRounds: 0,
+          nextActionSeq: 2,
+          estimatedCost: { lowKrw: 380_834, baseKrw: 389_354, highKrw: 398_064 },
+          budgetState: "COVERED_IN_RANGE",
+        },
         steps: [
           {
             seq: 1,
             scheduledDate: "2026-09-01",
             amount: 145,
-            krwEstimate: 203_000,
+            estimatedCost: { lowKrw: 190_417, baseKrw: 194_677, highKrw: 199_032 },
             executedAmount: 145,
+            executedRate: 1_395,
+            executedDate: "2026-09-01",
             status: "completed",
+            nextAction: false,
           },
           {
             seq: 2,
             scheduledDate: "2026-09-12",
             amount: 145,
-            krwEstimate: 203_000,
-            status: "pending",
+            estimatedCost: { lowKrw: 190_417, baseKrw: 194_677, highKrw: 199_032 },
+            executedAmount: 0,
+            status: "due",
+            nextAction: true,
           },
         ],
+        warnings: [],
+        disclaimer: PLAN_DISCLAIMER,
       },
     },
     {
