@@ -1,0 +1,111 @@
+/*
+ * 경제 일정 띠.
+ *
+ * 색상은 토큰만 쓴다. 리터럴 색상 금지(AGENTS.md §6).
+ *
+ * 높이를 고정으로 잡지 않는 대신, 일정이 늘어도 세로로 자라지 않게 만든다 —
+ * 칩 줄은 한 줄에 두고 넘치면 가로로 민다. 이 띠가 세로로 자라면 그만큼
+ * 아래 카드가 첫 화면 밖으로 밀려난다.
+ */
+
+.attention-strip.card {
+  padding: 1rem 1.25rem 0.75rem;
+  gap: 0.625rem;
+}
+
+.attention-strip__link {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warn);
+  text-decoration: underline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/*
+ * 칩 줄. 넘치면 가로로 민다.
+ *
+ * 스크롤바가 칩을 가리지 않도록 칩 아래에 제 몫의 자리를 준다 — 칩에
+ * `margin-bottom`(스크롤바 두께 + 여백)을 주면 스크롤바가 그 빈 띠에 놓인다.
+ */
+.attention-strip__events {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  /* 가로 끝까지 밀었을 때 페이지가 따라 스크롤되지 않게 한다. */
+  overscroll-behavior-x: contain;
+  /* 오른쪽 끝을 흐리게 해 "더 있다"는 것을 알린다. 넘치지 않을 때는 이 자리가
+     빈 배경이라 보이지 않는다. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+
+/*
+ * 표준 속성(`scrollbar-width`)을 쓰면 Chrome 이 ::-webkit-scrollbar 규칙을
+ * 무시한다. 그래서 pseudo-element 를 모르는 브라우저(Firefox)에서만 표준
+ * 속성을 켠다 — WebKit 계열은 아래 규칙으로 직접 그린다.
+ */
+@supports not selector(::-webkit-scrollbar) {
+  .attention-strip__events {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+.attention-strip__events::-webkit-scrollbar {
+  height: 0.375rem;
+}
+
+.attention-strip__events::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.attention-strip__events::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: var(--radius-full);
+}
+
+.attention-strip__events::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
+.attention-strip__event {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+  /* 스크롤바가 놓일 자리. 두께(0.375rem) + 칩과의 간격(0.375rem). */
+  margin-bottom: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background-color: var(--bg);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* 고변동성은 테두리로 한 번 더 구분한다. 배경은 배지 색과 겹치지 않게 둔다. */
+.attention-strip__event[data-severity="고변동성"] {
+  border-color: var(--danger-border);
+}
+
+.attention-strip__event-date {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.attention-strip__event-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.attention-strip__empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}

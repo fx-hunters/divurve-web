@@ -126,35 +126,6 @@ export function toDateLabel(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(parsed);
 }
 
-/** 좁은 자리(헤드라인 칩)용 월·일 표기. 연도는 떨어뜨린다. */
-export function toShortDateLabel(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "numeric",
-    day: "numeric",
-  }).format(parsed);
-}
-
-/**
- * 헤드라인 띠에 올릴 일정.
- *
- * 경제 일정 카드는 화면 맨 아래에 있어 첫 화면에서는 스크롤해야 보인다.
- * "주의 필요"가 붙은 정보가 스크롤 뒤에 있으면 알림 구실을 못 하므로,
- * 신호에 해당하는 고변동성 일정 두 건만 위로 끌어올린다. 세부는 카드에 남는다.
- *
- * 순서는 서버가 준 그대로다 — 날짜 정렬을 프론트에서 다시 하지 않는다.
- */
-export const HEADLINE_EVENT_LIMIT = 2;
-
-export function toHeadlineEvents(
-  events: readonly UpcomingEventItem[],
-): readonly UpcomingEventItem[] {
-  return events
-    .filter((event) => event.severity === "고변동성")
-    .slice(0, HEADLINE_EVENT_LIMIT);
-}
-
 export function toBlockStates(
   blocks: readonly { readonly key: HomeBlockKey; readonly state: HomeBlockState }[],
 ): Readonly<Record<HomeBlockKey, HomeBlockState>> {
@@ -238,17 +209,12 @@ function toAttention(data: HomeSummaryResponse): AttentionData {
     (event) => ({
       title: event.title,
       dateLabel: toDateLabel(event.date),
-      shortDateLabel: toShortDateLabel(event.date),
       currencyCode: event.currencyCode,
       severity:
         event.importance.toLowerCase() === "high" ? "고변동성" : "중변동성",
     }),
   );
-  return {
-    regimeLabel: toBadgeLabel(data.attention.regimeBadge),
-    tone: toBadgeTone(data.attention.regimeBadge),
-    events,
-  };
+  return { events };
 }
 
 /** 통화별 노출. 서버가 원화 평가액 내림차순으로 이미 정렬해 주므로 재정렬하지 않는다. */

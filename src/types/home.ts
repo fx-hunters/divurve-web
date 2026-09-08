@@ -48,15 +48,18 @@ export interface GoalsRouteData {
 export interface UpcomingEventItem {
   readonly title: string;
   readonly dateLabel: string;
-  /** 헤드라인 칩처럼 좁은 자리에 쓰는 월·일 표기. */
-  readonly shortDateLabel: string;
   readonly currencyCode: string;
   readonly severity: "고변동성" | "중변동성";
 }
 
+/**
+ * 경제 일정 블록.
+ *
+ * 국면 배지는 여기 없다 — 백엔드가 `today.badge` 와 `attention.regime_badge`
+ * 를 같은 `regime.badge()` 로 채우므로 `TodaySummaryData` 의 것과 늘 같은
+ * 값이다. 두 벌을 들고 있으면 화면에 같은 글자가 두 번 나온다.
+ */
 export interface AttentionData {
-  readonly regimeLabel: string;
-  readonly tone: HomeTone;
   readonly events: readonly UpcomingEventItem[];
 }
 

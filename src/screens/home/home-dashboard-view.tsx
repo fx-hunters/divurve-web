@@ -4,7 +4,7 @@
  * 데이터를 직접 가져오지 않는다. '오늘의 시장'은 자체 조회 상태를 가지므로
  * 완성된 노드를 `marketSlot`으로 받아 자리만 잡아 준다(AGENTS.md §7.2).
  *
- * DOM 순서가 곧 모바일 읽기 순서다 — 핵심 → 시장 → 목표 → 현황 → 일정.
+ * DOM 순서가 곧 모바일 읽기 순서다 — 핵심 → 일정 → 시장 → 목표 → 현황.
  * 배치는 `home-dashboard.css`가 정한다.
  */
 import type { ReactNode } from "react";
@@ -12,7 +12,6 @@ import { TodayHeadlineCard } from "./today-headline-card";
 import { FxHoldingCard } from "./fx-holding-card";
 import { GoalsRouteCard } from "./goals-route-card";
 import { AttentionBanner } from "./attention-banner";
-import { toHeadlineEvents } from "./home-presenter";
 import type { HomeDashboardData } from "../../types/home";
 import "./home-dashboard.css";
 
@@ -45,12 +44,16 @@ export function HomeDashboardView({
             profileFit={data.profileFit}
             isProfileMeasured={blockStates.profile_fit === "filled"}
             asOfLabel={data.asOfLabel}
-            upcomingEvents={
-              blockStates.attention === "empty"
-                ? undefined
-                : toHeadlineEvents(data.attention.events)
-            }
             onNavigateToMypage={onNavigateToMypage}
+          />
+        </div>
+      )}
+
+      {blockStates.attention !== "empty" && (
+        <div className="home-dashboard__cell home-dashboard__calendar">
+          <AttentionBanner
+            data={data.attention}
+            onNavigateToRange={onNavigateToRange}
           />
         </div>
       )}
@@ -82,14 +85,6 @@ export function HomeDashboardView({
         )}
       </div>
 
-      {blockStates.attention !== "empty" && (
-        <div className="home-dashboard__cell home-dashboard__calendar">
-          <AttentionBanner
-            data={data.attention}
-            onNavigateToRange={onNavigateToRange}
-          />
-        </div>
-      )}
     </div>
   );
 }
