@@ -89,6 +89,11 @@ export interface HomeSummaryResponse {
     readonly topCurrencyCode?: string;
     readonly dayChangeKrw?: number;
     readonly sensitivity1pctKrw?: number;
+    /**
+     * 통화별 노출. 원화 평가액 내림차순으로 이미 정렬돼 오므로 프론트가
+     * 재정렬하지 않는다(NFR-UI-01). 외화자산이 없으면 빈 배열이다(FR-CM-09).
+     */
+    readonly exposure?: readonly CurrencyExposure[];
   };
   readonly goalsRoute: {
     readonly activeGoals: readonly HomeActiveGoal[];
@@ -105,7 +110,20 @@ export interface HomeSummaryResponse {
       readonly lo?: number;
       readonly hi?: number;
     };
+    /** 스파크라인용 최근 30영업일. `/forecast` 의 전체 history 와는 다른 부분집합이다. */
+    readonly history?: readonly HomeForecastHistoryPoint[];
   };
+}
+
+/**
+ * 홈 스파크라인용 관측점. 스키마 `HistoryPointDto` 다.
+ *
+ * ⚠️ `/forecast` 의 `history` 항목(`ForecastHistory`)은 날짜 키가 `d` 인데
+ * 여기는 `date` 다. 두 배열은 이름만 같고 키가 다르니 섞어 쓰면 안 된다.
+ */
+export interface HomeForecastHistoryPoint {
+  readonly date: string;
+  readonly rate: number;
 }
 
 export interface ForecastHistory {
@@ -269,11 +287,21 @@ export type StressInterpretationCode =
   | "fx_reduces_equity_gain"
   | "equity_and_fx_both_positive";
 
-export interface XrayExposure {
+/**
+ * 통화별 노출. 백엔드 OpenAPI 컴포넌트 `CurrencyExposure` 하나를 `/xray` 와
+ * `/home/summary` 가 함께 쓴다(divurve-api#88 에서 이름 확정, #94 로 홈에 추가).
+ * 두 화면이 같은 `PortfolioSnapshot` 에서 나오므로 값도 같아야 한다.
+ *
+ * `share` 는 0~1 비율이다. 퍼센트 변환은 표시 계층에서 `toPercent` 로 한다.
+ */
+export interface CurrencyExposure {
   readonly currencyCode: string;
   readonly krw: number;
   readonly share: number;
 }
+
+/** @deprecated `CurrencyExposure` 를 쓴다. 기존 X-Ray 호출부 호환용 별칭. */
+export type XrayExposure = CurrencyExposure;
 
 /** 서버는 값이 없는 필드를 키째 생략하므로 대부분 optional이다. */
 export interface XrayConcentration {

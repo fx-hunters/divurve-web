@@ -457,6 +457,11 @@ export const HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
       topCurrencyCode: "USD",
       dayChangeKrw: 84_000,
       sensitivity1pctKrw: 247_200,
+      // 서버가 원화 평가액 내림차순으로 정렬해 준다(NFR-UI-01).
+      exposure: [
+        { currencyCode: "USD", krw: 15_790_000, share: 0.6388 },
+        { currencyCode: "JPY", krw: 8_926_000, share: 0.3612 },
+      ],
     },
     goalsRoute: {
       activeGoals: [
@@ -491,6 +496,13 @@ export const HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
       pairCode: "USDKRW",
       currentRate: 1_382.4,
       interval80: { lo: 1_330.6, hi: 1_389.02 },
+      // 스파크라인용. 홈 요약은 날짜 키가 `date` 다(`/forecast` 는 `d`).
+      history: [
+        { date: "2026-09-02", rate: 1_351.2 },
+        { date: "2026-09-03", rate: 1_377.8 },
+        { date: "2026-09-04", rate: 1_365.1 },
+        { date: "2026-09-05", rate: 1_382.4 },
+      ],
     },
   },
   meta: { asOf: "2026-09-06T22:32:09.924Z" },
@@ -513,6 +525,7 @@ export const SPARSE_HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
       fxRatio: 1.0,
       topCurrencyCode: "USD",
       sensitivity1pctKrw: 93_806,
+      exposure: [{ currencyCode: "USD", krw: 9_380_550, share: 1.0 }],
     },
     goalsRoute: { activeGoals: [] },
     attention: { regimeBadge: "normal", upcomingEvents: [] },

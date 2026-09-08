@@ -71,6 +71,11 @@ describe("toHomeDashboardData", () => {
       topCurrencyCode: "USD",
       dayChangeKrw: 84_000,
       sensitivity1pctKrw: 247_200,
+      // share(0~1)를 X-Ray 와 같은 규칙(소수 한 자리)으로 퍼센트화한다.
+      exposure: [
+        { currencyCode: "USD", krw: 15_790_000, sharePct: 63.9 },
+        { currencyCode: "JPY", krw: 8_926_000, sharePct: 36.1 },
+      ],
     });
     expect(data.goalsRoute.goals).toEqual([
       {
@@ -135,6 +140,8 @@ describe("toHomeDashboardData", () => {
       topCurrencyCode: undefined,
       dayChangeKrw: undefined,
       sensitivity1pctKrw: undefined,
+      // 키가 통째로 없는 응답에서도 배열이라 화면이 length 만 보면 된다.
+      exposure: [],
     });
     expect(data.forecast).toEqual({
       pairLabel: "-",

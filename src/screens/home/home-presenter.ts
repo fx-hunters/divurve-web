@@ -17,6 +17,7 @@ import type {
   TodaySummaryData,
   UpcomingEventItem,
 } from "../../types/home";
+import type { ExposureShareItem } from "../../types/xray";
 
 const BLOCK_KEYS: readonly HomeBlockKey[] = [
   "today",
@@ -208,6 +209,25 @@ function toAttention(data: HomeSummaryResponse): AttentionData {
   };
 }
 
+/**
+ * 비율(0~1)을 소수 한 자리 퍼센트로. X-Ray `xray-presenter.toPercent` 와 **같은
+ * 규칙**이어야 한다 — 홈과 X-Ray 는 같은 `PortfolioSnapshot` 에서 나온 같은 값을
+ * 그리므로 반올림이 갈리면 두 화면 숫자가 어긋난다(이슈 #60 완료 조건).
+ * 화면 간 import 는 레이어를 넘으므로(§7.1) 규칙만 맞춘다.
+ */
+function toPercent(ratio: number): number {
+  return Math.round(ratio * 1000) / 10;
+}
+
+/** 통화별 노출. 서버가 원화 평가액 내림차순으로 이미 정렬해 주므로 재정렬하지 않는다. */
+function toExposure(data: HomeSummaryResponse): readonly ExposureShareItem[] {
+  return (data.fxStatus.exposure ?? []).map((item) => ({
+    currencyCode: item.currencyCode,
+    krw: item.krw,
+    sharePct: toPercent(item.share),
+  }));
+}
+
 function toForecast(data: HomeSummaryResponse): ForecastSummaryData {
   const { pairCode, currentRate, interval80 } = data.forecast;
   return {
@@ -234,10 +254,11 @@ export function toHomeDashboardData(
       fxRatioPct:
         data.fxStatus.fxRatio === undefined
           ? undefined
-          : Math.round(data.fxStatus.fxRatio * 1000) / 10,
+          : toPercent(data.fxStatus.fxRatio),
       topCurrencyCode: data.fxStatus.topCurrencyCode,
       dayChangeKrw: data.fxStatus.dayChangeKrw,
       sensitivity1pctKrw: data.fxStatus.sensitivity1pctKrw,
+      exposure: toExposure(data),
     },
     goalsRoute: toGoalsRoute(data),
     attention: toAttention(data),
