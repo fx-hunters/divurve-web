@@ -361,6 +361,61 @@ export async function fetchAdminFxRates(
  * 2-4. 수동 갱신
  * ------------------------------------------------------------------ */
 
+/**
+ * 마지막 갱신 시각 (백엔드 이슈 fx-hunters/divurve-api#128).
+ *
+ * 갱신 응답의 `refreshedAt`은 버튼을 누른 그 응답에만 실려 화면을 벗어나면
+ * 사라진다. 이 조회는 서버에 남아 있는 값(`fx_rates.fetched_at`의 최댓값)을
+ * 읽어 오므로, 스케줄러가 돌린 갱신도 함께 보인다.
+ *
+ * FRED는 결과를 저장하지 않아 서버 기준 마지막 갱신이 없다 — `macro`는
+ * 당분간 `null`로 온다.
+ */
+export interface AdminFxPairStatus {
+  readonly pairCode: string | null;
+  readonly lastFetchedAt: string | null;
+  readonly lastQuoteDate: string | null;
+}
+
+export interface AdminRefreshStatus {
+  readonly fx: {
+    readonly lastFetchedAt: string | null;
+    readonly lastQuoteDate: string | null;
+    readonly pairs: readonly AdminFxPairStatus[];
+  };
+  readonly macro: {
+    readonly lastRefreshedAt: string | null;
+  };
+}
+
+export function normalizeAdminRefreshStatus(data: unknown): AdminRefreshStatus {
+  const source = isRecord(data) ? data : {};
+  const fx = isRecord(source.fx) ? source.fx : {};
+  const macro = isRecord(source.macro) ? source.macro : {};
+  return {
+    fx: {
+      lastFetchedAt: readString(fx, "lastFetchedAt"),
+      lastQuoteDate: readString(fx, "lastQuoteDate"),
+      pairs: readArray(fx, "pairs").map((row) => ({
+        pairCode: readString(row, "pairCode"),
+        lastFetchedAt: readString(row, "lastFetchedAt"),
+        lastQuoteDate: readString(row, "lastQuoteDate"),
+      })),
+    },
+    macro: { lastRefreshedAt: readString(macro, "lastRefreshedAt") },
+  };
+}
+
+/** 읽기 전용이다. 이 호출은 갱신을 일으키지 않는다. */
+export async function fetchAdminRefreshStatus(): Promise<
+  ApiResult<AdminRefreshStatus>
+> {
+  const result = await requestWithMeta<unknown>(
+    `${ADMIN_BASE}/fx-rates/status`,
+  );
+  return { data: normalizeAdminRefreshStatus(result.data), meta: result.meta };
+}
+
 /** 통화쌍 하나의 갱신 결과. `failureReason`이 있으면 실패다. */
 export interface AdminFxRefreshPair {
   readonly pairCode: string | null;
@@ -484,6 +539,15 @@ export interface AdminExtractPreview {
   readonly count: number | null;
   readonly previewedAt: string | null;
   readonly candidates: readonly AdminExtractCandidate[];
+  /**
+   * 서버가 URL로 본문을 수집했을 때만 채워지는 값
+   * (백엔드 이슈 fx-hunters/divurve-api#129). 그 전까지는 모두 null이다.
+   */
+  readonly resolvedSourceUrl: string | null;
+  readonly fetchedCharCount: number | null;
+  readonly fetchedTextPreview: string | null;
+  /** 수집·추출이 실패한 사유. HTTP는 200으로 온다. */
+  readonly failureReason: string | null;
 }
 
 export function normalizeAdminExtractPreview(
@@ -502,11 +566,20 @@ export function normalizeAdminExtractPreview(
       valid: readBoolean(row, "valid"),
       rejectReason: readString(row, "rejectReason"),
     })),
+    resolvedSourceUrl: readString(source, "resolvedSourceUrl"),
+    fetchedCharCount: readNumber(source, "fetchedCharCount"),
+    fetchedTextPreview: readString(source, "fetchedTextPreview"),
+    failureReason: readString(source, "failureReason"),
   };
 }
 
+/**
+ * 둘 중 하나만 있어도 된다.
+ *
+ * `sourceUrl`만 보내면 서버가 본문을 수집해 추출한다. 둘 다 보내면 손으로
+ * 붙여넣은 `text`가 우선한다(백엔드 이슈 fx-hunters/divurve-api#129).
+ */
 export interface AdminExtractRequest {
-  /** 선택. 손으로 붙여넣은 원문에는 없을 수 있다. */
   readonly sourceUrl: string;
   readonly text: string;
 }

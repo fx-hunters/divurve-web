@@ -6,7 +6,11 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAdminCurrencies, fetchAdminFxRates } from "../../api/admin";
+import {
+  fetchAdminCurrencies,
+  fetchAdminFxRates,
+  fetchAdminRefreshStatus,
+} from "../../api/admin";
 import { ApiError } from "../../api/client";
 import { AdminFxRatesScreen, toPairOptions } from "./admin-fx-rates-screen";
 
@@ -17,6 +21,7 @@ vi.mock("../../api/admin", async (importOriginal) => {
     ADMIN_STORED_RATE_TYPE: actual.ADMIN_STORED_RATE_TYPE,
     fetchAdminCurrencies: vi.fn(),
     fetchAdminFxRates: vi.fn(),
+    fetchAdminRefreshStatus: vi.fn(),
     refreshAdminFxRates: vi.fn(),
     refreshAdminMacro: vi.fn(),
   };
@@ -54,6 +59,14 @@ const CURRENCY_MASTER = {
 beforeEach(() => {
   vi.mocked(fetchAdminCurrencies).mockReset();
   vi.mocked(fetchAdminFxRates).mockReset();
+  vi.mocked(fetchAdminRefreshStatus).mockReset();
+  vi.mocked(fetchAdminRefreshStatus).mockResolvedValue({
+    data: {
+      fx: { lastFetchedAt: null, lastQuoteDate: null, pairs: [] },
+      macro: { lastRefreshedAt: null },
+    },
+    meta: META,
+  });
 });
 
 describe("toPairOptions", () => {
@@ -124,10 +137,10 @@ describe("AdminFxRatesScreen", () => {
     fireEvent.change(screen.getByLabelText("pair_code"), {
       target: { value: "USDKRW" },
     });
-    fireEvent.change(screen.getByLabelText("from (생략 시 1년)"), {
+    fireEvent.change(screen.getByLabelText("from"), {
       target: { value: "2026-08-01" },
     });
-    fireEvent.change(screen.getByLabelText("to (생략 시 오늘)"), {
+    fireEvent.change(screen.getByLabelText("to"), {
       target: { value: "2026-09-01" },
     });
     fireEvent.click(screen.getByRole("button", { name: "조회" }));
@@ -201,6 +214,65 @@ describe("AdminFxRatesScreen", () => {
     expect(screen.getAllByRole("option")).toHaveLength(
       // "선택" 하나 + rate_type 5종
       6,
+    );
+  });
+});
+
+describe("AdminFxRatesScreen — 기간 기본값", () => {
+  /** 기본값은 마운트 시각으로 굳으므로, 렌더하는 그 순간만 시계를 고정한다. */
+  function renderAt(iso: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+    try {
+      return render(<AdminFxRatesScreen onAuthFailure={vi.fn()} />);
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  beforeEach(() => {
+    vi.mocked(fetchAdminCurrencies).mockResolvedValue({
+      data: CURRENCY_MASTER,
+      meta: META,
+    });
+  });
+
+  it("들어오면 to는 오늘, from은 한 달 전으로 채워져 있다", async () => {
+    renderAt("2026-09-08T05:00:00Z");
+    await screen.findByRole("option", { name: "USDKRW" });
+
+    expect(screen.getByLabelText("to")).toHaveValue("2026-09-08");
+    expect(screen.getByLabelText("from")).toHaveValue("2026-08-08");
+  });
+
+  it("채워진 기본값을 그대로 조회에 싣는다", async () => {
+    vi.mocked(fetchAdminFxRates).mockResolvedValue({
+      data: {
+        pairCode: "USDKRW",
+        rateType: "mid",
+        from: "2026-08-08",
+        to: "2026-09-08",
+        count: 0,
+        points: [],
+      },
+      meta: META,
+    });
+
+    renderAt("2026-09-08T05:00:00Z");
+    await screen.findByRole("option", { name: "USDKRW" });
+
+    fireEvent.change(screen.getByLabelText("pair_code"), {
+      target: { value: "USDKRW" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "조회" }));
+
+    await waitFor(() =>
+      expect(fetchAdminFxRates).toHaveBeenCalledWith({
+        pairCode: "USDKRW",
+        from: "2026-08-08",
+        to: "2026-09-08",
+        rateType: "mid",
+      }),
     );
   });
 });

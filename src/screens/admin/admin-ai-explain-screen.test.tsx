@@ -148,3 +148,21 @@ describe("AdminAiExplainScreen", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("AdminAiExplainScreen — 배치", () => {
+  it("입력 카드와 결과 카드를 좌우로 나눠 세운다", () => {
+    const { container } = render(
+      <AdminAiExplainScreen onAuthFailure={vi.fn()} />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "입력", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "결과", level: 2 }),
+    ).toBeInTheDocument();
+    // 두 카드가 같은 분할 컨테이너 안에 나란히 있다.
+    const split = container.querySelector(".admin-split");
+    expect(split?.querySelectorAll(".admin-section")).toHaveLength(2);
+  });
+});

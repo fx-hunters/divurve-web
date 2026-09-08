@@ -52,6 +52,21 @@ export function toAdminAuthFailure(error: unknown): AdminAuthFailure | null {
   return null;
 }
 
+/**
+ * 서버가 아직 그 엔드포인트를 열지 않은 상태인지 가른다.
+ *
+ * 프론트가 백엔드보다 먼저 나갈 때, 붉은 에러 패널로 관리자를 놀래는 대신
+ * 조용한 안내로 떨어뜨리기 위한 것이다. 실제 장애와 구분해야 하므로
+ * "없다"는 신호(404·미구현)만 여기에 담는다.
+ */
+export function isAdminEndpointMissing(error: AdminErrorInfo): boolean {
+  return (
+    error.status === 404 ||
+    error.code === "NOT_FOUND" ||
+    error.code === "NOT_IMPLEMENTED"
+  );
+}
+
 export function toAuthFailureMessage(failure: AdminAuthFailure): string {
   return failure === "forbidden"
     ? ADMIN_FORBIDDEN_MESSAGE

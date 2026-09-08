@@ -21,6 +21,7 @@ import {
   AdminSection,
 } from "./admin-panels";
 import { AdminTable, type AdminColumn } from "./admin-table";
+import { formatAdminDateTime } from "./admin-datetime";
 import { formatAdminValue } from "./admin-value";
 import { useAdminRequest } from "./use-admin-request";
 
@@ -54,6 +55,9 @@ export function AdminAiExtractScreen({
   const [text, setText] = useState("");
   const { state, send } = useAdminRequest(previewAdminExtraction, onAuthFailure);
 
+  // URL이든 원문이든 하나만 있으면 보낼 수 있다.
+  const hasExtractInput = sourceUrl.trim() !== "" || text.trim() !== "";
+
   const handleSubmit = (event: { preventDefault: () => void }) => {
     event.preventDefault();
     void send({ sourceUrl, text });
@@ -70,7 +74,7 @@ export function AdminAiExtractScreen({
 
       <form className="admin-form" onSubmit={handleSubmit}>
         <label className="admin-field">
-          <span>source_url</span>
+          <span>source_url — URL만 넣으면 서버가 본문을 수집해 추출합니다</span>
           <input
             type="text"
             value={sourceUrl}
@@ -80,8 +84,8 @@ export function AdminAiExtractScreen({
         </label>
         <label className="admin-field admin-field--block">
           <span>
-            text (뉴스 원문 전문) — {text.length}/
-            {ADMIN_EXTRACT_TEXT_MAX_LENGTH}자
+            text — 원문을 직접 붙여넣을 때만. 함께 넣으면 text가 우선합니다 (
+            {text.length}/{ADMIN_EXTRACT_TEXT_MAX_LENGTH}자)
           </span>
           <textarea
             value={text}
@@ -94,14 +98,14 @@ export function AdminAiExtractScreen({
         <button
           type="submit"
           className="admin-button admin-button--primary"
-          disabled={state.status === "loading" || text.trim() === ""}
+          disabled={state.status === "loading" || !hasExtractInput}
         >
           추출 미리보기
         </button>
       </form>
 
       {state.status === "idle" && (
-        <AdminIdlePanel label="원문을 붙여 넣고 추출 미리보기를 누르세요." />
+        <AdminIdlePanel label="뉴스 URL을 넣거나 원문을 붙여 넣고 추출 미리보기를 누르세요." />
       )}
       {state.status === "loading" && (
         <AdminLoadingPanel label="추출 결과를 기다리는 중입니다." />
@@ -127,9 +131,30 @@ export function AdminAiExtractScreen({
             </div>
             <div className="admin-kv__pair">
               <dt>previewedAt</dt>
-              <dd>{formatAdminValue(state.result.data.previewedAt)}</dd>
+              <dd>{formatAdminDateTime(state.result.data.previewedAt)}</dd>
+            </div>
+            <div className="admin-kv__pair">
+              <dt>resolvedSourceUrl</dt>
+              <dd>{formatAdminValue(state.result.data.resolvedSourceUrl)}</dd>
+            </div>
+            <div className="admin-kv__pair">
+              <dt>fetchedCharCount</dt>
+              <dd>{formatAdminValue(state.result.data.fetchedCharCount)}</dd>
             </div>
           </dl>
+
+          {state.result.data.failureReason !== null && (
+            <p className="admin-panel admin-panel--danger" role="alert">
+              {state.result.data.failureReason}
+            </p>
+          )}
+
+          {state.result.data.fetchedTextPreview !== null && (
+            <AdminRawPanel
+              title="서버가 수집한 본문 (앞부분)"
+              value={state.result.data.fetchedTextPreview}
+            />
+          )}
 
           <AdminTable
             columns={CANDIDATE_COLUMNS}

@@ -13,6 +13,7 @@ import {
   type AdminCurrencyPair,
   type AdminFxRatePoint,
 } from "../../api/admin";
+import { toDefaultFxRateRange } from "./admin-datetime";
 import type { AdminAuthFailure } from "./admin-errors";
 import { AdminFxRateChart } from "./admin-fx-rate-chart";
 import {
@@ -71,8 +72,11 @@ export function AdminFxRatesScreen({ onAuthFailure }: AdminFxRatesScreenProps) {
   );
   const fxRates = useAdminRequest(fetchAdminFxRates, onAuthFailure);
   const [pairCode, setPairCode] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // 매번 손으로 채우지 않도록 최근 1개월을 미리 넣어 둔다. 생략 시 서버 기본값은
+  // 1년이라 화면에서 훑기에는 넓다.
+  const [defaultRange] = useState(() => toDefaultFxRateRange(new Date()));
+  const [from, setFrom] = useState(defaultRange.from);
+  const [to, setTo] = useState(defaultRange.to);
   const [rateType, setRateType] = useState(ADMIN_STORED_RATE_TYPE);
 
   // 통화쌍 선택지를 만들기 위한 조회. 그 밖의 호출은 모두 버튼에서 시작한다.
@@ -98,7 +102,7 @@ export function AdminFxRatesScreen({ onAuthFailure }: AdminFxRatesScreenProps) {
     <>
       <AdminSection
         title="환율 조회"
-        description="GET /api/v1/admin/fx-rates — 서버가 준 관측만 잇습니다. 관측은 영업일에만 있으므로 빠진 날짜를 채우지 않습니다."
+        description="GET /api/v1/admin/fx-rates — 서버가 준 관측만 잇습니다. 관측은 영업일에만 있으므로 빠진 날짜를 채우지 않습니다. 기간은 최근 1개월로 채워 두었습니다."
       >
         {currenciesState.status === "error" && (
           <AdminErrorPanel error={currenciesState.error} />
@@ -124,7 +128,7 @@ export function AdminFxRatesScreen({ onAuthFailure }: AdminFxRatesScreenProps) {
             </select>
           </label>
           <label className="admin-field">
-            <span>from (생략 시 1년)</span>
+            <span>from</span>
             <input
               type="date"
               value={from}
@@ -132,7 +136,7 @@ export function AdminFxRatesScreen({ onAuthFailure }: AdminFxRatesScreenProps) {
             />
           </label>
           <label className="admin-field">
-            <span>to (생략 시 오늘)</span>
+            <span>to</span>
             <input
               type="date"
               value={to}
