@@ -11,6 +11,7 @@ import {
   toMarketRateLabel,
   toMarketView,
   toSummaryMarketSnapshot,
+  toTrendDateLabel,
 } from "./home-market";
 
 const FORECAST_RESULT: ApiResult<ForecastResponse> = {
@@ -146,7 +147,7 @@ describe("toMarketView", () => {
       currentRateLabel: "1.0854",
       lowerLabel: "1.0512",
       upperLabel: "1.1204",
-      sparklineRates: [],
+      trendPoints: [],
     });
   });
 
@@ -159,7 +160,7 @@ describe("toMarketView", () => {
       currentRateLabel: undefined,
       lowerLabel: undefined,
       upperLabel: undefined,
-      sparklineRates: [],
+      trendPoints: [],
     });
   });
 });
@@ -204,8 +205,16 @@ describe("toMarketView 의 스파크라인", () => {
           { date: "2026-09-01", rate: 1_390 },
           { date: "2026-09-02", rate: 1_400 },
         ],
-      }).sparklineRates,
-    ).toEqual([1_390, 1_400]);
+      }).trendPoints,
+    ).toEqual([
+      { date: "2026-09-01", rate: 1_390 },
+      { date: "2026-09-02", rate: 1_400 },
+    ]);
+  });
+
+  it("가로축 날짜는 월·일만 적고, 해석 불가하면 원문을 그대로 둔다", () => {
+    expect(toTrendDateLabel("2026-09-08")).toMatch(/9/);
+    expect(toTrendDateLabel("모름")).toBe("모름");
   });
 
   it("점이 하나면 선을 그릴 수 없어 비운다", () => {
@@ -213,7 +222,7 @@ describe("toMarketView 의 스파크라인", () => {
       toMarketView({
         pairCode: "USDKRW",
         history: [{ date: "2026-09-01", rate: 1_390 }],
-      }).sparklineRates,
+      }).trendPoints,
     ).toEqual([]);
   });
 
@@ -225,7 +234,7 @@ describe("toMarketView 의 스파크라인", () => {
           { date: "2026-09-01", rate: 1_390 },
           { date: "2026-09-02", rate: 1_390 },
         ],
-      }).sparklineRates,
+      }).trendPoints,
     ).toEqual([]);
   });
 });

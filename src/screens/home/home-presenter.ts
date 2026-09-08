@@ -1,5 +1,6 @@
 import type { ApiResult } from "../../api/client";
 import type {
+  HomeActiveGoal,
   HomeBadge,
   HomeBlockKey,
   HomeBlockState,
@@ -10,7 +11,6 @@ import { toPercent } from "../../lib/percent";
 import type {
   ActiveGoalItem,
   AttentionData,
-  ForecastSummaryData,
   GoalsRouteData,
   HomeDashboardData,
   HomeTone,
@@ -126,13 +126,6 @@ export function toDateLabel(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(parsed);
 }
 
-export function toRateLabel(rate: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(rate);
-}
-
 export function toBlockStates(
   blocks: readonly { readonly key: HomeBlockKey; readonly state: HomeBlockState }[],
 ): Readonly<Record<HomeBlockKey, HomeBlockState>> {
@@ -179,17 +172,35 @@ function toProfileFit(data: HomeSummaryResponse): ProfileFitData {
  * 경로(회차 계획) 기능은 항상 열려 있다. `route_enabled` 플래그는 divurve-api#84 에서
  * 사라졌으므로 프론트가 기능 가용성을 스스로 판단하지 않는다 — 목표 목록만 옮긴다.
  */
+/**
+ * 마감이 이른 순. 대시보드는 "오늘 무엇을 봐야 하는가"를 답하는 화면이고
+ * 목표에서 그 답은 기한이다.
+ *
+ * 서버가 순서를 정해 주지 않아 프론트가 정한다(divurve-api#154). 계산이 아니라
+ * 표시 순서라 §1과 충돌하지 않는다. 원본을 뒤집지 않도록 복사해 정렬한다(§7.6).
+ */
+function byTargetDate(a: HomeActiveGoal, b: HomeActiveGoal): number {
+  return a.targetDate.localeCompare(b.targetDate);
+}
+
+/**
+ * 목표 블록.
+ *
+ * 서버는 목표를 **정렬 없이 전부** 내려준다(`HomeSummaryService.resolveGoalsRoute`,
+ * divurve-api#154). 여기서 마감 임박순으로 세우기만 하고 개수는 자르지 않는다 —
+ * 카드가 목록을 스크롤로 담으므로 몇 개가 오든 카드 높이는 변하지 않는다.
+ */
 function toGoalsRoute(data: HomeSummaryResponse): GoalsRouteData {
-  const goals: readonly ActiveGoalItem[] = data.goalsRoute.activeGoals.map(
-    (goal) => ({
+  const goals: readonly ActiveGoalItem[] = [...data.goalsRoute.activeGoals]
+    .sort(byTargetDate)
+    .map((goal) => ({
       id: goal.id,
       name: goal.name,
       currencyCode: goal.currencyCode,
       targetAmount: goal.targetAmount,
       targetDateLabel: toDateLabel(goal.targetDate),
       status: goal.status,
-    }),
-  );
+    }));
   return { goals };
 }
 
@@ -219,19 +230,6 @@ function toExposure(data: HomeSummaryResponse): readonly ExposureShareItem[] {
   }));
 }
 
-function toForecast(data: HomeSummaryResponse): ForecastSummaryData {
-  const { pairCode, currentRate, interval80 } = data.forecast;
-  return {
-    pairLabel: pairCode ?? "-",
-    currentRateLabel:
-      currentRate === undefined ? undefined : toRateLabel(currentRate),
-    lowerLabel:
-      interval80?.lo === undefined ? undefined : toRateLabel(interval80.lo),
-    upperLabel:
-      interval80?.hi === undefined ? undefined : toRateLabel(interval80.hi),
-  };
-}
-
 export function toHomeDashboardData(
   result: ApiResult<HomeSummaryResponse>,
 ): HomeDashboardData {
@@ -253,7 +251,6 @@ export function toHomeDashboardData(
     },
     goalsRoute: toGoalsRoute(data),
     attention: toAttention(data),
-    forecast: toForecast(data),
     asOfLabel: Number.isNaN(parsedAsOf.getTime())
       ? meta.asOf
       : new Intl.DateTimeFormat("ko-KR", {

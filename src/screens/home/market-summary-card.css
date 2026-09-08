@@ -41,20 +41,24 @@
   display: flex;
   align-items: baseline;
   gap: 0.375rem;
-  min-height: 3rem;
+  min-height: 2.5rem;
   font-variant-numeric: tabular-nums;
 }
 
 .market-summary-card__symbol {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   font-weight: 500;
   color: var(--text-muted);
 }
 
-/* 홈 중앙에 크게 놓이는 카드라 폭에 따라 숫자 크기를 키운다. */
+/*
+ * 현재 환율. 카드에서 가장 큰 글자이되 추세 그래프와 자리를 나눠 갖는다 —
+ * 예전 크기(최대 3rem)에서는 숫자만 눈에 들어오고 그 아래 그림이 곁다리로
+ * 읽혔다.
+ */
 .market-summary-card__value {
   font-family: var(--font-mono);
-  font-size: clamp(2rem, 7vw, 3rem);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
   font-weight: 800;
   line-height: 1.1;
   color: var(--text);
@@ -93,10 +97,10 @@
 
 @media (max-width: 480px) {
   .market-summary-card__rate {
-    min-height: 2.5rem;
+    min-height: 2.25rem;
   }
 
   .market-summary-card__symbol {
-    font-size: 1.25rem;
+    font-size: 1rem;
   }
 }

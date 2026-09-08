@@ -7,13 +7,15 @@
 import type { ReactNode } from "react";
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
-import { Sparkline } from "../../components/common/sparkline";
+import { TrendChart } from "../../components/common/trend-chart";
 import { Spinner } from "../../components/common/spinner";
 import type { HomeMarketPairCode } from "../../api/home";
 import {
   MARKET_PAIR_OPTIONS,
   resolveMarketPairCode,
   toCurrencyColor,
+  toMarketRateLabel,
+  toTrendDateLabel,
   type MarketSummaryView,
 } from "./home-market";
 import "./market-summary-card.css";
@@ -138,17 +140,17 @@ export function MarketSummaryCard({
         )}
 
         {/*
-          최근 30영업일 추세선. 값이 하나뿐이거나 전부 같으면 변환 계층이 빈
-          배열을 주므로 여기서 선이 사라진다 — 눈금 없는 평평한 선으로
-          "변동이 없다"는 인상을 주지 않기 위해서다.
+          최근 영업일 추세. 값이 하나뿐이거나 전부 같으면 변환 계층이 빈 배열을
+          주므로 여기서 그림이 사라진다 — 평평한 선으로 "변동이 없다"는 인상을
+          주지 않기 위해서다.
         */}
-        {view.sparklineRates.length > 0 && (
-          <Sparkline
-            rates={view.sparklineRates}
-            width={200}
-            height={36}
+        {view.trendPoints.length > 0 && (
+          <TrendChart
+            points={view.trendPoints}
             color={toCurrencyColor(view.baseCurrencyCode)}
-            label={`${view.baseCurrencyCode}/${view.quoteCurrencyCode} 최근 ${view.sparklineRates.length}영업일 추세`}
+            formatRate={(rate) => toMarketRateLabel(view.pairCode, rate)}
+            formatDate={toTrendDateLabel}
+            label={`${view.baseCurrencyCode}/${view.quoteCurrencyCode} 최근 ${view.trendPoints.length}영업일 추세`}
           />
         )}
 

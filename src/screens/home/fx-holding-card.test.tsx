@@ -1,6 +1,49 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { FxHoldingCard } from "./fx-holding-card";
+import { FxHoldingCard, toDonutLabel, toSegments } from "./fx-holding-card";
+
+function exposure(...codes: readonly string[]) {
+  return codes.map((currencyCode, index) => ({
+    currencyCode,
+    krw: 1_000_000 - index * 100_000,
+    sharePct: 40 - index * 5,
+  }));
+}
+
+describe("도넛 조각 묶기", () => {
+  // 통화 색은 USD·JPY·EUR 셋만 고정 배정이라 네 조각째부터 회색끼리 구분되지
+  // 않는다. 색을 늘리는 대신 묶는다(개발 컨벤션 7.2).
+  it("세 개 이하면 그대로 둔다", () => {
+    const segments = toSegments(exposure("USD", "JPY", "EUR"));
+    expect(segments.map((s) => s.key)).toEqual(["USD", "JPY", "EUR"]);
+  });
+
+  it("네 개 이상이면 상위 셋만 두고 나머지를 한 조각으로 합친다", () => {
+    const segments = toSegments(exposure("USD", "JPY", "EUR", "GBP", "CHF"));
+    expect(segments).toHaveLength(4);
+    expect(segments[3]?.value).toBe(700_000 + 600_000);
+    expect(segments[3]?.color).toBe("var(--text-muted)");
+  });
+
+  it("나머지 금액이 0이면 기타 조각을 만들지 않는다", () => {
+    const segments = toSegments([
+      { currencyCode: "USD", krw: 1_000, sharePct: 100 },
+      { currencyCode: "JPY", krw: 0, sharePct: 0 },
+      { currencyCode: "EUR", krw: 0, sharePct: 0 },
+      { currencyCode: "GBP", krw: 0, sharePct: 0 },
+    ]);
+    expect(segments).toHaveLength(3);
+  });
+
+  it("라벨에 묶인 통화 수를 함께 적는다", () => {
+    expect(toDonutLabel(exposure("USD", "JPY", "EUR"))).toBe(
+      "통화별 비중 USD 40%, JPY 35%, EUR 30%",
+    );
+    expect(toDonutLabel(exposure("USD", "JPY", "EUR", "GBP", "CHF"))).toBe(
+      "통화별 비중 USD 40%, JPY 35%, EUR 30%, 기타 2종",
+    );
+  });
+});
 
 describe("FxHoldingCard", () => {
   it("외화 비중과 서버가 준 지표를 렌더링한다", () => {

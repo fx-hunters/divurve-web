@@ -10,7 +10,6 @@ import {
   toBlockStates,
   toDateLabel,
   toHomeDashboardData,
-  toRateLabel,
 } from "./home-presenter";
 
 describe("표시용 변환", () => {
@@ -33,10 +32,6 @@ describe("표시용 변환", () => {
   it("날짜는 로케일 형식으로, 해석 불가하면 원문 그대로 둔다", () => {
     expect(toDateLabel("2026-09-09")).toMatch(/2026/);
     expect(toDateLabel("모름")).toBe("모름");
-  });
-
-  it("환율은 소수 두 자리로 표시한다", () => {
-    expect(toRateLabel(1_382.4)).toBe("1,382.40");
   });
 
   it("서버가 보내지 않은 블록은 빈 상태로 채운다", () => {
@@ -102,13 +97,36 @@ describe("toHomeDashboardData", () => {
         severity: "중변동성",
       },
     ]);
-    expect(data.forecast).toEqual({
-      pairLabel: "USDKRW",
-      currentRateLabel: "1,382.40",
-      lowerLabel: "1,330.60",
-      upperLabel: "1,389.02",
-    });
     expect(data.asOfLabel).toMatch(/2026/);
+  });
+
+  // 서버는 목표를 정렬 없이 내려준다. 순서는 여기서 정한다.
+  it("목표를 마감 임박순으로 세운다", () => {
+    const activeGoals = [
+      { id: "d", name: "넷째", currencyCode: "USD", targetAmount: 4, targetDate: "2028-01-01", status: "active" },
+      { id: "b", name: "둘째", currencyCode: "USD", targetAmount: 2, targetDate: "2026-06-01", status: "active" },
+      { id: "e", name: "다섯째", currencyCode: "USD", targetAmount: 5, targetDate: "2029-01-01", status: "active" },
+      { id: "a", name: "첫째", currencyCode: "USD", targetAmount: 1, targetDate: "2026-01-01", status: "active" },
+      { id: "c", name: "셋째", currencyCode: "USD", targetAmount: 3, targetDate: "2027-01-01", status: "active" },
+    ];
+    const result = {
+      ...HOME_SUMMARY_FIXTURE,
+      data: {
+        ...HOME_SUMMARY_FIXTURE.data,
+        goalsRoute: { activeGoals },
+      },
+    };
+
+    const { goals } = toHomeDashboardData(result).goalsRoute;
+    expect(goals.map((goal) => goal.name)).toEqual([
+      "첫째",
+      "둘째",
+      "셋째",
+      "넷째",
+      "다섯째",
+    ]);
+    // 응답 배열을 뒤집지 않는다(§7.6).
+    expect(activeGoals[0]?.id).toBe("d");
   });
 
   it("위험성향 미측정·목표 없음 응답도 안전하게 변환한다", () => {
@@ -142,12 +160,6 @@ describe("toHomeDashboardData", () => {
       sensitivity1pctKrw: undefined,
       // 키가 통째로 없는 응답에서도 배열이라 화면이 length 만 보면 된다.
       exposure: [],
-    });
-    expect(data.forecast).toEqual({
-      pairLabel: "-",
-      currentRateLabel: undefined,
-      lowerLabel: undefined,
-      upperLabel: undefined,
     });
   });
 

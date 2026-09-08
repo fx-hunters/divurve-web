@@ -41,6 +41,7 @@ export interface ActiveGoalItem {
 }
 
 export interface GoalsRouteData {
+  /** 마감이 이른 순. 개수는 자르지 않는다 — 카드가 스크롤로 담는다. */
   readonly goals: readonly ActiveGoalItem[];
 }
 
@@ -57,13 +58,6 @@ export interface AttentionData {
   readonly events: readonly UpcomingEventItem[];
 }
 
-export interface ForecastSummaryData {
-  readonly pairLabel: string;
-  readonly currentRateLabel?: string;
-  readonly lowerLabel?: string;
-  readonly upperLabel?: string;
-}
-
 export interface HomeDashboardData {
   /** 서버가 정한 고정 순서 그대로. 렌더 분기는 state로만 한다. */
   readonly blockStates: Readonly<Record<HomeBlockKey, HomeBlockState>>;
@@ -72,6 +66,5 @@ export interface HomeDashboardData {
   readonly fxStatus: FxStatusData;
   readonly goalsRoute: GoalsRouteData;
   readonly attention: AttentionData;
-  readonly forecast: ForecastSummaryData;
   readonly asOfLabel: string;
 }
