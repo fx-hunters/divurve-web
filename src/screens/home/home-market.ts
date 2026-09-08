@@ -73,8 +73,8 @@ export interface MarketSummaryView {
   readonly currentRateLabel?: string;
   readonly lowerLabel?: string;
   readonly upperLabel?: string;
-  /** 스파크라인에 그릴 환율값만 시간순으로. 점이 2개 미만이면 선이 안 되므로 빈 배열. */
-  readonly sparklineRates: readonly number[];
+  /** 추세 그래프에 그릴 관측점. 선이 되지 않으면 빈 배열. */
+  readonly trendPoints: readonly MarketHistoryPoint[];
 }
 
 /** 통화 색 고정 배정(개발 컨벤션 7.2). 상태 색과 섞지 않는다. */
@@ -119,6 +119,16 @@ export function toMarketRateLabel(
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(rate);
+}
+
+/** 추세 그래프 가로축 눈금. 축은 좁으므로 월·일만 적는다. */
+export function toTrendDateLabel(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) return isoDate;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+  }).format(parsed);
 }
 
 /** 홈 요약이 이미 실어 준 forecast 블록. regime은 응답 meta에 온다. */
@@ -169,15 +179,17 @@ export function toDisplaySnapshot(
 }
 
 /**
- * 스파크라인에 넘길 환율 수열. 점이 하나면 선을 그릴 수 없고, 값이 모두 같으면
- * 진폭이 0 이라 그려도 정보가 없다 — 둘 다 빈 배열로 접어 카드가 선을 감춘다.
+ * 추세 그래프에 넘길 관측점. 점이 하나면 선을 그릴 수 없고, 값이 모두 같으면
+ * 진폭이 0 이라 그려도 정보가 없다 — 둘 다 빈 배열로 접어 카드가 그림을 감춘다.
+ *
+ * 축을 그리려면 날짜가 필요하므로 환율만 뽑지 않고 점을 통째로 넘긴다.
  */
-function toSparklineRates(
+function toTrendPoints(
   history: readonly MarketHistoryPoint[] | undefined,
-): readonly number[] {
-  const rates = (history ?? []).map((point) => point.rate);
-  if (rates.length < 2) return [];
-  return rates.some((rate) => rate !== rates[0]) ? rates : [];
+): readonly MarketHistoryPoint[] {
+  const points = history ?? [];
+  if (points.length < 2) return [];
+  return points.some((point) => point.rate !== points[0]!.rate) ? points : [];
 }
 
 export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
@@ -192,7 +204,7 @@ export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
     currentRateLabel: format(snapshot.currentRate),
     lowerLabel: format(snapshot.lower),
     upperLabel: format(snapshot.upper),
-    sparklineRates: toSparklineRates(snapshot.history),
+    trendPoints: toTrendPoints(snapshot.history),
   };
 }
 

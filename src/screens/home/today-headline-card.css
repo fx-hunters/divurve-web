@@ -1,0 +1,111 @@
+/*
+ * '오늘의 핵심' 띠.
+ *
+ * 카드가 아니라 한 줄짜리 띠다. 담는 것은 문장 하나와 배지 몇 개뿐인데
+ * 예전에는 전폭 227px을 썼고 그 대부분이 빈 공간이었다. 세로로 쌓지 않고
+ * 가로로 눕혀 헤드라인 지위는 유지하되 자리는 최소로 쓴다.
+ */
+
+.today-headline.card {
+  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+}
+
+.today-headline__band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+}
+
+.today-headline__lead {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.today-headline__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.today-headline__sentence {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.today-headline__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.today-headline__fit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.today-headline__muted {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.today-headline__asof {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.today-headline__notice {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/*
+ * 좁은 화면에서는 한 줄에 다 들어가지 않는다. 문장을 위, 판정을 아래로 쌓되
+ * 순서는 그대로 둔다 — 문장이 먼저 읽혀야 한다.
+ */
+@media (max-width: 767px) {
+  .today-headline__band {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  /* 표제·배지가 한 줄, 문장이 그 아래. 좁은 폭에서 배지가 눌리지 않게 한다. */
+  .today-headline__lead {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .today-headline__sentence {
+    flex: 1 1 100%;
+    font-size: 1.0625rem;
+  }
+}
+
+/* 배지는 어느 폭에서도 글자가 세로로 쪼개지지 않는다. */
+.today-headline__lead > :not(.today-headline__sentence),
+.today-headline__meta .badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}

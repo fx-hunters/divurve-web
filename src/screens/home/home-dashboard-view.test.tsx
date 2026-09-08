@@ -25,7 +25,8 @@ describe("HomeDashboardView", () => {
     expect(screen.getByText("오늘의 시장 자리")).toBeInTheDocument();
   });
 
-  it("'오늘의 시장'을 중앙 상단에, 나머지 카드를 그 아래 그리드에 배치한다", () => {
+  // DOM 순서가 곧 모바일 읽기 순서다. 배치는 CSS가 정하므로 여기서는 순서만 본다.
+  it("핵심 → 시장 → 오른쪽 기둥 → 일정 순서로 놓는다", () => {
     const { container } = render(
       <HomeDashboardView
         data={toHomeDashboardData(HOME_SUMMARY_FIXTURE)}
@@ -35,15 +36,17 @@ describe("HomeDashboardView", () => {
 
     const root = container.querySelector(".home-dashboard");
     const children = Array.from(root?.children ?? []);
-    expect(children.map((child) => child.className)).toEqual([
-      "home-dashboard__market",
-      "home-dashboard__cards",
-    ]);
-    // 주의 필요 배너만 그리드 한 줄을 다 쓴다.
-    expect(container.querySelectorAll(".home-dashboard__cell")).toHaveLength(4);
     expect(
-      container.querySelectorAll(".home-dashboard__cell--wide"),
-    ).toHaveLength(1);
+      children.map((child) => child.className.split(" ")[1]),
+    ).toEqual([
+      "home-dashboard__headline",
+      "home-dashboard__market",
+      // 목표·현황은 이 한 칸 안에 세로로 쌓인다. 그리드 행을 따로 차지하면
+      // 시장 카드가 남긴 높이가 둘 사이에 끼어 버린다.
+      "home-dashboard__side",
+      "home-dashboard__calendar",
+    ]);
+    expect(container.querySelectorAll(".home-dashboard__cell")).toHaveLength(4);
   });
 
   it("비어 있는 블록의 카드는 그리지 않는다", () => {

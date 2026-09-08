@@ -1,26 +1,30 @@
 /*
  * 홈 대시보드 레이아웃.
  *
- * '오늘의 시장'을 위쪽 중앙에 크게 두고, 나머지 카드는 그 아래 그리드에 놓는다.
- * 모바일(≤767px)은 1열, 태블릿 이상(≥768px)은 2열이다.
+ * 배치(숫자는 카드): 3=오늘의 핵심, 1=오늘의 시장, 4=내 목표,
+ * 2=내 외화 현황, 5=경제 일정
+ *
+ *   3 3 3 3 3
+ *   1 1 1 4 4
+ *   1 1 1 2 2
+ *   5 5 5 5 5
+ *
+ * 4와 2는 한 칸(`__side`) 안에 세로로 쌓는다.
+ *
+ * '오늘의 핵심'이 전폭 헤드라인인 이유 — 그 카드는 "USD 변동성이 평시
+ * 범위입니다" 한 문장이고, 이 화면에서 사용자가 읽어야 할 단 한 문장이다.
+ * 큰 환율 숫자 옆에 나란히 두면 둘이 서로를 가린다.
+ *
+ * '오늘의 시장'이 2행인 이유 — 3행(약 704px)으로 늘리면 지금 콘텐츠로는
+ * 아래쪽이 빈다. 팬 차트가 들어오면 그때 3행으로 늘린다.
+ *
+ * DOM 순서는 화면 순서와 같다. 1열로 쌓이는 모바일에서 읽기 순서가 그대로
+ * 유지되도록 CSS로 순서를 바꾸지 않는다.
  */
 
 .home-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* 중앙 정렬. 넓은 화면에서도 숫자가 지나치게 벌어지지 않도록 폭을 제한한다. */
-.home-dashboard__market {
-  width: 100%;
-  max-width: 780px;
-  margin-inline: auto;
-}
-
-.home-dashboard__cards {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -29,13 +33,46 @@
   min-width: 0;
 }
 
+/* 태블릿: 2열. 헤드라인·시장·일정은 한 줄을 다 쓰고 목표/현황이 나란히 선다. */
 @media (min-width: 768px) {
-  .home-dashboard__cards {
+  .home-dashboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* 주의 필요 배너는 가로로 긴 내용이라 한 줄을 다 쓴다. */
-  .home-dashboard__cell--wide {
+  .home-dashboard__headline,
+  .home-dashboard__market,
+  .home-dashboard__calendar {
     grid-column: 1 / -1;
+  }
+}
+
+/* 오른쪽 기둥 안에서는 카드를 세로로 쌓는다. */
+.home-dashboard__side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 데스크톱: 5열. 시장이 왼쪽 3칸을 두 줄에 걸쳐 차지한다. */
+@media (min-width: 1024px) {
+  .home-dashboard {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .home-dashboard__headline,
+  .home-dashboard__calendar {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * 시장은 왼쪽 3칸, 오른쪽 기둥은 2칸. 둘 다 한 행이라 그리드가 남는 높이를
+   * 행에 나눠 넣을 일이 없다 — 짧은 쪽 아래로 그대로 남는다.
+   */
+  .home-dashboard__market {
+    grid-column: 1 / 4;
+  }
+
+  .home-dashboard__side {
+    grid-column: 4 / -1;
   }
 }

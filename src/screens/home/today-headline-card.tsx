@@ -1,6 +1,7 @@
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
 import type { HomeTone, ProfileFitData, TodaySummaryData } from "../../types/home";
+import "./today-headline-card.css";
 
 /** 뷰 톤을 Badge 변형으로 옮긴다. Badge는 primary/normal/warn/danger/default를 받는다. */
 export function toBadgeVariant(
@@ -25,42 +26,19 @@ export function TodayHeadlineCard({
   onNavigateToMypage,
 }: TodayHeadlineCardProps) {
   return (
-    <Card
-      title="오늘의 핵심"
-      action={<Badge variant={toBadgeVariant(today.tone)}>{today.badgeLabel}</Badge>}
-      highlight
-      className="today-action-card"
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "clamp(1.125rem, 3vw, 1.5rem)",
-            fontWeight: 700,
-            color: "var(--text)",
-            lineHeight: 1.5,
-          }}
-        >
-          {today.headline}
-        </p>
+    <Card highlight className="today-headline">
+      <div className="today-headline__band">
+        <span className="today-headline__lead">
+          <h3 className="today-headline__eyebrow">오늘의 핵심</h3>
+          <Badge variant={toBadgeVariant(today.tone)}>{today.badgeLabel}</Badge>
+          <p className="today-headline__sentence">{today.headline}</p>
+        </span>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "0.75rem",
-            flexWrap: "wrap",
-            paddingTop: "1rem",
-            borderTop: "1px solid var(--border-subtle)",
-            fontSize: "0.875rem",
-            fontWeight: 600,
-          }}
-        >
-          <span style={{ color: "var(--text-muted)" }}>통화 집중도</span>
-          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span className="today-headline__meta">
+          <span className="today-headline__fit">
+            <span className="today-headline__muted">통화 집중도</span>
             {profileFit.gradeLabel !== undefined && (
-              <span style={{ color: "var(--text-muted)" }}>
+              <span className="today-headline__muted">
                 위험성향 {profileFit.gradeLabel}
               </span>
             )}
@@ -68,40 +46,30 @@ export function TodayHeadlineCard({
               {profileFit.concentrationLabel}
             </Badge>
           </span>
-        </div>
-
-        {!isProfileMeasured && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.8125rem",
-              color: "var(--text-muted)",
-              lineHeight: 1.6,
-            }}
-          >
-            위험성향을 진단하면 내 성향에 맞는 기준선으로 집중도를 판정합니다.
-            {onNavigateToMypage && (
-              <button
-                type="button"
-                onClick={onNavigateToMypage}
-                style={{
-                  marginLeft: "0.375rem",
-                  fontSize: "0.8125rem",
-                  fontWeight: 700,
-                  color: "var(--primary)",
-                  textDecoration: "underline",
-                }}
-              >
-                진단하러 가기
-              </button>
-            )}
-          </p>
-        )}
-
-        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)" }}>
-          기준 시각: {asOfLabel}
-        </p>
+          <span className="today-headline__asof">기준 시각: {asOfLabel}</span>
+        </span>
       </div>
+
+      {!isProfileMeasured && (
+        <p className="today-headline__notice">
+          위험성향을 진단하면 내 성향에 맞는 기준선으로 집중도를 판정합니다.
+          {onNavigateToMypage && (
+            <button
+              type="button"
+              onClick={onNavigateToMypage}
+              style={{
+                marginLeft: "0.375rem",
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                color: "var(--primary)",
+                textDecoration: "underline",
+              }}
+            >
+              진단하러 가기
+            </button>
+          )}
+        </p>
+      )}
     </Card>
   );
 }
