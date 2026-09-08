@@ -1,0 +1,41 @@
+/*
+ * 홈 대시보드 레이아웃.
+ *
+ * '오늘의 시장'을 위쪽 중앙에 크게 두고, 나머지 카드는 그 아래 그리드에 놓는다.
+ * 모바일(≤767px)은 1열, 태블릿 이상(≥768px)은 2열이다.
+ */
+
+.home-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 중앙 정렬. 넓은 화면에서도 숫자가 지나치게 벌어지지 않도록 폭을 제한한다. */
+.home-dashboard__market {
+  width: 100%;
+  max-width: 780px;
+  margin-inline: auto;
+}
+
+.home-dashboard__cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.home-dashboard__cell {
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .home-dashboard__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 주의 필요 배너는 가로로 긴 내용이라 한 줄을 다 쓴다. */
+  .home-dashboard__cell--wide {
+    grid-column: 1 / -1;
+  }
+}

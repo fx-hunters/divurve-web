@@ -1,0 +1,102 @@
+/*
+ * '오늘의 시장' 카드.
+ * 색상은 토큰(var(--...))만 쓴다. 리터럴 색상 금지(AGENTS.md §6).
+ */
+
+.market-summary-card__pair {
+  display: flex;
+  align-items: baseline;
+  gap: 0.125rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.market-summary-card__pair-separator {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.market-summary-card__select {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.375rem 0.75rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.market-summary-card__select:hover,
+.market-summary-card__select:focus-visible {
+  border-color: var(--primary-border);
+}
+
+.market-summary-card__rate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-height: 3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-summary-card__symbol {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* 홈 중앙에 크게 놓이는 카드라 폭에 따라 숫자 크기를 키운다. */
+.market-summary-card__value {
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.market-summary-card__note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.market-summary-card__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.market-summary-card__retry {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--primary);
+  background-color: var(--primary-subtle);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-full);
+  padding: 0.375rem 0.875rem;
+  cursor: pointer;
+}
+
+.market-summary-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+@media (max-width: 480px) {
+  .market-summary-card__rate {
+    min-height: 2.5rem;
+  }
+
+  .market-summary-card__symbol {
+    font-size: 1.25rem;
+  }
+}
