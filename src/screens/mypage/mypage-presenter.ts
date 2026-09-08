@@ -96,9 +96,9 @@ function toNotificationViews(bundle: MyPageBundle): readonly NotificationView[] 
   return bundle.notifications.notifications.map((notification) => ({
     id: notification.id,
     title: notification.title,
-    message: notification.message,
+    message: notification.body,
     receivedAtLabel: toDateLabel(notification.createdAt),
-    isRead: notification.read,
+    isRead: notification.isRead,
   }));
 }
 

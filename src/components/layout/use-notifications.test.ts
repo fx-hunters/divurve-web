@@ -9,6 +9,7 @@ import {
   toNotificationsErrorMessage,
   useNotifications,
 } from "./use-notifications";
+import { NOTIFICATIONS_FIXTURE } from "../../test/api-fixtures";
 
 vi.mock("../../api/notifications", () => ({ fetchNotifications: vi.fn() }));
 
@@ -16,14 +17,8 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const NOTIFICATION = {
-  id: "n-1",
-  type: "STEP_DUE",
-  title: "1회차 환전일",
-  message: "오늘 1회차 환전 예정입니다.",
-  createdAt: "2026-09-08T00:00:00Z",
-  read: false,
-};
+/** 백엔드 실제 응답(2026-09-08 데모 세션)을 그대로 옮긴 픽스처. */
+const NOTIFICATION = NOTIFICATIONS_FIXTURE[0] as NotificationItem;
 
 describe("toNotificationsErrorMessage", () => {
   it("ApiError는 백엔드 메시지를 그대로 쓰고, 그 밖의 오류는 기본 문구를 쓴다", () => {

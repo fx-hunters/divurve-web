@@ -456,13 +456,27 @@ export interface RiskProfileResponse {
   readonly limitationNote?: string;
 }
 
+/**
+ * 알림 종류. 백엔드 `NotificationsResponse.NotificationDto.kind`의
+ * `allowableValues` 6종(ERD `notification_type` ENUM)과 같은 리터럴이다.
+ */
+export type NotificationKind =
+  | "step_due"
+  | "regime_shift"
+  | "deadline_near"
+  | "target_zone"
+  | "safe_mode"
+  | "concentration";
+
 export interface NotificationDto {
   readonly id: string;
-  readonly type: string;
+  readonly kind: NotificationKind;
   readonly title: string;
-  readonly message: string;
+  /** 알림 본문. 백엔드 JSON `body`. */
+  readonly body: string;
   readonly createdAt: string;
-  readonly read: boolean;
+  /** 읽음 여부. 백엔드 JSON `is_read` → `client.ts`가 camelCase로 바꾼다. */
+  readonly isRead: boolean;
 }
 
 export interface NotificationsResponse {
