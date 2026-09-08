@@ -15,6 +15,16 @@ beforeAll(async () => {
   data = loaded;
 });
 
+function withoutScenarioCurveData(
+  scenarios: RoutePlanData["plans"][number]["scenarios"],
+): RoutePlanData["plans"][number]["scenarios"] {
+  const [first, ...rest] = scenarios;
+  return [
+    { ...first, curveData: undefined },
+    ...rest.map((scenario) => ({ ...scenario, curveData: undefined })),
+  ];
+}
+
 describe("planner demo adapter", () => {
   it("두 fixture 목표를 공통 ViewModel과 데모 출처로 변환한다", () => {
     const model = presentDemoPlanner(data);
@@ -209,10 +219,7 @@ describe("planner demo adapter", () => {
       plans: [
         {
           ...sourcePlan,
-          scenarios: sourcePlan.scenarios.map((scenario) => ({
-            ...scenario,
-            curveData: undefined,
-          })),
+          scenarios: withoutScenarioCurveData(sourcePlan.scenarios),
           curveData: {
             ...sourcePlan.curveData,
             targetAmount: null,
@@ -307,10 +314,7 @@ describe("planner demo adapter", () => {
       plans: [
         {
           ...sourcePlan,
-          scenarios: sourcePlan.scenarios.map((scenario) => ({
-            ...scenario,
-            curveData: undefined,
-          })),
+          scenarios: withoutScenarioCurveData(sourcePlan.scenarios),
           curveData: { ...sourcePlan.curveData, steps: [] },
         },
       ],
