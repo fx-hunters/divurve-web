@@ -116,7 +116,7 @@ export function XRayFitnessView({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* 1행: 집중도 진단 & 쏠림 해결 가이드 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: "1.5rem" }}>
+      <div className="responsive-grid-2col">
         {/* 집중도 진단 카드 */}
         <div style={CARD_STYLE}>
           <h2 style={CARD_TITLE_STYLE}>집중도 진단</h2>
