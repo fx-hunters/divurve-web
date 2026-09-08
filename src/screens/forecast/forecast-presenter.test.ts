@@ -4,7 +4,11 @@ import {
   EMPTY_FORECAST_API_FIXTURE,
   FORECAST_API_FIXTURE,
 } from "../../test/api-fixtures";
-import { FORECAST_PAIRS } from "../../types/forecast";
+import {
+  DEFAULT_FORECAST_PERIOD,
+  FORECAST_HORIZON_DAYS,
+  FORECAST_PAIRS,
+} from "../../types/forecast";
 import {
   currencyColor,
   directionType,
@@ -82,11 +86,6 @@ describe("선택지 표시", () => {
   it("드롭다운이 돌려준 코드를 통화쌍으로 되돌리고, 모르는 코드는 기본 쌍으로 둔다", () => {
     expect(toPair("EURUSD")).toBe(EUR_USD);
     expect(toPair("XXXYYY")).toBe(USD_KRW);
-  });
-
-  it("전망 기간은 앞으로의 구간임을 문구로 밝힌다", () => {
-    expect(toPeriodLabel(30)).toBe("향후 30일");
-    expect(toPeriodLabel(90)).toBe("향후 90일");
   });
 
   it("통화 색은 고정 배정하고 배정이 없는 통화는 중립색으로 둔다", () => {
@@ -234,5 +233,28 @@ describe("toExplanationFacts", () => {
       vol_percentile_5y: 0.63,
       regime: "normal",
     });
+  });
+});
+
+describe("toModelScore", () => {
+  it("성적표가 없으면 null을 그대로 흘린다", () => {
+    expect(
+      toPairForecastInfo(
+        { ...FORECAST_API_FIXTURE, performance: null },
+        USD_KRW,
+      ).modelScore,
+    ).toBeNull();
+  });
+});
+
+describe("toPeriodLabel", () => {
+  // 전망 기간은 앞으로의 구간임을 문구로 밝힌다(#45).
+  it.each(FORECAST_HORIZON_DAYS)("지평 %i일을 '향후 N일'로 적는다", (period) => {
+    expect(toPeriodLabel(period)).toBe(`향후 ${period}일`);
+  });
+
+  it("선택지는 백엔드 ALLOWED_HORIZON_DAYS와 같은 목록이다", () => {
+    expect(FORECAST_HORIZON_DAYS).toEqual([7, 14, 30, 60, 90, 180]);
+    expect(DEFAULT_FORECAST_PERIOD).toBe(30);
   });
 });
