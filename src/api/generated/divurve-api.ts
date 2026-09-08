@@ -208,6 +208,45 @@ export interface ForecastBundle {
   readonly asOf: string;
 }
 
+/**
+ * X-Ray·적합도 화면이 읽는 서버 Enum 어휘.
+ *
+ * 값은 백엔드 스키마의 `allowableValues` 를 그대로 옮긴 것이며, 임의로 늘리지 않는다
+ * (AGENTS.md §4). 라벨·판정 테이블은 `Record<string, T>` 가 아니라 이 유니온을 키로 하는
+ * `Record<유니온, T>` 로 선언한다 — 어휘가 빠지거나 서버에 없는 코드를 적으면
+ * `tsc --noEmit` 이 잡는다. `?? fallback` 으로 모르는 코드를 흘려보내면 경고가 영구히
+ * 꺼져도 아무도 모른다(이슈 #45·#53·#54가 모두 같은 형태였다).
+ */
+
+/** `XrayResponse.Concentration.status` · `FitResponse.Concentration.status`. */
+export type ConcentrationStatus =
+  | "above_threshold"
+  | "within_threshold"
+  | "unknown";
+
+/** `FitResponse.RiskProfile.status`. 진단 전에도 200 + `not_measured` 로 온다. */
+export type RiskProfileStatus = "not_measured" | "simple_done" | "detail_done";
+
+/** `FitResponse.RiskProfile.grade`. 한글 표기는 서버가 `gradeLabel` 로 함께 준다. */
+export type RiskGrade = "stable" | "balanced" | "aggressive" | "challenging";
+
+/** `FitResponse.Relation.code`. 사실값만 담고 판단 문구는 담지 않는다. */
+export type FitRelationCode =
+  | "concentration_above_profile"
+  | "concentration_within_profile"
+  | "risk_profile_not_measured";
+
+/** `AttributionResponse.Component.key`. 한글 이름은 서버가 `label` 로 함께 준다. */
+export type AttributionComponentKey = "asset" | "fx" | "interaction" | "cost";
+
+/** `StressRunResponse.interpretationCode`. 주가 효과와 환율 효과의 관계. */
+export type StressInterpretationCode =
+  | "fx_cushions_equity_loss"
+  | "fx_offsets_equity_loss"
+  | "equity_and_fx_both_negative"
+  | "fx_reduces_equity_gain"
+  | "equity_and_fx_both_positive";
+
 export interface XrayExposure {
   readonly currencyCode: string;
   readonly krw: number;
@@ -218,7 +257,7 @@ export interface XrayExposure {
 export interface XrayConcentration {
   readonly topCurrencyCode?: string;
   readonly share?: number;
-  readonly status: string;
+  readonly status: ConcentrationStatus;
 }
 
 export interface XraySensitivity {
@@ -238,7 +277,7 @@ export interface XrayResponse {
 }
 
 export interface AttributionComponent {
-  readonly key: string;
+  readonly key: AttributionComponentKey;
   readonly label: string;
   readonly krw: number;
   readonly contributionPp: number;
@@ -262,14 +301,14 @@ export interface AttributionResponse {
 }
 
 export interface FitRiskProfile {
-  readonly status: string;
-  readonly grade?: string;
+  readonly status: RiskProfileStatus;
+  readonly grade?: RiskGrade;
   readonly gradeLabel?: string;
   readonly diagnosedOn?: string;
 }
 
 export interface FitRelation {
-  readonly code: string;
+  readonly code: FitRelationCode;
   readonly facts: {
     readonly share?: number;
     /** 위험성향이 측정된 계정에만 채워진다. */
@@ -329,7 +368,7 @@ export interface StressRunResponse {
   readonly after: {
     readonly fxAssetKrw: number;
   };
-  readonly interpretationCode: string;
+  readonly interpretationCode: StressInterpretationCode;
   readonly conditionalNote: string;
 }
 

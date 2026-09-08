@@ -35,7 +35,7 @@ describe("XRayFitnessView", () => {
       screen.getByText(/주력 통화\(USD\) 비중이 전체의 75%입니다/),
     ).toBeInTheDocument();
     expect(screen.getByText(/기준선은 60%입니다/)).toBeInTheDocument();
-    expect(screen.getByText(/중립형/)).toBeInTheDocument();
+    expect(screen.getByText(/균형항로형/)).toBeInTheDocument();
     expect(
       screen.getByText(
         "참고 기준선은 MVP 가설값이며 통계적으로 검증된 배분 기준이 아닙니다.",
@@ -48,9 +48,16 @@ describe("XRayFitnessView", () => {
       ...XRAY_API_FIXTURE,
       fit: {
         ...XRAY_API_FIXTURE.fit,
-        riskProfile: { status: "not_measured" },
-        concentration: { topCurrencyCode: "USD", share: 0.45, status: "ok" },
-        relation: { code: "risk_profile_not_measured", facts: { share: 0.45 } },
+        riskProfile: { status: "not_measured" as const },
+        concentration: {
+          topCurrencyCode: "USD",
+          share: 0.45,
+          status: "within_threshold" as const,
+        },
+        relation: {
+          code: "risk_profile_not_measured" as const,
+          facts: { share: 0.45 },
+        },
       },
     };
     render(
@@ -62,7 +69,7 @@ describe("XRayFitnessView", () => {
         explanationRequester={PENDING_REQUESTER}
       />,
     );
-    expect(screen.getByText(/판정: 적정/)).toBeInTheDocument();
+    expect(screen.getByText(/판정: 기준선 이내/)).toBeInTheDocument();
     expect(screen.queryByText(/기준선은 \d+%입니다/)).not.toBeInTheDocument();
     expect(screen.getByText(/위험성향을 진단하면/)).toBeInTheDocument();
   });
@@ -72,7 +79,7 @@ describe("XRayFitnessView", () => {
       ...XRAY_API_FIXTURE,
       fit: {
         ...XRAY_API_FIXTURE.fit,
-        riskProfile: { status: "measured" },
+        riskProfile: { status: "detail_done" as const },
       },
     };
     render(
@@ -93,7 +100,11 @@ describe("XRayFitnessView", () => {
       ...XRAY_API_FIXTURE,
       fit: {
         ...XRAY_API_FIXTURE.fit,
-        riskProfile: { status: "measured", grade: "B", gradeLabel: "중립형" },
+        riskProfile: {
+          status: "simple_done" as const,
+          grade: "balanced" as const,
+          gradeLabel: "균형항로형",
+        },
       },
     };
     render(
@@ -105,7 +116,7 @@ describe("XRayFitnessView", () => {
         explanationRequester={PENDING_REQUESTER}
       />,
     );
-    expect(screen.getByText("위험성향 중립형")).toBeInTheDocument();
+    expect(screen.getByText("위험성향 균형항로형")).toBeInTheDocument();
   });
 
   it("주력 통화를 알 수 없으면 통화 자리를 비우고 후보를 모두 보여준다", () => {
@@ -113,7 +124,7 @@ describe("XRayFitnessView", () => {
       ...XRAY_API_FIXTURE,
       fit: {
         ...XRAY_API_FIXTURE.fit,
-        concentration: { share: 0.45, status: "ok" },
+        concentration: { share: 0.45, status: "within_threshold" as const },
       },
     };
     render(
@@ -247,7 +258,7 @@ describe("XRayFitnessView", () => {
           status: "done",
           preview: {
             ...FIT_PREVIEW_FIXTURE,
-            concentration: { status: "unknown" },
+            concentration: { status: "unknown" as const },
           },
         }}
         onPreviewAdjustment={vi.fn()}
@@ -301,11 +312,11 @@ describe("XRayFitnessView의 AI 설명", () => {
       facts: {
         top_currency_code: "USD",
         concentration_share: 0.75,
-        concentration_status: "over",
+        concentration_status: "above_threshold",
         concentration_threshold: 0.6,
         gap: 0.15,
-        risk_profile_status: "measured",
-        risk_grade_label: "중립형",
+        risk_profile_status: "simple_done",
+        risk_grade_label: "균형항로형",
       },
     });
   });
@@ -316,9 +327,16 @@ describe("XRayFitnessView의 AI 설명", () => {
       ...XRAY_API_FIXTURE,
       fit: {
         ...XRAY_API_FIXTURE.fit,
-        riskProfile: { status: "not_measured" },
-        concentration: { topCurrencyCode: "USD", share: 0.45, status: "ok" },
-        relation: { code: "risk_profile_not_measured", facts: { share: 0.45 } },
+        riskProfile: { status: "not_measured" as const },
+        concentration: {
+          topCurrencyCode: "USD",
+          share: 0.45,
+          status: "within_threshold" as const,
+        },
+        relation: {
+          code: "risk_profile_not_measured" as const,
+          facts: { share: 0.45 },
+        },
       },
     };
     render(
@@ -337,7 +355,7 @@ describe("XRayFitnessView의 AI 설명", () => {
       facts: {
         top_currency_code: "USD",
         concentration_share: 0.45,
-        concentration_status: "ok",
+        concentration_status: "within_threshold",
         risk_profile_status: "not_measured",
       },
     });

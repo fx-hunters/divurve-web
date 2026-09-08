@@ -3,7 +3,10 @@ import { Badge } from "../../components/common/badge";
 import { Icon } from "../../components/common/icon";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { XRayAiExplanation, XRAY_EXPOSURE_SURFACE } from "./xray-ai-explanation";
-import { toExposureExplanationFacts } from "./xray-presenter";
+import {
+  isConcentrationAboveThreshold,
+  toExposureExplanationFacts,
+} from "./xray-presenter";
 import type {
   StressRunResult,
   XRayDashboardData,
@@ -105,7 +108,13 @@ export function XRayExposureView({
         <div style={CARD_STYLE}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
             <h2 style={CARD_TITLE_STYLE}>통화별 노출</h2>
-            <Badge variant={data.concentration.status === "over" ? "danger" : "default"}>
+            <Badge
+              variant={
+                isConcentrationAboveThreshold(data.concentration.status)
+                  ? "danger"
+                  : "default"
+              }
+            >
               {data.concentration.statusLabel}
             </Badge>
           </div>

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchImportedAssetSummary } from "./asset-import";
 import { fetchXrayOverview } from "./xray";
+import type { XrayResponse } from "./generated/divurve-api";
 
 vi.mock("./xray", () => ({ fetchXrayOverview: vi.fn() }));
 
-const OVERVIEW = {
+const OVERVIEW: XrayResponse = {
   totalAssetKrw: 100_058_000,
   krwAssetKrw: 36_000_000,
   fxAssetKrw: 64_058_000,
@@ -14,7 +15,7 @@ const OVERVIEW = {
     { currencyCode: "USD", krw: 58_658_000, share: 0.9157 },
     { currencyCode: "EUR", krw: 1_600_000, share: 0.025 },
   ],
-  concentration: { status: "ok" },
+  concentration: { status: "within_threshold" },
   sensitivity1pct: { totalKrw: 640_580, byCurrency: {} },
 };
 

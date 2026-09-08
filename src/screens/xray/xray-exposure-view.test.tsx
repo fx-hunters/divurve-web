@@ -192,7 +192,7 @@ describe("XRayExposureView의 AI 설명", () => {
         ],
         fx_sensitivity_1pct_krw: 80_000,
         total_return: 0.09,
-        concentration_status: "over",
+        concentration_status: "above_threshold",
         concentration_threshold: 0.6,
       },
     });
