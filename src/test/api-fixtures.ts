@@ -236,15 +236,35 @@ export const STRESS_RUN_FIXTURE: StressRunResponse = {
   conditionalNote: "주가와 환율이 동시에 움직이는 가정입니다.",
 };
 
+/**
+ * 실제 응답(`POST /api/v1/fit/preview`, 2026-09-08). JPY 를 10%p 늘린 가정이다.
+ * `concentration` 이 `{before, after, threshold}` 인 것이 이 응답의 핵심이다 —
+ * 예전 픽스처는 `/xray` 의 `concentration` 모양을 베껴 와 실제와 달랐다.
+ */
 export const FIT_PREVIEW_FIXTURE: FitPreviewResponse = {
-  assumption: "앞으로의 매수만 조정한다고 가정합니다.",
-  exposure: { before: { USD: 0.75 }, after: { USD: 0.68 } },
-  concentration: {
-    topCurrencyCode: "USD",
-    share: 0.68,
-    status: "above_threshold",
+  assumption:
+    "외화자산 총액 61,704,920원을 고정한 채 JPY 비중만 10%p 높인 가정입니다.",
+  exposure: {
+    before: { USD: 0.9182, JPY: 0.0565, EUR: 0.0253 },
+    after: { USD: 0.8209, JPY: 0.1565, EUR: 0.0226 },
   },
-  sensitivity1pct: { before: { USD: 60_000 }, after: { USD: 54_000 } },
+  concentration: {
+    before: {
+      topCurrencyCode: "USD",
+      share: 0.9182,
+      status: "above_threshold",
+    },
+    after: {
+      topCurrencyCode: "USD",
+      share: 0.8209,
+      status: "above_threshold",
+    },
+    threshold: 0.6,
+  },
+  sensitivity1pct: {
+    before: { USD: 566_577, JPY: 34_862, EUR: 15_610, total_krw: 617_049 },
+    after: { USD: 506_534, JPY: 96_557, EUR: 13_958, total_krw: 617_049 },
+  },
 };
 
 export const MY_PAGE_SETTINGS_FIXTURE: SettingsResponse = {
