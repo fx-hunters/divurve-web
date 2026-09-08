@@ -7,6 +7,8 @@ import type { AuthSuccessResult } from "./types/auth";
 
 export interface AuthPageProps {
   readonly initialMode?: "login" | "signup";
+  /** 화면 안에서 로그인↔회원가입을 오갈 때 주소창을 맞추기 위한 통로. */
+  readonly onModeChange?: (mode: "login" | "signup") => void;
   readonly onSuccess: (result: AuthSuccessResult | void) => void;
   readonly onBack: () => void;
   readonly authenticateLogin?: (
@@ -260,6 +262,7 @@ const resolveImmediately = async () => undefined;
 
 export function AuthPage({
   initialMode = "login",
+  onModeChange,
   onSuccess,
   onBack,
   authenticateLogin = resolveImmediately,
@@ -303,6 +306,7 @@ export function AuthPage({
     setAnimating(true);
     setTimeout(() => {
       setMode(next);
+      onModeChange?.(next);
       setErrors({});
       setAnimating(false);
     }, 180);
