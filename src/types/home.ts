@@ -2,6 +2,8 @@ import type {
   HomeBlockKey,
   HomeBlockState,
 } from "../api/generated/divurve-api";
+/** 홈과 X-Ray 가 같은 통화별 노출 값을 그리므로 타입도 하나를 공유한다(divurve-api#94). */
+import type { ExposureShareItem } from "./xray";
 
 export type HomeTone = "default" | "normal" | "warn" | "danger";
 
@@ -22,6 +24,11 @@ export interface FxStatusData {
   readonly topCurrencyCode?: string;
   readonly dayChangeKrw?: number;
   readonly sensitivity1pctKrw?: number;
+  /**
+   * 통화별 노출. `/xray` 와 같은 값이라 같은 타입을 쓴다(divurve-api#94).
+   * 서버가 키를 생략해도 화면 분기가 늘지 않도록 항상 배열로 둔다 — 없으면 빈 배열.
+   */
+  readonly exposure: readonly ExposureShareItem[];
 }
 
 export interface ActiveGoalItem {

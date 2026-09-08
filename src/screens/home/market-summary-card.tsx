@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
+import { Sparkline } from "../../components/common/sparkline";
 import { Spinner } from "../../components/common/spinner";
 import type { HomeMarketPairCode } from "../../api/home";
 import {
@@ -134,6 +135,21 @@ export function MarketSummaryCard({
               80% 범위 {view.lowerLabel} - {view.upperLabel}
             </Badge>
           </div>
+        )}
+
+        {/*
+          최근 30영업일 추세선. 값이 하나뿐이거나 전부 같으면 변환 계층이 빈
+          배열을 주므로 여기서 선이 사라진다 — 눈금 없는 평평한 선으로
+          "변동이 없다"는 인상을 주지 않기 위해서다.
+        */}
+        {view.sparklineRates.length > 0 && (
+          <Sparkline
+            rates={view.sparklineRates}
+            width={200}
+            height={36}
+            color={toCurrencyColor(view.baseCurrencyCode)}
+            label={`${view.baseCurrencyCode}/${view.quoteCurrencyCode} 최근 ${view.sparklineRates.length}영업일 추세`}
+          />
         )}
 
         {children}

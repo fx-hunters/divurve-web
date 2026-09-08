@@ -33,6 +33,15 @@ export const MARKET_PAIR_OPTIONS: readonly MarketPairOption[] = (
   Object.keys(PAIR_OPTION_LABELS) as readonly HomeMarketPairCode[]
 ).map((code) => ({ code, label: PAIR_OPTION_LABELS[code] }));
 
+/**
+ * 스파크라인 한 점. 두 출처의 키가 달라(홈 요약은 `date`, `/forecast` 는 `d`)
+ * 경계에서 이 모양으로 통일한다.
+ */
+export interface MarketHistoryPoint {
+  readonly date: string;
+  readonly rate: number;
+}
+
 /** 통화쌍 하나의 시세 한 장. 값은 모두 서버가 준 원본 수치다. */
 export interface HomeMarketSnapshot {
   readonly pairCode: HomeMarketPairCode;
@@ -40,6 +49,8 @@ export interface HomeMarketSnapshot {
   readonly lower?: number;
   readonly upper?: number;
   readonly regime?: string;
+  /** 최근 30영업일. 서버가 시간순으로 주므로 재정렬하지 않는다. 없으면 빈 배열. */
+  readonly history?: readonly MarketHistoryPoint[];
 }
 
 export type HomeMarketLoader = (
@@ -62,6 +73,8 @@ export interface MarketSummaryView {
   readonly currentRateLabel?: string;
   readonly lowerLabel?: string;
   readonly upperLabel?: string;
+  /** 스파크라인에 그릴 환율값만 시간순으로. 점이 2개 미만이면 선이 안 되므로 빈 배열. */
+  readonly sparklineRates: readonly number[];
 }
 
 /** 통화 색 고정 배정(개발 컨벤션 7.2). 상태 색과 섞지 않는다. */
@@ -112,26 +125,30 @@ export function toMarketRateLabel(
 export function toSummaryMarketSnapshot(
   result: ApiResult<HomeSummaryResponse>,
 ): HomeMarketSnapshot {
-  const { pairCode, currentRate, interval80 } = result.data.forecast;
+  const { pairCode, currentRate, interval80, history } = result.data.forecast;
   return {
     pairCode: resolveMarketPairCode(pairCode),
     currentRate,
     lower: interval80?.lo,
     upper: interval80?.hi,
     regime: result.meta.regime,
+    history: history ?? [],
   };
 }
 
 export function toForecastMarketSnapshot(
   result: ApiResult<ForecastResponse>,
 ): HomeMarketSnapshot {
-  const { pairCode, currentRate, interval80, volatility } = result.data;
+  const { pairCode, currentRate, interval80, volatility, history } =
+    result.data;
   return {
     pairCode: resolveMarketPairCode(pairCode),
     currentRate,
     lower: interval80.lo,
     upper: interval80.hi,
     regime: volatility.regime,
+    // `/forecast` 는 날짜 키가 `d` 라 홈 요약(`date`)과 다르다. 여기서 맞춘다.
+    history: history.map((point) => ({ date: point.d, rate: point.rate })),
   };
 }
 
@@ -151,6 +168,18 @@ export function toDisplaySnapshot(
   return pairCode === summary.pairCode ? summary : { pairCode };
 }
 
+/**
+ * 스파크라인에 넘길 환율 수열. 점이 하나면 선을 그릴 수 없고, 값이 모두 같으면
+ * 진폭이 0 이라 그려도 정보가 없다 — 둘 다 빈 배열로 접어 카드가 선을 감춘다.
+ */
+function toSparklineRates(
+  history: readonly MarketHistoryPoint[] | undefined,
+): readonly number[] {
+  const rates = (history ?? []).map((point) => point.rate);
+  if (rates.length < 2) return [];
+  return rates.some((rate) => rate !== rates[0]) ? rates : [];
+}
+
 export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
   const { pairCode } = snapshot;
   const format = (rate: number | undefined) =>
@@ -163,6 +192,7 @@ export function toMarketView(snapshot: HomeMarketSnapshot): MarketSummaryView {
     currentRateLabel: format(snapshot.currentRate),
     lowerLabel: format(snapshot.lower),
     upperLabel: format(snapshot.upper),
+    sparklineRates: toSparklineRates(snapshot.history),
   };
 }
 
