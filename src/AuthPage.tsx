@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "./components/common/icon";
 import { ApiError } from "./api/client";
 import type { LoginRequest, SignupRequest } from "./api/auth";
@@ -40,10 +40,6 @@ export function pwStrength(pw: string) {
   const idx = Math.max(0, Math.min(score - 1, 4));
   return { score, label: map[idx]!.label, color: map[idx]!.color };
 }
-
-// 타이머 포맷팅 (예: 180 -> "3:00")
-export const fmtTime = (s: number) =>
-  `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 // 인라인 버튼 스타일
 export const inputBtnStyle = (active?: boolean): React.CSSProperties => ({
@@ -291,14 +287,6 @@ export function AuthPage({
   const [suPwConfirm, setSuPwConfirm] = useState("");
   const [showSuPwConfirm, setShowSuPwConfirm] = useState(false);
 
-  // 휴대폰 인증
-  const [phone, setPhone] = useState("");
-  const [phoneSent, setPhoneSent] = useState(false);
-  const [phoneCode, setPhoneCode] = useState("");
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [countdown, setCountdown] = useState(180);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // 약관 동의
   const [allTerms, setAllTerms] = useState(false);
   const [termService, setTermService] = useState(false);
@@ -310,15 +298,6 @@ export function AuthPage({
     setAllTerms(termService && termPrivacy && termMarketing);
   }, [termService, termPrivacy, termMarketing]);
 
-  // 언마운트 시 타이머 정리
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
-
   const switchMode = (next: AuthMode) => {
     if (mode === next) return;
     setAnimating(true);
@@ -327,50 +306,6 @@ export function AuthPage({
       setErrors({});
       setAnimating(false);
     }, 180);
-  };
-
-  const startCountdown = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setCountdown(180);
-    timerRef.current = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-  };
-
-  const handleSendPhoneCode = () => {
-    if (!phone || phone.replace(/[^0-9]/g, "").length < 10) {
-      setErrors((prev) => ({ ...prev, phone: "올바른 휴대폰 번호를 입력하세요." }));
-      return;
-    }
-    setErrors((prev) => {
-      const rest = { ...prev };
-      delete rest.phone;
-      return rest;
-    });
-    setPhoneSent(true);
-    setPhoneVerified(false);
-    startCountdown();
-  };
-
-  const handleVerifyPhoneCode = () => {
-    if (!phoneCode || phoneCode.trim().length < 4) {
-      setErrors((prev) => ({ ...prev, phoneCode: "4자리 인증번호를 입력하세요." }));
-      return;
-    }
-    if (timerRef.current) clearInterval(timerRef.current);
-    setPhoneVerified(true);
-    setErrors((prev) => {
-      const rest = { ...prev };
-      delete rest.phoneCode;
-      delete rest.phone;
-      return rest;
-    });
   };
 
   const handleCheckEmailDuplicate = () => {
@@ -430,7 +365,6 @@ export function AuthPage({
     if (!suEmail || !suEmail.includes("@")) errs.suEmail = "올바른 이메일을 입력하세요.";
     if (!suPw || suPw.length < 8) errs.suPw = "비밀번호는 8자 이상이어야 합니다.";
     if (suPw !== suPwConfirm) errs.suPwConfirm = "비밀번호가 일치하지 않습니다.";
-    if (!phoneVerified) errs.phone = "휴대폰 인증을 완료하세요.";
     if (!termService || !termPrivacy) errs.terms = "필수 약관에 동의하세요.";
 
     if (Object.keys(errs).length > 0) {
@@ -455,10 +389,6 @@ export function AuthPage({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleSocialUnavailable = () => {
-    setSubmitError("소셜 로그인 API는 현재 Swagger 명세에 제공되지 않습니다.");
   };
 
   const pwStrengthInfo = pwStrength(suPw);
@@ -878,82 +808,6 @@ export function AuthPage({
                   {isSubmitting ? "로그인 중…" : "로그인"}
                 </button>
 
-                {/* 구분선 */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    margin: "0.5rem 0",
-                    color: "var(--text-muted)",
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border)" }} />
-                  <span style={{ padding: "0 0.75rem" }}>또는</span>
-                  <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border)" }} />
-                </div>
-
-                {/* 소셜 로그인 3개 */}
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="카카오 로그인"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface-subtle)",
-                      color: "var(--text)",
-                      border: "none",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    카카오
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="네이버 로그인"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface-subtle)",
-                      color: "var(--text)",
-                      border: "none",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    네이버
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="구글 로그인"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface)",
-                      color: "var(--text)",
-                      border: "1px solid var(--border)",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    구글
-                  </button>
-                </div>
-
                 {/* 회원가입 전환 링크 */}
                 <div style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.8125rem" }}>
                   <span style={{ color: "var(--text-muted)" }}>계정이 없으신가요? </span>
@@ -1150,92 +1004,6 @@ export function AuthPage({
                   }
                 />
 
-                {/* 휴대폰 번호 + 인증번호 */}
-                <Field
-                  id="su-phone"
-                  label="휴대폰 번호"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (errors.phone) {
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.phone;
-                        return next;
-                      });
-                    }
-                  }}
-                  placeholder="010-0000-0000"
-                  disabled={phoneVerified}
-                  error={errors.phone}
-                  successHint={phoneVerified ? "휴대폰 인증이 완료되었습니다." : undefined}
-                  successBorder={phoneVerified}
-                  suffix={
-                    !phoneVerified && (
-                      <button
-                        type="button"
-                        onClick={handleSendPhoneCode}
-                        style={inputBtnStyle(phoneSent)}
-                      >
-                        {phoneSent ? "재발송" : "인증번호 발송"}
-                      </button>
-                    )
-                  }
-                />
-
-                {/* 인증번호 입력창 (발송 후 & 미인증 시에만 노출) */}
-                {phoneSent && !phoneVerified && (
-                  <Field
-                    id="su-phone-code"
-                    label="인증번호"
-                    value={phoneCode}
-                    onChange={(e) => {
-                      setPhoneCode(e.target.value);
-                      if (errors.phoneCode) {
-                        setErrors((prev) => {
-                          const next = { ...prev };
-                          delete next.phoneCode;
-                          return next;
-                        });
-                      }
-                    }}
-                    placeholder="인증번호 4자리"
-                    error={errors.phoneCode}
-                    suffix={
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "0.8125rem",
-                            fontWeight: 700,
-                            color: "var(--warn)",
-                          }}
-                        >
-                          {fmtTime(countdown)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleVerifyPhoneCode}
-                          style={inputBtnStyle(true)}
-                        >
-                          확인
-                        </button>
-                      </div>
-                    }
-                  />
-                )}
-
-                <p
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "0.75rem",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  휴대폰 인증은 현재 Swagger 계약에 없어 UI 체험용으로만 동작합니다.
-                </p>
-
                 {/* 약관 동의 박스 */}
                 <div
                   style={{
@@ -1358,82 +1126,6 @@ export function AuthPage({
                 >
                   {isSubmitting ? "가입 중…" : "가입하기"}
                 </button>
-
-                {/* 구분선 */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    margin: "0.5rem 0",
-                    color: "var(--text-muted)",
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border)" }} />
-                  <span style={{ padding: "0 0.75rem" }}>또는</span>
-                  <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border)" }} />
-                </div>
-
-                {/* 소셜 로그인 3개 */}
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="카카오로 시작하기"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface-subtle)",
-                      color: "var(--text)",
-                      border: "none",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    카카오
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="네이버로 시작하기"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface-subtle)",
-                      color: "var(--text)",
-                      border: "none",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    네이버
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSocialUnavailable}
-                    aria-label="구글로 시작하기"
-                    style={{
-                      flex: 1,
-                      padding: "0.625rem 0",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--surface)",
-                      color: "var(--text)",
-                      border: "1px solid var(--border)",
-                      fontSize: "0.8125rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "opacity 0.15s ease",
-                    }}
-                  >
-                    구글
-                  </button>
-                </div>
 
                 {/* 로그인 전환 링크 */}
                 <div style={{ textAlign: "center", marginTop: "1rem", fontSize: "0.8125rem" }}>
