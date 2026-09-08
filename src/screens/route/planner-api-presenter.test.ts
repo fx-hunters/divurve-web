@@ -100,6 +100,8 @@ describe("presentPlannerOverview", () => {
       totalRounds: 4,
       completedRounds: 1,
       planSource: "active",
+      nextActionSeq: 3,
+      budgetStateLabel: "현재 환율 범위에서 예산으로 감당됩니다",
     });
     expect(model.nextAction).toMatchObject({ planId: "plan", sequence: 3, amount: 30 });
     expect(model.dataSource).toEqual({ kind: "sample", label: "샘플 데이터" });
@@ -196,7 +198,8 @@ describe("presentPlannerOverview", () => {
     const labels = [
       ["completed", "완료"],
       ["superseded", "이전 버전"],
-      ["paused", "paused"],
+      ["paused", "일시 정지"],
+      ["needs_review", "재검토 필요"],
     ] as const;
     for (const [status, expected] of labels) {
       const model = presentPlannerOverview({
@@ -223,6 +226,7 @@ describe("presentPlannerOverview", () => {
               ...first.activePlan!.summary,
               nextActionSeq: null,
               estimatedCost: null,
+              budgetState: null,
             },
             steps: first.activePlan!.steps.map((step, index) => ({
               ...step,
@@ -236,6 +240,7 @@ describe("presentPlannerOverview", () => {
     });
     expect(fallback.nextAction?.sequence).toBe(3);
     expect(fallback.plan?.estimatedCostLabel).toBeNull();
+    expect(fallback.plan?.budgetStateLabel).toBeNull();
     expect(fallback.steps[2]).toMatchObject({
       status: "next",
       budgetLabel: null,

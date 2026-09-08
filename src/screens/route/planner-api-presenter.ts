@@ -83,6 +83,19 @@ function formatCostRange(range: PlannerCostRange | null): string | null {
   return `${formatKrw(range.lowKrw)} ~ ${formatKrw(range.highKrw)}`;
 }
 
+const BUDGET_STATE_LABELS: Readonly<Record<string, string | undefined>> = {
+  COVERED_IN_RANGE: "현재 환율 범위에서 예산으로 감당됩니다",
+  RANGE_SENSITIVE: "환율 범위에 따라 예산 조정이 필요할 수 있습니다",
+  CONSTRAINT_ADJUSTMENT_REQUIRED: "금액·날짜·예산 중 하나를 조정해야 합니다",
+  BUDGET_NOT_PROVIDED: "예산을 입력하지 않아 가능 여부를 판정하지 않았습니다",
+};
+
+const WARNING_LABELS: Readonly<Record<string, string | undefined>> = {
+  BUDGET_SHORTFALL: "예산이 계획 비용에 미치지 못합니다",
+  TARGET_ALREADY_MET: "이미 목표 금액을 확보했습니다",
+  FORECAST_UNAVAILABLE: "환율 구간을 얻지 못해 기준 환율만 사용했습니다",
+};
+
 function formatNullableAmount(
   value: number | null,
   currencyCode: string,
@@ -126,6 +139,10 @@ function planStatusLabel(status: string): string {
       return "완료";
     case "superseded":
       return "이전 버전";
+    case "needs_review":
+      return "재검토 필요";
+    case "paused":
+      return "일시 정지";
     default:
       return status;
   }
@@ -293,15 +310,25 @@ export function presentPlannerOverview(
               activePlan.version === null ? "미리보기" : `v${activePlan.version}`,
             status: activePlan.summary.status,
             statusLabel: planStatusLabel(activePlan.summary.status),
-            planEndDateLabel: activePlan.summary.planEndDate,
+            planEndDateLabel:
+              activePlan.summary.planEndDate ?? "제공되지 않음",
             totalRounds: activePlan.summary.totalRounds,
             completedRounds: activePlan.summary.completedRounds,
             scheduledRounds: activePlan.summary.scheduledRounds,
             skippedRounds: activePlan.summary.skippedRounds,
+            nextActionSeq: activePlan.summary.nextActionSeq,
             estimatedCostLabel: formatCostRange(activePlan.summary.estimatedCost),
-            policyVersion: activePlan.calculationMeta.policyVersion,
+            budgetStateLabel:
+              activePlan.summary.budgetState === null
+                ? null
+                : BUDGET_STATE_LABELS[activePlan.summary.budgetState] ??
+                  activePlan.summary.budgetState,
+            policyVersion:
+              activePlan.calculationMeta?.policyVersion ?? "제공되지 않음",
             disclaimer: activePlan.disclaimer,
-            warnings: activePlan.warnings,
+            warnings: activePlan.warnings.map(
+              (warning) => WARNING_LABELS[warning] ?? warning,
+            ),
           },
     curveNodes: selected === null ? [] : toCurveNodes(selected, nextIndex),
     curve: selected === null ? null : toCurve(selected, nextIndex),

@@ -27,4 +27,32 @@ describe("DonutChart", () => {
     const centerText = container.querySelector(".pointer-events-none");
     expect(centerText).toHaveStyle({ opacity: "0" });
   });
+
+  it("조각을 넘기면 통화별 분해 도넛으로 그리고 가운데 숫자를 쓰지 않는다", () => {
+    const { container } = render(
+      <DonutChart
+        segments={[
+          { key: "USD", value: 15_790_000, color: "var(--usd)" },
+          { key: "JPY", value: 8_926_000, color: "var(--jpy)" },
+        ]}
+        isAnimationActive={false}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "통화별 비중" })).toBeInTheDocument();
+    // 게이지 모드의 가운데 퍼센트 숫자가 없어야 한다.
+    expect(container.querySelector(".absolute")).toBeNull();
+  });
+
+  it("조각 합이 0이면 각도를 낼 수 없어 아무것도 그리지 않는다", () => {
+    const { container } = render(
+      <DonutChart segments={[{ key: "USD", value: 0, color: "var(--usd)" }]} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("조각이 하나도 없으면 그리지 않는다", () => {
+    const { container } = render(<DonutChart segments={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
 });

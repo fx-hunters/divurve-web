@@ -1,4 +1,7 @@
-import type { StressRunResponse } from "../../api/generated/divurve-api";
+import type {
+  ConcentrationStatus,
+  StressRunResponse,
+} from "../../api/generated/divurve-api";
 import type { XrayApiBundle } from "../../api/xray";
 import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
 import { toPercent } from "../../lib/percent";
@@ -11,15 +14,44 @@ import type {
   XRayDashboardData,
 } from "../../types/xray";
 
-export const CONCENTRATION_STATUS_LABELS: Readonly<Record<string, string>> = {
-  ok: "적정",
-  watch: "관찰",
-  over: "기준선 초과",
+/**
+ * 집중도 판정 라벨. 키는 서버 어휘 전체이며 `Record<ConcentrationStatus, string>` 이라
+ * 어휘가 빠지거나 서버에 없는 코드를 적으면 `tsc --noEmit` 이 잡는다.
+ *
+ * ⚠️ `Record<string, T>` + `?? fallback` 으로 되돌리지 말 것. 이슈 #54 이전에는 이 표가
+ * `ok`·`watch`·`over` 라는 서버에 없는 어휘를 담고 있었고, fallback 이 모르는 코드를 그대로
+ * 흘려보낸 탓에 "기준선 초과" 경고가 커버리지 100% 상태로 영구히 꺼져 있었다.
+ */
+export const CONCENTRATION_STATUS_LABELS: Readonly<
+  Record<ConcentrationStatus, string>
+> = {
+  above_threshold: "기준선 초과",
+  within_threshold: "기준선 이내",
   unknown: "판정 불가",
 };
 
-export function toConcentrationStatusLabel(status: string): string {
-  return CONCENTRATION_STATUS_LABELS[status] ?? status;
+export function toConcentrationStatusLabel(status: ConcentrationStatus): string {
+  return CONCENTRATION_STATUS_LABELS[status];
+}
+
+/**
+ * 주력 통화 비중이 성향 기준선을 넘었는지. 경고색·경고 배지의 유일한 판정 지점이다.
+ *
+ * 화면에서 `status === "above_threshold"` 로 직접 비교하지 않고 이 표를 거친다 —
+ * 서버 어휘가 늘면 표가 컴파일 에러로 알려주지만, 리터럴 비교는 조용히 거짓이 된다.
+ */
+const CONCENTRATION_ABOVE_THRESHOLD: Readonly<
+  Record<ConcentrationStatus, boolean>
+> = {
+  above_threshold: true,
+  within_threshold: false,
+  unknown: false,
+};
+
+export function isConcentrationAboveThreshold(
+  status: ConcentrationStatus,
+): boolean {
+  return CONCENTRATION_ABOVE_THRESHOLD[status];
 }
 
 export function toDateLabel(value: string | undefined): string | undefined {
@@ -60,11 +92,13 @@ function toPnl(bundle: XrayApiBundle): PnLDecompositionData {
     costBasisKrw: attribution.costBasisKrw,
     totalValuationKrw: attribution.currentKrw,
     totalReturnPct: toPercent(attribution.totalReturn),
+    // `contributionPp` 는 서버 스키마상 매입 원가 대비 기여 "비율(0~1)"이다. 화면은
+    // 퍼센트포인트로 읽으므로 다른 비율 필드와 같은 규칙으로 단위만 바꾼다.
     rows: attribution.components.map((component) => ({
       key: component.key,
       label: component.label,
       krw: component.krw,
-      contributionPct: component.contributionPp,
+      contributionPct: toPercent(component.contributionPp),
     })),
     holdings: attribution.byHolding.map((holding) => ({
       ticker: holding.ticker,
@@ -199,7 +233,9 @@ export function toFitnessExplanationFacts(
     concentration_share: toRatio(concentration.sharePct),
     concentration_status: concentration.status,
     concentration_threshold: toRatio(concentration.thresholdPct),
-    gap: toRatio(concentration.gapPp),
+    // `gapPp` 는 서버가 준 `share − threshold` 로 이미 0~1 비율이다. 표시용 퍼센트가
+    // 아니므로 `toRatio` 로 다시 나누지 않는다.
+    gap: concentration.gapPp,
     risk_profile_status: concentration.riskProfileStatus,
     risk_grade_label: concentration.gradeLabel,
   });

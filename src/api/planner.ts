@@ -1,5 +1,9 @@
 import { ApiError, request, requestWithMeta } from "./client";
-import type { GoalListResponse, GoalResponse } from "./generated/divurve-api";
+import type {
+  GoalListResponse,
+  GoalResponse,
+  PlanStatusCode,
+} from "./generated/divurve-api";
 import type {
   PlannerAcquisitionRange,
   PlannerCalculationMeta,
@@ -32,7 +36,7 @@ export interface PlannerApiOverview {
 export interface PlanVersion {
   readonly planId: string;
   readonly version: number;
-  readonly status: string;
+  readonly status: PlanStatusCode;
   readonly reason?: string;
   readonly planEndDate?: string;
   readonly supersededBy?: string;
@@ -147,7 +151,7 @@ function toPlanGoal(value: unknown): PlannerPlanGoal {
       "goal.allocatedHoldingAmount",
     ),
     remainingAmount: requiredNumber(row.remainingAmount, "goal.remainingAmount"),
-    targetDate: requiredString(row.targetDate, "goal.targetDate"),
+    targetDate: nullableString(row.targetDate, "goal.targetDate"),
   };
 }
 
@@ -155,7 +159,7 @@ function toPlanSummary(value: unknown): PlannerPlanSummary {
   const row = requiredRecord(value, "summary");
   return {
     status: requiredString(row.status, "summary.status"),
-    planEndDate: requiredString(row.planEndDate, "summary.planEndDate"),
+    planEndDate: nullableString(row.planEndDate, "summary.planEndDate"),
     totalRounds: requiredNumber(row.totalRounds, "summary.totalRounds"),
     completedRounds: requiredNumber(row.completedRounds, "summary.completedRounds"),
     scheduledRounds: requiredNumber(row.scheduledRounds, "summary.scheduledRounds"),

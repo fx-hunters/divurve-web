@@ -17,7 +17,7 @@ const VERSIONS: readonly PlanVersion[] = [
     planEndDate: "2026-12-31",
     createdAt: "2026-09-01T00:00:00Z",
   },
-  { planId: "plan-1", version: 1, status: "unknown-status" },
+  { planId: "plan-1", version: 1, status: "superseded" },
 ];
 
 const PLAN_DETAIL = {
@@ -34,7 +34,7 @@ const PLAN_DETAIL = {
     },
     {
       ...PLANNER_API_FIXTURE.items[0]!.activePlan!.steps[1]!,
-      status: "brand-new-status",
+      status: "due",
     },
   ],
 };
@@ -91,8 +91,7 @@ describe("PlanVersionList", () => {
 
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("적용 중")).toBeInTheDocument();
-    // 알 수 없는 상태 값은 서버가 준 문자열 그대로 보여 준다
-    expect(screen.getByText("unknown-status")).toBeInTheDocument();
+    expect(screen.getByText("대체됨")).toBeInTheDocument();
     expect(screen.getByText("종료 2026-12-31")).toBeInTheDocument();
     expect(screen.getByText("생성 2026-09-01T00:00:00Z")).toBeInTheDocument();
 
@@ -134,10 +133,11 @@ describe("PlanVersionList", () => {
     );
     expect(screen.getAllByText("적용 중").length).toBeGreaterThan(0);
     expect(screen.getByText("전체 회차")).toBeInTheDocument();
+    expect(screen.getByText("완료 회차")).toBeInTheDocument();
+    expect(screen.getByText("건너뛴 회차")).toBeInTheDocument();
     expect(screen.getByText("1회차")).toBeInTheDocument();
     expect(screen.getByText("2026-09-01 · 145 USD")).toBeInTheDocument();
     expect(screen.getByText("완료")).toBeInTheDocument();
-    // 알 수 없는 회차 상태도 서버 값 그대로 표시한다
-    expect(screen.getByText("brand-new-status")).toBeInTheDocument();
+    expect(screen.getByText("예정일 도래")).toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ import type {
   PlannerScenarioComparisonViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerJourneyAction } from "./planner-journey-action";
 import { PlannerJourneyCurve } from "./planner-journey-curve";
 import { PlannerJourneyDetail } from "./planner-journey-detail";
@@ -20,6 +21,7 @@ import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerJourneyScenario } from "./planner-journey-scenario";
 import { PlannerJourneyStatus } from "./planner-journey-status";
 import { PlannerPlanHistory } from "./planner-plan-history";
+import { toPlanSummaryFacts } from "./planner-plan-facts";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
   usePlannerJourneyFlow,
@@ -39,6 +41,7 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
   readonly scenarioComparison: PlannerScenarioComparisonViewModel | null;
   readonly history?: {
     readonly dependencies?: PlanVersionDependencies;
+    readonly explanationRequester?: ExplanationRequester;
   };
 }
 
@@ -120,7 +123,9 @@ export function PlannerJourneyScreen({
             goalId={goal.id}
             goalName={goal.name}
             currencyCode={goal.currencyCode}
+            facts={toPlanSummaryFacts(view)}
             dependencies={history.dependencies}
+            explanationRequester={history.explanationRequester}
             onBack={() => flow.setStage("status")}
           />
         )}

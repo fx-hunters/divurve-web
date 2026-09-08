@@ -6,6 +6,7 @@ import type {
   PlannerScenarioPreviewResponse,
 } from "../../api/planner-contract";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import { PlannerApiScreen } from "./planner-api-screen";
@@ -219,7 +220,7 @@ describe("PlannerApiScreen", () => {
     const deps = await openAction();
     fireEvent.click(screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }));
     expect(await screen.findByRole("heading", { name: "상황이 달라지면 경로를 비교해 보세요" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("아직 계획에는 적용되지 않았습니다");
+    expect(screen.getByRole("status")).toHaveTextContent("아직 계획에 반영되지 않았습니다");
     expect(screen.queryByText(/저장되었습니다|반영되었습니다/)).not.toBeInTheDocument();
     expect(deps.skip).toHaveBeenCalledWith("plan-usd", 2);
     expect(deps.load).toHaveBeenCalledTimes(1);
@@ -357,10 +358,29 @@ describe("PlannerApiScreen", () => {
       ]),
       loadDetail: vi.fn().mockResolvedValue(activePlan),
     };
+    const explanationRequester: ExplanationRequester = vi.fn().mockResolvedValue({
+      data: {
+        explanation: {
+          sentences: ["서버가 정리한 계획 설명입니다."],
+          sentenceCount: 1,
+          explainLevel: null,
+          explainDomain: null,
+          fallback: false,
+        },
+        verification: {
+          numericMatch: true,
+          regimeDisclosed: true,
+          blockedPhrases: [],
+          fallbackReason: null,
+        },
+      },
+      meta: { asOf: "2026-09-08T00:00:00Z" },
+    });
     render(
       <PlannerApiScreen
         dependencies={dependencies()}
         planVersionDependencies={planVersionDependencies}
+        explanationRequester={explanationRequester}
       />,
     );
     await screen.findByRole("region", { name: "API 플래너" });
@@ -370,6 +390,18 @@ describe("PlannerApiScreen", () => {
     expect(screen.getByText("계획 이력을 불러오고 있습니다.")).toBeInTheDocument();
     const activeVersion = await screen.findByRole("button", { name: /v2/ });
     expect(planVersionDependencies.loadVersions).toHaveBeenCalledWith("goal-usd");
+    expect(
+      await screen.findByText("서버가 정리한 계획 설명입니다."),
+    ).toBeInTheDocument();
+    expect(explanationRequester).toHaveBeenCalledWith({
+      surface: "planner_plan_summary",
+      facts: expect.objectContaining({
+        plan_version: 2,
+        plan_status: "active",
+        next_action_seq: 2,
+        currency_code: "USD",
+      }),
+    });
     fireEvent.click(activeVersion);
     expect(await screen.findByText("전체 회차")).toBeInTheDocument();
     expect(planVersionDependencies.loadDetail).toHaveBeenCalledWith("plan-usd");

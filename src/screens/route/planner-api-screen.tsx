@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ApiStateView } from "../../components/common/api-state-view";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import {
   presentPlannerOverview,
   presentPlannerScenarioComparison,
@@ -20,11 +21,13 @@ import "./planner-api-screen.css";
 interface PlannerApiScreenProps {
   readonly dependencies?: PlannerApiDependencies;
   readonly planVersionDependencies?: PlanVersionDependencies;
+  readonly explanationRequester?: ExplanationRequester;
 }
 
 export function PlannerApiScreen({
   dependencies,
   planVersionDependencies,
+  explanationRequester,
 }: PlannerApiScreenProps) {
   const planner = usePlannerApi(dependencies);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
@@ -140,7 +143,10 @@ export function PlannerApiScreen({
       view={view}
       feedback={feedback}
       scenarioComparison={comparison}
-      history={{ dependencies: planVersionDependencies }}
+      history={{
+        dependencies: planVersionDependencies,
+        explanationRequester,
+      }}
       onSelectGoal={handleSelectGoal}
       onPreviewPlan={handlePreviewPlan}
       onDiscardPlanPreview={handleClearTransient}

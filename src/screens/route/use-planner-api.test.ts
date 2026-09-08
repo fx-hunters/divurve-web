@@ -150,7 +150,23 @@ describe("usePlannerApi", () => {
     expect(deps.skip).toHaveBeenCalledWith("plan", 1);
     expect(result.current.actionState).toMatchObject({
       status: "success",
-      message: expect.stringContaining("아직 계획에는 적용되지 않았습니다"),
+      message: expect.stringContaining("아직 계획에 반영되지 않았습니다"),
+    });
+  });
+
+  it("건너뛰기 재분배가 예산을 넘으면 서버 수치와 주의 문구를 함께 표시한다", async () => {
+    const exceedsBudgetResult = { ...skipResult, exceedsBudget: true };
+    const deps = dependencies({
+      skip: vi.fn().mockResolvedValue(exceedsBudgetResult),
+    });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => result.current.skip("plan", 2));
+
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringMatching(/10 → 12.*예산을 넘습니다/),
     });
   });
 

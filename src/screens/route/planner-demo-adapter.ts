@@ -197,7 +197,14 @@ export function presentDemoPlanner(
       completedRounds: hasRecordedRound ? 1 : 0,
       scheduledRounds: Math.max(0, plan.rounds.items.length - (hasRecordedRound ? 1 : 0)),
       skippedRounds: 0,
+      nextActionSeq:
+        nextCheckpoint === undefined
+          ? null
+          : steps.find(
+              (step) => step.scheduledDate === nextCheckpoint.detail,
+            )?.sequence ?? null,
       estimatedCostLabel: null,
+      budgetStateLabel: null,
       policyVersion: "체험용 fixture",
       disclaimer: data.dataNotice.notice,
       warnings: [],

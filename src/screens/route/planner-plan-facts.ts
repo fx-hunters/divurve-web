@@ -22,6 +22,7 @@ export function toPlanSummaryFacts(
     completed_rounds: plan.completedRounds,
     scheduled_rounds: plan.scheduledRounds,
     skipped_rounds: plan.skippedRounds,
+    next_action_seq: plan.nextActionSeq,
     policy_version: plan.policyVersion,
     currency_code: selectedGoal.currencyCode,
     target_amount: selectedGoal.targetAmount,

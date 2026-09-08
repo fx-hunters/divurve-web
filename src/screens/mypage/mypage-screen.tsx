@@ -78,7 +78,7 @@ export function MyPageScreen({
   );
   const serverRiskProfile = state.data.riskProfile;
   const serverResult = serverRiskProfile?.isMeasured
-    ? createServerDiagnosisSummary(serverRiskProfile.gradeLabel, {
+    ? createServerDiagnosisSummary(serverRiskProfile.grade, {
         scoreLabel: serverRiskProfile.scoreLabel,
         diagnosedOnLabel: serverRiskProfile.diagnosedOnLabel,
         limitationNote: serverRiskProfile.limitationNote,
