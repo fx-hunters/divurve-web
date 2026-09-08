@@ -89,8 +89,7 @@ export function PlannerCurveStage({
       </div>
 
       <p className="planner-curve__caption">
-        환율의 움직임을 나타내는 차트가 아니라, 날짜와 행동을 잇는 계획
-        경로입니다.
+        환율 차트가 아니라 날짜와 행동을 잇는 계획 경로입니다.
       </p>
 
       <div className="planner-curve__canvas">

@@ -28,7 +28,6 @@ export function PlannerReasonPanel({
     >
       <header className="planner-reason__heading">
         <div>
-          <p className="route-eyebrow">선택과 연결된 AI 설명 예시</p>
           <h3 id="planner-reason-title">{explanation.title}</h3>
           <span>{contextLabel}</span>
         </div>

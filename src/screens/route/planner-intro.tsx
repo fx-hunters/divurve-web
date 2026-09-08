@@ -37,7 +37,6 @@ export function PlannerIntro({
         <div className="planner-intro__brand-mark" aria-hidden="true">
           <Icon name="sparkles" size={18} />
         </div>
-        <p className="route-eyebrow">{content.eyebrow}</p>
         <h2 id="planner-intro-title">{content.title}</h2>
         <p className="planner-intro__description">{content.description}</p>
         <Badge variant="primary">{dataNotice.sourceLabel}</Badge>

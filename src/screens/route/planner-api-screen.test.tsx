@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import type { PlannerApiDependencies } from "./use-planner-api";
+import type { PlanVersionDependencies } from "./use-plan-versions";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerApiScreen } from "./planner-api-screen";
 
 const completeResult = { seq: 2, status: "completed", executedAmount: 145, executedRate: 1400, remainingAmount: 1595 };
@@ -85,6 +87,56 @@ describe("PlannerApiScreen", () => {
     render(<PlannerApiScreen dependencies={dependencies({ load: vi.fn().mockResolvedValue(completed) })} />); await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" })); fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" })); expect(screen.getByRole("dialog")).toBeInTheDocument(); const closeButtons = screen.getAllByRole("button", { name: "상세 닫기" }); fireEvent.click(closeButtons[closeButtons.length - 1]!); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("계획 이력 장면에서 버전 목록과 상세, AI 설명을 표시한다", async () => {
+    const planVersionDependencies: PlanVersionDependencies = {
+      loadVersions: vi.fn().mockResolvedValue([
+        { planId: "plan-usd", version: 2, status: "active", reason: "재계산" },
+        { planId: "plan-usd-1", version: 1, status: "superseded" },
+      ]),
+      loadDetail: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.activePlan!),
+    };
+    const explanationRequester: ExplanationRequester = vi.fn().mockResolvedValue({
+      data: {
+        explanation: { sentences: ["서버가 정리한 계획 설명입니다."], sentenceCount: 1, explainLevel: null, explainDomain: null, fallback: false },
+        verification: { numericMatch: true, blockedPhrases: [] },
+      },
+      meta: { asOf: "2026-09-08T00:00:00Z" },
+    });
+    render(<PlannerApiScreen dependencies={dependencies()} planVersionDependencies={planVersionDependencies} explanationRequester={explanationRequester} />);
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
+
+    expect(screen.getByText("계획 이력을 불러오고 있습니다.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /v2/ })).toBeInTheDocument();
+    expect(planVersionDependencies.loadVersions).toHaveBeenCalledWith("goal-usd");
+    expect(await screen.findByText("서버가 정리한 계획 설명입니다.")).toBeInTheDocument();
+    expect(explanationRequester).toHaveBeenCalledWith({
+      surface: "planner_plan_summary",
+      facts: { plan_version: 2, safe_ratio: 0.6, split_count: 3, currency_code: "USD", target_amount: 3_000, held_amount: 1_260, target_date: "2026-12-31" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /v2/ }));
+    expect(await screen.findByText("분할 회차")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
+    expect(screen.getByText("미국 ETF 준비의 현재 위치입니다")).toBeInTheDocument();
+  });
+
+  it("활성 계획이 없는 목표의 이력은 설명 없이 빈 목록을 표시한다", async () => {
+    const planVersionDependencies: PlanVersionDependencies = {
+      loadVersions: vi.fn().mockResolvedValue([]),
+      loadDetail: vi.fn(),
+    };
+    const explanationRequester: ExplanationRequester = vi.fn();
+    render(<PlannerApiScreen dependencies={dependencies()} planVersionDependencies={planVersionDependencies} explanationRequester={explanationRequester} />);
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
+
+    expect(await screen.findByText(/저장된 계획 버전이 없습니다/)).toBeInTheDocument();
+    expect(explanationRequester).not.toHaveBeenCalled();
   });
 
   it("완료 실패 후 현재 상태를 다시 확인하고 건너뛰기 성공을 표시한다", async () => {
