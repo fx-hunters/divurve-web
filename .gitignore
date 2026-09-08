@@ -14,6 +14,10 @@ coverage
 *.local
 *.tsbuildinfo
 
+# 병렬 작업용 git 워크트리 (Claude Code가 생성). .claude/launch.json은 추적하므로
+# .claude 전체가 아니라 worktrees만 제외한다.
+.claude/worktrees/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
