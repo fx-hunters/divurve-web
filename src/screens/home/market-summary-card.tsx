@@ -146,6 +146,7 @@ export function MarketSummaryCard({
         */}
         {view.trendPoints.length > 0 && (
           <TrendChart
+            className="market-summary-card__chart"
             points={view.trendPoints}
             color={toCurrencyColor(view.baseCurrencyCode)}
             formatRate={(rate) => toMarketRateLabel(view.pairCode, rate)}

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TrendChart } from "./trend-chart";
 
 const FORMAT_RATE = (rate: number) => rate.toFixed(1);
@@ -103,5 +103,81 @@ describe("TrendChart", () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  describe("부모가 준 자리에 맞춰 좌표계를 다시 잡는다", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    /** 관찰 콜백을 즉시 부르는 대역. jsdom에는 ResizeObserver가 없다. */
+    function stubResizeObserver(rect: { width: number; height: number }) {
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(
+        rect as DOMRect,
+      );
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(private readonly callback: () => void) {}
+          observe() {
+            this.callback();
+          }
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    }
+
+    it("측정한 픽셀 크기를 viewBox로 쓴다", () => {
+      stubResizeObserver({ width: 552, height: 380 });
+
+      const { container } = render(
+        <TrendChart
+          points={points(1_300, 1_400)}
+          formatRate={FORMAT_RATE}
+          formatDate={FORMAT_DATE}
+          label="추세"
+        />,
+      );
+
+      // 1 좌표 = 1px 이라 글자와 선 굵기가 늘어나지 않는다.
+      expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(
+        "0 0 552 380",
+      );
+    });
+
+    it("눈금이 겹칠 만큼 좁아지면 하한 크기로 그린다", () => {
+      stubResizeObserver({ width: 90, height: 40 });
+
+      const { container } = render(
+        <TrendChart
+          points={points(1_300, 1_400)}
+          formatRate={FORMAT_RATE}
+          formatDate={FORMAT_DATE}
+          label="추세"
+        />,
+      );
+
+      expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(
+        "0 0 240 140",
+      );
+    });
+
+    it("바깥에서 준 className을 자리 배치용으로 그대로 붙인다", () => {
+      const { container } = render(
+        <TrendChart
+          points={points(1_300, 1_400)}
+          formatRate={FORMAT_RATE}
+          formatDate={FORMAT_DATE}
+          label="추세"
+          className="market-summary-card__chart"
+        />,
+      );
+
+      expect(container.querySelector(".trend-chart")).toHaveClass(
+        "market-summary-card__chart",
+      );
+    });
   });
 });

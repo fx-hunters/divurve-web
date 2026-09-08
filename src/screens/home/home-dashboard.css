@@ -68,8 +68,14 @@
    * 시장은 왼쪽 3칸, 오른쪽 기둥은 2칸. 둘 다 한 행이라 그리드가 남는 높이를
    * 행에 나눠 넣을 일이 없다 — 짧은 쪽 아래로 그대로 남는다.
    */
+  /*
+     `align-items: start` 를 이 칸에서만 푼다. 시장 카드가 행 높이(= 오른쪽
+     기둥 높이)까지 늘어나야 두 기둥의 하단이 맞는다. 늘어난 높이는 카드
+     안에서 추세 그래프가 흡수한다(market-summary-card.css).
+  */
   .home-dashboard__market {
     grid-column: 1 / 4;
+    align-self: stretch;
   }
 
   .home-dashboard__side {

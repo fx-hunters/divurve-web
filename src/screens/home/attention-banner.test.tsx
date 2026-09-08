@@ -10,12 +10,14 @@ const DATA: AttentionData = {
     {
       title: "Federal Funds Rate Decision",
       dateLabel: "2026년 9월 9일",
+      shortDateLabel: "9. 9.",
       currencyCode: "USD",
       severity: "고변동성",
     },
     {
       title: "Retail Sales",
       dateLabel: "2026년 9월 18일",
+      shortDateLabel: "9. 18.",
       currencyCode: "USD",
       severity: "중변동성",
     },

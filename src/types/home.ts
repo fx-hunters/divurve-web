@@ -48,6 +48,8 @@ export interface GoalsRouteData {
 export interface UpcomingEventItem {
   readonly title: string;
   readonly dateLabel: string;
+  /** 헤드라인 칩처럼 좁은 자리에 쓰는 월·일 표기. */
+  readonly shortDateLabel: string;
   readonly currencyCode: string;
   readonly severity: "고변동성" | "중변동성";
 }
