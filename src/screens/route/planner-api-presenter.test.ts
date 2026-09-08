@@ -137,6 +137,6 @@ describe("presentPlannerOverview", () => {
     expect(model.steps.map((step) => step.status)).toEqual(["completed", "skipped", "upcoming", "upcoming"]);
     expect(model.nextAction).toBeNull();
     expect(model.supportedActions).toEqual({ canCompleteStep: false, canSkipStep: false });
-    expect(model.unsupportedAreas).toEqual(["목표 및 계획 생성·재계산", "대체 시나리오", "AI 설명 생성"]);
+    expect(model.unsupportedAreas).toEqual(["목표 및 계획 생성·재계산", "대체 시나리오"]);
   });
 });

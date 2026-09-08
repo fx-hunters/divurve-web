@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, request } from "./client";
 import {
   completePlanStep,
+  fetchPlanDetail,
+  fetchPlanVersions,
   fetchPlannerOverview,
   skipPlanStep,
 } from "./planner";
@@ -57,6 +59,23 @@ describe("planner API", () => {
       .mockResolvedValueOnce({ goals: [goal("error")] })
       .mockRejectedValueOnce(error);
     await expect(fetchPlannerOverview()).rejects.toBe(error);
+  });
+
+  it("계획 버전 이력을 조회해 versions 배열만 돌려준다", async () => {
+    const versions = [
+      { planId: "plan-2", version: 2, status: "active" },
+      { planId: "plan-1", version: 1, status: "superseded" },
+    ];
+    vi.mocked(request).mockResolvedValueOnce({ versions });
+    await expect(fetchPlanVersions("goal/a")).resolves.toEqual(versions);
+    expect(request).toHaveBeenCalledWith("/api/v1/goals/goal%2Fa/plans");
+  });
+
+  it("계획 버전 상세를 인코딩된 경로로 조회한다", async () => {
+    const plan = { id: "plan-1", steps: [] };
+    vi.mocked(request).mockResolvedValueOnce(plan);
+    await expect(fetchPlanDetail("plan/1")).resolves.toEqual(plan);
+    expect(request).toHaveBeenCalledWith("/api/v1/plans/plan%2F1");
   });
 
   it("완료와 건너뛰기 요청을 인코딩된 경로와 서버 입력으로 전송한다", async () => {
