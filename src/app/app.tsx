@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { AuthPage, type AuthMode } from "../AuthPage";
+import { AuthPage } from "../AuthPage";
 import { LandingPage } from "../LandingPage";
 import { OnboardingTour } from "../OnboardingTour";
 import { Footer } from "../components/layout/footer";
 import { Header } from "../components/layout/header";
 import { MobileNav } from "../components/layout/mobile-nav";
 import { Sidebar } from "../components/layout/sidebar";
-import { useTabNavigation } from "../hooks/use-tab-navigation";
 import { useTheme } from "../hooks/use-theme";
 import { ForecastScreen } from "../screens/forecast/forecast-screen";
 import { HomeScreen } from "../screens/home/home-screen";
@@ -16,7 +15,7 @@ import { XRayScreen } from "../screens/xray/xray-screen";
 import { InitialSetupScreen } from "../screens/initial-setup/initial-setup-screen";
 import { ApiStateView } from "../components/common/api-state-view";
 import { DetailedDiagnosisInvite } from "../components/diagnosis/detailed-diagnosis-invite";
-import { NAV_ITEMS } from "../types/navigation";
+import { NAV_ITEMS, type NavTabId } from "../types/navigation";
 import type { AuthSuccessResult } from "../types/auth";
 import type { InitialSetupEntryMode } from "../types/diagnosis";
 import { login, logout, signup } from "../api/auth";
@@ -24,18 +23,14 @@ import {
   clearDiagnosisProgress,
   readDiagnosisProgress,
 } from "../api/diagnosis-progress-store";
-import { readApiSession } from "../api/session";
 import {
-  INITIAL_SETUP_PATH,
-  resolvePostAuthDestination,
-} from "./post-auth-routing";
+  dashboardRoute,
+  resolvePostAuthRoute,
+  DIAGNOSIS_RESULT_ROUTE,
+  LANDING_ROUTE,
+} from "./app-routing";
+import { useAppRoute } from "./use-app-route";
 import { useSessionBootstrap, type SessionEnsurer } from "./use-session-bootstrap";
-import {
-  DETAILED_DIAGNOSIS_PATH,
-  DIAGNOSIS_RESULT_PATH,
-  QUICK_DIAGNOSIS_PATH,
-  resolveDiagnosisRoute,
-} from "./diagnosis-routing";
 import { DiagnosisResultScreen } from "../screens/mypage/diagnosis-result-screen";
 import type { InitialSetupSubmission } from "../screens/initial-setup/initial-setup-screen";
 import { getDetailedDiagnosisInviteDelayForEnvironment } from "./diagnosis-invite-timing";
@@ -63,68 +58,25 @@ interface AppProps {
 }
 
 export function App({ ensureSession }: AppProps = {}) {
-  const { activeTab, navigate } = useTabNavigation();
-  const initialDiagnosisRoute = resolveDiagnosisRoute(
-    window.location.pathname,
-    readApiSession()?.isDemo === false,
-  );
-  const [showLanding, setShowLanding] = useState<boolean>(
-    () => window.location.pathname === "/",
-  );
-  const [showAuth, setShowAuth] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const { route, navigate, replace } = useAppRoute();
   const [showTour, setShowTour] = useState<boolean>(false);
-  const [showInitialSetup, setShowInitialSetup] = useState<boolean>(
-    () => initialDiagnosisRoute.kind === "input",
-  );
-  const [initialSetupEntryMode, setInitialSetupEntryMode] =
-    useState<InitialSetupEntryMode>(() =>
-      initialDiagnosisRoute.kind === "input"
-        ? initialDiagnosisRoute.entryMode
-        : "onboarding",
-    );
-  const [showDiagnosisResult, setShowDiagnosisResult] = useState<boolean>(
-    () => initialDiagnosisRoute.kind === "result",
-  );
   const [showDetailedInvite, setShowDetailedInvite] = useState(false);
   const invitationTimerRef = useRef<number | null>(null);
   const { isDark, toggleTheme, setTheme } = useTheme("dark");
 
-  const isDashboardVisible = !showLanding && !showAuth && !showInitialSetup;
+  const isDashboardVisible = route.kind === "dashboard";
   const { state: sessionState, retry: retrySession } = useSessionBootstrap(
     isDashboardVisible,
     ensureSession,
   );
 
-  const currentTabItem = NAV_ITEMS.find((item) => item.id === activeTab);
-  const activeTabTitle = currentTabItem!.label;
-
+  // 투어·초대는 대시보드 위에만 뜬다. 뒤로가기로 대시보드를 벗어나면 함께 닫는다.
   useEffect(() => {
-    const handleInitialSetupHistory = () => {
-      const isMemberSession = readApiSession()?.isDemo === false;
-      const diagnosisRoute = resolveDiagnosisRoute(
-        window.location.pathname,
-        isMemberSession,
-      );
-
-      if (diagnosisRoute.kind === "input") {
-        setInitialSetupEntryMode(diagnosisRoute.entryMode);
-        setShowLanding(false);
-        setShowAuth(false);
-        setShowTour(false);
-        setShowDetailedInvite(false);
-        setShowDiagnosisResult(false);
-        setShowInitialSetup(true);
-        return;
-      }
-
-      setShowInitialSetup(false);
-      setShowDiagnosisResult(diagnosisRoute.kind === "result");
-    };
-
-    window.addEventListener("popstate", handleInitialSetupHistory);
-    return () => window.removeEventListener("popstate", handleInitialSetupHistory);
-  }, []);
+    if (route.kind !== "dashboard") {
+      setShowTour(false);
+      setShowDetailedInvite(false);
+    }
+  }, [route.kind]);
 
   useEffect(
     () => () => {
@@ -133,45 +85,30 @@ export function App({ ensureSession }: AppProps = {}) {
     [],
   );
 
-  const handleNavigate = (tab: Parameters<typeof navigate>[0]) => {
-    setShowDiagnosisResult(false);
+  const handleNavigate = (tab: NavTabId) => {
     setShowDetailedInvite(false);
-    navigate(tab);
+    navigate(dashboardRoute(tab));
   };
 
   const goToLogin = () => {
-    setShowLanding(false);
-    setAuthMode("login");
-    setShowAuth(true);
+    navigate({ kind: "auth", mode: "login" });
   };
 
   const goToSignup = () => {
-    setShowLanding(false);
-    setAuthMode("signup");
-    setShowAuth(true);
+    navigate({ kind: "auth", mode: "signup" });
   };
 
   const handleBackToLanding = () => {
-    handleNavigate("home");
-    setShowInitialSetup(false);
-    setShowAuth(false);
-    setShowLanding(true);
+    navigate(LANDING_ROUTE);
   };
 
   const handleLogout = () => {
     logout();
-    handleNavigate("home");
-    setShowInitialSetup(false);
-    setShowLanding(true);
-    setShowAuth(false);
+    navigate(LANDING_ROUTE);
   };
 
   const handleEnterDashboard = () => {
-    setShowLanding(false);
-    setShowAuth(false);
-    setShowInitialSetup(false);
-    setShowDiagnosisResult(false);
-    setShowDetailedInvite(false);
+    navigate(dashboardRoute("home"));
     try {
       const stored = localStorage.getItem(TOUR_STORAGE_KEY);
       if (shouldShowTour(stored)) {
@@ -183,35 +120,22 @@ export function App({ ensureSession }: AppProps = {}) {
   };
 
   const handleAuthenticated = (result: AuthSuccessResult | void) => {
-    const destination = resolvePostAuthDestination(result);
+    const destination = resolvePostAuthRoute(result);
 
-    if (destination === "initialSetup") {
-      setInitialSetupEntryMode("onboarding");
-      setShowLanding(false);
-      setShowAuth(false);
-      setShowTour(false);
-      setShowInitialSetup(true);
-      if (window.location.pathname !== INITIAL_SETUP_PATH) {
-        window.history.pushState(null, "", INITIAL_SETUP_PATH);
-      }
+    if (destination.kind === "diagnosisInput") {
+      navigate(destination);
       return;
     }
 
-    handleNavigate("home");
     handleEnterDashboard();
   };
 
   const handleInitialSetupComplete = (
+    entryMode: InitialSetupEntryMode,
     submission: InitialSetupSubmission,
   ) => {
-    setShowLanding(false);
-    setShowAuth(false);
-    setShowTour(false);
-    setShowInitialSetup(false);
-    setShowDetailedInvite(false);
-
-    if (initialSetupEntryMode === "onboarding") {
-      handleNavigate("home");
+    if (entryMode === "onboarding") {
+      navigate(dashboardRoute("home"));
       if (submission.draft.quickDiagnosis) {
         window.clearTimeout(invitationTimerRef.current ?? undefined);
         invitationTimerRef.current = window.setTimeout(() => {
@@ -222,52 +146,35 @@ export function App({ ensureSession }: AppProps = {}) {
       return;
     }
 
+    // 진단만 다시 본 경우라 되돌아갈 입력 화면이 없다. 히스토리를 갈아끼운다.
     if (
-      initialSetupEntryMode === "detailedDiagnosis" &&
+      entryMode === "detailedDiagnosis" &&
       readDiagnosisProgress().status === "detailComplete"
     ) {
-      window.history.replaceState(null, "", DIAGNOSIS_RESULT_PATH);
-      setShowDiagnosisResult(true);
-      window.dispatchEvent(new PopStateEvent("popstate"));
+      replace(DIAGNOSIS_RESULT_ROUTE);
       return;
     }
 
-    window.history.replaceState(null, "", "/mypage");
-    setShowDiagnosisResult(false);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    replace(dashboardRoute("mypage"));
   };
 
-  const openDiagnosisInput = (
-    entryMode: InitialSetupEntryMode,
-    pathname: string,
-  ) => {
-    setInitialSetupEntryMode(entryMode);
-    setShowLanding(false);
-    setShowAuth(false);
-    setShowTour(false);
-    setShowDiagnosisResult(false);
+  const openDiagnosisInput = (entryMode: InitialSetupEntryMode) => {
     setShowDetailedInvite(false);
-    setShowInitialSetup(true);
-    if (window.location.pathname !== pathname) {
-      window.history.pushState(null, "", pathname);
-    }
+    navigate({ kind: "diagnosisInput", entryMode });
   };
 
   const handleStartQuickDiagnosis = () => {
     clearDiagnosisProgress();
-    openDiagnosisInput("quickDiagnosis", QUICK_DIAGNOSIS_PATH);
+    openDiagnosisInput("quickDiagnosis");
   };
 
   const handleStartDetailedDiagnosis = () => {
-    openDiagnosisInput("detailedDiagnosis", DETAILED_DIAGNOSIS_PATH);
+    openDiagnosisInput("detailedDiagnosis");
   };
 
   const handleViewDetailedDiagnosis = () => {
     setShowDetailedInvite(false);
-    setShowDiagnosisResult(true);
-    if (window.location.pathname !== DIAGNOSIS_RESULT_PATH) {
-      window.history.pushState(null, "", DIAGNOSIS_RESULT_PATH);
-    }
+    navigate(DIAGNOSIS_RESULT_ROUTE);
   };
 
   const handleTourComplete = () => {
@@ -287,7 +194,7 @@ export function App({ ensureSession }: AppProps = {}) {
     setTheme(isNextDark ? "dark" : "light");
   };
 
-  if (showLanding) {
+  if (route.kind === "landing") {
     return (
       <LandingPage
         onEnter={handleEnterDashboard}
@@ -299,10 +206,11 @@ export function App({ ensureSession }: AppProps = {}) {
     );
   }
 
-  if (showAuth) {
+  if (route.kind === "auth") {
     return (
       <AuthPage
-        initialMode={authMode}
+        initialMode={route.mode}
+        onModeChange={(mode) => replace({ kind: "auth", mode })}
         onSuccess={handleAuthenticated}
         onBack={handleBackToLanding}
         authenticateLogin={async (input, persistence) => {
@@ -315,12 +223,14 @@ export function App({ ensureSession }: AppProps = {}) {
     );
   }
 
-  if (showInitialSetup) {
+  if (route.kind === "diagnosisInput") {
     return (
       <InitialSetupScreen
-        key={initialSetupEntryMode}
-        entryMode={initialSetupEntryMode}
-        onComplete={handleInitialSetupComplete}
+        key={route.entryMode}
+        entryMode={route.entryMode}
+        onComplete={(submission) =>
+          handleInitialSetupComplete(route.entryMode, submission)
+        }
       />
     );
   }
@@ -346,7 +256,11 @@ export function App({ ensureSession }: AppProps = {}) {
     );
   }
 
+  const activeTab = route.tab;
+  const showDiagnosisResult = route.view === "diagnosisResult";
   const isDemoAccount = sessionState.accountKind === "demo";
+  const currentTabItem = NAV_ITEMS.find((item) => item.id === activeTab);
+  const activeTabTitle = currentTabItem!.label;
 
   return (
     <div className="app-shell">

@@ -480,7 +480,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "DIVURVE" }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/dashboard");
     expect(screen.queryByRole("dialog", { name: "온보딩 웰컴" })).not.toBeInTheDocument();
   });
 
@@ -517,7 +517,7 @@ describe("App", () => {
     render(<App />);
 
     completeQuickInitialSetup();
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/dashboard");
     expect(
       await screen.findByRole("heading", { name: "오늘의 핵심" }),
     ).toBeInTheDocument();
@@ -700,7 +700,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "DIVURVE" }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/dashboard");
     expect(screen.queryByText("초기 설정")).not.toBeInTheDocument();
   });
 
@@ -720,7 +720,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "DIVURVE" }),
     ).toBeInTheDocument();
     expect(screen.getByText("데모 계정")).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/dashboard");
   });
 
   it("랜딩 페이지에서 회원가입 클릭 시 API 회원가입 후 대시보드로 이동한다", async () => {
@@ -786,5 +786,58 @@ describe("App", () => {
 
     // 온보딩 웰컴 모달 표시 확인
     expect(screen.getByRole("dialog", { name: "온보딩 웰컴" })).toBeInTheDocument();
+  });
+  it("대시보드 경로로 새로고침해도 랜딩으로 돌아가지 않는다", async () => {
+    localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
+    window.history.replaceState(null, "", "/dashboard");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "DIVURVE" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("가장 지능적인 환전 가이드"),
+    ).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/dashboard");
+  });
+
+  it("모르는 경로로 들어오면 대시보드를 보여주고 주소도 대시보드로 맞춘다", async () => {
+    localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
+    window.history.replaceState(null, "", "/unknown");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "DIVURVE" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/dashboard");
+  });
+
+  it("랜딩의 회원가입 진입과 화면 안 모드 전환을 주소창과 맞춘다", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "회원가입" })[0]);
+    expect(window.location.pathname).toBe("/signup");
+    expect(screen.getByLabelText("이름")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "로그인" }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/login");
+    });
+  });
+
+  it("대시보드에서 뒤로가기로 랜딩에 돌아오면 랜딩을 다시 보여준다", async () => {
+    localStorage.setItem(TOUR_STORAGE_KEY, Date.now().toString());
+    render(<App />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /무료로 시작하기/ })[0],
+    );
+    await screen.findByRole("heading", { name: "DIVURVE" });
+    expect(window.location.pathname).toBe("/dashboard");
+
+    window.history.replaceState(null, "", "/");
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+
+    expect(screen.getByText("가장 지능적인 환전 가이드")).toBeInTheDocument();
   });
 });
