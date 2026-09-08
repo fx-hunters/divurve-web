@@ -65,9 +65,8 @@ export function PlannerScenarioModal({
         onCloseRef.current();
         return;
       }
-      if (event.key !== "Tab" || dialogRef.current === null) return;
-      const focusable = focusableElements(dialogRef.current);
-      if (focusable.length === 0) return;
+      if (event.key !== "Tab") return;
+      const focusable = focusableElements(dialogRef.current!);
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
       if (event.shiftKey && document.activeElement === first) {
@@ -114,11 +113,6 @@ export function PlannerScenarioModal({
     onClear();
     onClose();
   };
-  const handleRequestDraft = () => {
-    if (selectedOption === undefined || selectedOption.isCurrent) return;
-    onSelect(selectedOption);
-  };
-
   return (
     <div
       ref={dialogRef}
@@ -282,7 +276,7 @@ export function PlannerScenarioModal({
                   type="button"
                   className="planner-api-journey__primary"
                   disabled={isPending || selectedOption === undefined}
-                  onClick={handleRequestDraft}
+                  onClick={() => onSelect(selectedOption!)}
                 >
                   {isPending ? "변경안을 확인하는 중…" : "적용 가능한 변경안 비교"}
                 </button>

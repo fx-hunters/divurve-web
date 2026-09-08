@@ -285,6 +285,8 @@ describe("Planner Journey 표현 컴포넌트", () => {
     expect(close).toHaveFocus();
     fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
     expect(last).toHaveFocus();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(last).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledOnce();
     unmount();

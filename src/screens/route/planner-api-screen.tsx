@@ -110,10 +110,8 @@ export function PlannerApiScreen({
     setSelectedOption(null);
     planner.clearTransient();
   };
-  const handlePreviewPlan = async () =>
-    rawGoal === undefined ? false : planner.preview(rawGoal);
-  const handleCreatePlan = async () =>
-    rawGoal === undefined ? false : planner.create(rawGoal);
+  const handlePreviewPlan = async () => planner.preview(rawGoal!);
+  const handleCreatePlan = async () => planner.create(rawGoal!);
   const handleCreateGoal = async (
     input: Parameters<typeof toPlannerGoalCreateRequest>[0],
   ) => {
@@ -155,9 +153,7 @@ export function PlannerApiScreen({
     return planner.previewScenario(planId, input);
   };
   const handleApply = async () =>
-    typeof comparison?.draftPlanId === "string" && activeGoalId !== null
-      ? planner.apply(activeGoalId, comparison.draftPlanId)
-      : false;
+    planner.apply(activeGoalId!, comparison!.draftPlanId!);
   const feedback: PlannerJourneyFeedback =
     planner.actionState.status === "success"
       ? { status: "success", message: planner.actionState.message }

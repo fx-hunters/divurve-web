@@ -209,6 +209,10 @@ describe("planner demo adapter", () => {
       plans: [
         {
           ...sourcePlan,
+          scenarios: sourcePlan.scenarios.map((scenario) => ({
+            ...scenario,
+            curveData: undefined,
+          })),
           curveData: {
             ...sourcePlan.curveData,
             targetAmount: null,
@@ -230,5 +234,107 @@ describe("planner demo adapter", () => {
       progressPercent: sourcePlan.goal.progressPercent,
     });
     expect(model.nextAction).toBeNull();
+  });
+
+  it("잘못된 데모 날짜와 빈 회차는 금액이나 Curve를 임의 생성하지 않는다", () => {
+    const sourcePlan = data.plans[0]!;
+    const steps = [
+      {
+        ...sourcePlan.curveData.steps[0]!,
+        scheduledDate: "invalid-date",
+        status: "next" as const,
+      },
+      {
+        ...sourcePlan.curveData.steps[1]!,
+        scheduledDate: "invalid-date",
+        status: "upcoming" as const,
+      },
+      {
+        ...sourcePlan.curveData.steps[1]!,
+        id: "demo-invalid-third",
+        sequence: 3,
+        scheduledDate: "invalid-date",
+        status: "next" as const,
+      },
+      {
+        ...sourcePlan.curveData.steps[1]!,
+        id: "demo-invalid-fourth",
+        sequence: 4,
+        scheduledDate: "invalid-date",
+        status: "upcoming" as const,
+      },
+    ];
+    const invalidDates: RoutePlanData = {
+      ...data,
+      plans: [
+        {
+          ...sourcePlan,
+          curveData: {
+            ...sourcePlan.curveData,
+            currentDate: "invalid-date",
+            targetDate: null,
+            targetAmount: null,
+            steps,
+          },
+        },
+      ],
+    };
+
+    const invalidModel = presentDemoPlanner(
+      invalidDates,
+      sourcePlan.id,
+      null,
+      true,
+    );
+    expect(invalidModel.curve).toBeNull();
+    expect(invalidModel.curveNodes).toEqual([]);
+    expect(invalidModel.steps.map((step) => step.status)).toEqual([
+      "completed",
+      "next",
+      "upcoming",
+      "upcoming",
+    ]);
+    expect(invalidModel.steps[0]).toMatchObject({
+      cumulativeAmount: 0,
+      cumulativeAmountLabel: "누적 금액 확인 불가",
+      actionLabel: "회차 정보 확인",
+      statusLabel: "데모 기록 완료",
+    });
+    expect(invalidModel.steps[1]?.statusLabel).toBe("예정");
+
+    const withoutSteps: RoutePlanData = {
+      ...data,
+      plans: [
+        {
+          ...sourcePlan,
+          scenarios: sourcePlan.scenarios.map((scenario) => ({
+            ...scenario,
+            curveData: undefined,
+          })),
+          curveData: { ...sourcePlan.curveData, steps: [] },
+        },
+      ],
+    };
+    const emptyModel = presentDemoPlanner(
+      withoutSteps,
+      sourcePlan.id,
+      null,
+      true,
+    );
+    expect(emptyModel.selectedGoal?.heldAmount).toBe(
+      sourcePlan.curveData.allocatedAmount,
+    );
+    expect(emptyModel.nextAction).toBeNull();
+  });
+
+  it("Curve 수치가 없는 데모 상황 비교는 변경 지점을 만들지 않는다", () => {
+    const comparison = presentDemoScenarioComparison(
+      data,
+      "usd-etf-recurring-demo",
+      "rapidRise",
+    );
+
+    expect(comparison?.alternativeCurve).toBeNull();
+    expect(comparison?.changedNodeIds).toEqual([]);
   });
 });

@@ -174,6 +174,37 @@ describe("PlannerApiScreen", () => {
     ).toBeInTheDocument();
   });
 
+  it("목표 생성 실패는 입력 화면을 유지하고 서버 오류를 표시한다", async () => {
+    const createGoal = vi
+      .fn()
+      .mockRejectedValue(new ApiError("목표 생성 실패", 503, "SERVER"));
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies({
+          load: vi.fn().mockResolvedValue({ items: [] }),
+          createGoal,
+        })}
+      />,
+    );
+
+    await screen.findByText("첫 외화 목표를 만들어 보세요");
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "유학 준비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "60000" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-09-08" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("목표 생성 실패");
+    expect(screen.getByLabelText("목표 이름 또는 목적")).toHaveValue("유학 준비");
+    expect(createGoal).toHaveBeenCalledOnce();
+  });
+
   it("활성 계획이 없으면 미리보기와 명시적 생성을 분리한다", async () => {
     const withJpyPlan = {
       ...PLANNER_API_FIXTURE,
@@ -318,8 +349,6 @@ describe("PlannerApiScreen", () => {
     expect(await screen.findByText("변경 2회")).toBeInTheDocument();
     const apply = screen.getByRole("button", { name: "변경안 적용" });
     expect(apply).toBeDisabled();
-    apply.removeAttribute("disabled");
-    fireEvent.click(apply);
 
     expect(deps.apply).not.toHaveBeenCalled();
     expect(

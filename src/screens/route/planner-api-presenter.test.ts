@@ -418,6 +418,140 @@ describe("presentPlannerOverview", () => {
     expect(withoutNodeIds.alternativeCurve?.nodes[0]?.id).toBe("scenario-1");
   });
 
+  it("확장 상태와 누락된 선택 필드는 원문 또는 명시적 대체 문구로 표시한다", () => {
+    const first = overview().items[0]!;
+    const sourcePlan = first.activePlan!;
+    const fallbackOverview: PlannerApiOverview = {
+      items: [
+        {
+          ...first,
+          goal: { ...first.goal, targetDate: undefined },
+          activePlan: {
+            ...sourcePlan,
+            calculationMeta: null,
+            goal: {
+              ...sourcePlan.goal,
+              targetAmount: null,
+              targetDate: null,
+            },
+            summary: {
+              ...sourcePlan.summary,
+              status: "future_plan_status",
+              planEndDate: null,
+              budgetState: "FUTURE_BUDGET_STATE",
+            },
+            steps: [
+              {
+                ...sourcePlan.steps[0]!,
+                scheduledDate: "invalid-date",
+                budgetKrw: 180_000,
+                status: "pending",
+                nextAction: true,
+              },
+            ],
+            warnings: ["FUTURE_WARNING"],
+          },
+        },
+      ],
+      isSampleData: false,
+    };
+
+    const model = presentPlannerOverview(fallbackOverview);
+    expect(model.plan).toMatchObject({
+      statusLabel: "future_plan_status",
+      planEndDateLabel: "제공되지 않음",
+      budgetStateLabel: "FUTURE_BUDGET_STATE",
+      policyVersion: null,
+      calculatedAtLabel: null,
+      rateAsOfLabel: null,
+      warnings: ["FUTURE_WARNING"],
+    });
+    expect(model.curve).toBeNull();
+    expect(model.steps[0]).toMatchObject({
+      budgetLabel: "180,000원",
+      cumulativeAmount: 0,
+      cumulativeAmountLabel: "누적 금액 확인 불가",
+      actionLabel: "회차 정보 확인",
+    });
+  });
+
+  it("scenario 변경 필드가 일부 없거나 확장 코드여도 기존 회차 기준을 보존한다", () => {
+    const model = presentPlannerOverview(overview());
+    const option = model.scenarioOptions!.find(
+      (candidate) => candidate.id === "rapidRise",
+    )!;
+    const sourceResponse: PlannerScenarioPreviewResponse = {
+      basePlanId: "plan",
+      baseVersion: 3,
+      draftPlanId: "draft-future",
+      draftVersion: 4,
+      changeReasonCode: "FUTURE_REASON",
+      priorityConstraint: "budget",
+      before: {
+        remainingAmount: 75,
+        targetDate: "2026-12-31",
+        totalRounds: 4,
+        openRounds: 2,
+        perRoundAmount: 30,
+        roundBudgetKrw: 200_000,
+        costRange: null,
+      },
+      after: {
+        remainingAmount: 75,
+        targetDate: "2026-12-31",
+        totalRounds: 4,
+        openRounds: 2,
+        perRoundAmount: 30,
+        roundBudgetKrw: null,
+        costRange: null,
+      },
+      changedSteps: [
+        {
+          seq: 3,
+          changeType: "amount_changed",
+          dateBefore: "2026-10-10",
+          dateAfter: null,
+          amountBefore: 30,
+          amountAfter: 31,
+        },
+        {
+          seq: 4,
+          changeType: "date_changed",
+          dateBefore: "2026-12-10",
+          dateAfter: "2026-12-11",
+          amountBefore: 40,
+          amountAfter: null,
+        },
+      ],
+      keptConstraints: [],
+      brokenConstraints: [],
+      budgetState: "within_budget",
+      adjustmentOptions: [],
+      warnings: [],
+    };
+    const viewWithMissingRoundAmount: PlannerViewModel = {
+      ...model,
+      steps: model.steps.map((step) =>
+        step.sequence === 3 ? { ...step, amount: null } : step,
+      ),
+    };
+
+    const comparison = presentPlannerScenarioComparison(
+      sourceResponse,
+      viewWithMissingRoundAmount,
+      option,
+    );
+    expect(comparison.reason).toBe(
+      "서버가 전달한 변경 조건으로 남은 계획을 다시 계산했습니다.",
+    );
+    expect(comparison.rows).toContainEqual({
+      label: "회차 예산",
+      before: "200,000원",
+      after: "제공되지 않음",
+    });
+    expect(comparison.alternativeCurve).not.toBeNull();
+  });
+
   it("건너뛰기 응답은 저장되지 않은 재분배 영향으로만 표시한다", () => {
     const model = presentPlannerOverview(overview());
     const option = model.scenarioOptions!.find(

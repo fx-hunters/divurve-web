@@ -86,6 +86,7 @@ export function RouteScreen({
     <RouteDemoScreen
       loadPlan={loadPlan}
       onExitDemo={mode === "api" ? () => setTemporaryDemo(false) : undefined}
+      onBackFromDetail={onBackFromDetail}
       onOpenPlanDetail={(goalId, planId) =>
         onOpenPlanDetail("demo", goalId, planId)
       }
@@ -103,7 +104,7 @@ function RouteDemoScreen({
   readonly onExitDemo?: () => void;
   readonly detailRoute?: RouteScreenProps["detailRoute"];
   readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
-  readonly onBackFromDetail?: () => void;
+  readonly onBackFromDetail: () => void;
 }) {
   const { state, reload } = useRoutePlan(loadPlan);
 
@@ -114,7 +115,7 @@ function RouteDemoScreen({
           data={state.data}
           goalId={detailRoute.goalId}
           planId={detailRoute.planId}
-          onBack={onBackFromDetail ?? (() => undefined)}
+          onBack={onBackFromDetail}
         />
       );
     }

@@ -140,4 +140,29 @@ describe("PlanVersionList", () => {
     expect(screen.getByText("완료")).toBeInTheDocument();
     expect(screen.getByText("예정일 도래")).toBeInTheDocument();
   });
+
+  it("서버가 새 상태 코드를 추가해도 원문을 숨기지 않는다", () => {
+    const versionStatus = "awaiting_review" as PlanVersion["status"];
+    renderList(
+      {
+        status: "success",
+        versions: [{ planId: "plan-future", version: 3, status: versionStatus }],
+      },
+      {
+        status: "success",
+        planId: "plan-future",
+        plan: {
+          ...PLAN_DETAIL,
+          summary: { ...PLAN_DETAIL.summary, status: "future_plan_status" },
+          steps: [
+            { ...PLAN_DETAIL.steps[0]!, status: "future_step_status" },
+          ],
+        },
+      },
+    );
+
+    expect(screen.getByText("awaiting_review")).toBeInTheDocument();
+    expect(screen.getByText("future_plan_status")).toBeInTheDocument();
+    expect(screen.getByText("future_step_status")).toBeInTheDocument();
+  });
 });

@@ -140,4 +140,41 @@ describe("planner curve presenter", () => {
     expect(sameAsCompleted.currentPoint).toMatchObject({ amount: 115 });
     expect(sameAsCompleted.actualPath).toBeNull();
   });
+
+  it("현재일과 완료 회차가 없어도 미래 일정만으로 현재 지점을 만들지 않는다", () => {
+    const curve = presentPlannerCurve({
+      currencyCode: "USD",
+      allocatedAmount: 100,
+      currentDate: null,
+      targetAmount: null,
+      targetDate: null,
+      steps: [
+        {
+          id: "future-only",
+          sequence: 1,
+          scheduledDate: "2026-11-01",
+          plannedAmount: 50,
+          executedAmount: 0,
+          executedDate: null,
+          status: "next",
+        },
+      ],
+    });
+
+    expect(curve?.currentPoint).toBeNull();
+    expect(curve?.nodes).toHaveLength(1);
+
+    const completedFallback = presentPlannerCurve({
+      ...input,
+      currentDate: null,
+      targetDate: null,
+      targetAmount: null,
+      steps: [input.steps[0]!],
+    });
+    expect(completedFallback?.currentPoint?.date).toBe("2026-09-02");
+  });
+
+  it("형식은 맞지만 파싱할 수 없는 날짜를 경로에서 제외한다", () => {
+    expect(normalizePlannerDate("9999-99-99")).toBeNull();
+  });
 });
