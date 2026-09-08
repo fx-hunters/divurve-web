@@ -35,7 +35,6 @@ export interface ActiveGoalItem {
 
 export interface GoalsRouteData {
   readonly goals: readonly ActiveGoalItem[];
-  readonly isRouteEnabled: boolean;
 }
 
 export interface UpcomingEventItem {

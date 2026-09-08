@@ -29,7 +29,7 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
       }
       className="goals-route-card"
     >
-      {!data.isRouteEnabled && (
+      {data.goals.length === 0 && (
         <p
           style={{
             margin: 0,
@@ -38,14 +38,8 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
             lineHeight: 1.6,
           }}
         >
-          환전 경로 계산 기능은 아직 서버에서 준비 중입니다. 준비되면 목표별 회차
-          계획이 이곳에 표시됩니다.
-        </p>
-      )}
-
-      {data.isRouteEnabled && data.goals.length === 0 && (
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-muted)" }}>
-          등록된 목표가 없습니다.
+          등록된 목표가 없습니다. 플래너에서 목표를 만들면 회차 계획이 이곳에
+          표시됩니다.
         </p>
       )}
 

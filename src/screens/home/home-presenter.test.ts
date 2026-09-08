@@ -14,17 +14,18 @@ import {
 } from "./home-presenter";
 
 describe("표시용 변환", () => {
-  it("판정 배지를 한국어 라벨로 바꾸고, 모르는 값·없는 값을 안전하게 다룬다", () => {
+  it("배지 3종을 한국어 라벨로 바꾸고, 모르는 값·없는 값을 안전하게 다룬다", () => {
     expect(toBadgeLabel("normal")).toBe("정상");
     expect(toBadgeLabel("caution")).toBe("주의");
+    expect(toBadgeLabel("turbulent")).toBe("급변");
     expect(toBadgeLabel("brand_new")).toBe("brand_new");
     expect(toBadgeLabel(undefined)).toBe("판정 불가");
   });
 
-  it("판정 배지의 톤을 매핑한다", () => {
-    expect(toBadgeTone("calm")).toBe("normal");
+  it("배지 3종의 톤을 매핑한다", () => {
+    expect(toBadgeTone("normal")).toBe("normal");
     expect(toBadgeTone("caution")).toBe("warn");
-    expect(toBadgeTone("extreme")).toBe("danger");
+    expect(toBadgeTone("turbulent")).toBe("danger");
     expect(toBadgeTone("brand_new")).toBe("default");
     expect(toBadgeTone(undefined)).toBe("default");
   });
@@ -71,7 +72,6 @@ describe("toHomeDashboardData", () => {
       dayChangeKrw: 84_000,
       sensitivity1pctKrw: 247_200,
     });
-    expect(data.goalsRoute.isRouteEnabled).toBe(true);
     expect(data.goalsRoute.goals).toEqual([
       {
         id: "goal-1",
@@ -110,7 +110,7 @@ describe("toHomeDashboardData", () => {
     const data = toHomeDashboardData(SPARSE_HOME_SUMMARY_FIXTURE);
 
     expect(data.blockStates.profile_fit).toBe("not_measured");
-    expect(data.blockStates.goals_route).toBe("route_pending");
+    expect(data.blockStates.goals_route).toBe("empty");
     expect(data.today.headline).toBe("USD 변동성이 평시 범위입니다.");
     expect(data.profileFit).toEqual({
       gradeLabel: undefined,
@@ -118,7 +118,7 @@ describe("toHomeDashboardData", () => {
       tone: "default",
     });
     expect(data.fxStatus.dayChangeKrw).toBeUndefined();
-    expect(data.goalsRoute).toEqual({ goals: [], isRouteEnabled: false });
+    expect(data.goalsRoute).toEqual({ goals: [] });
     expect(data.attention.events).toEqual([]);
   });
 
@@ -153,6 +153,19 @@ describe("toHomeDashboardData", () => {
       },
     });
     expect(byBadge.today.headline).toBe("특별히 주의할 변화는 없습니다.");
+
+    const turbulent = toHomeDashboardData({
+      ...HOME_SUMMARY_FIXTURE,
+      data: {
+        ...HOME_SUMMARY_FIXTURE.data,
+        today: { headlineCode: "brand_new_code", badge: "turbulent" },
+      },
+    });
+    expect(turbulent.today).toEqual({
+      headline: "변동이 큰 국면입니다. 계획의 가정을 확인해 보세요.",
+      badgeLabel: "급변",
+      tone: "danger",
+    });
 
     const fallback = toHomeDashboardData({
       ...HOME_SUMMARY_FIXTURE,
