@@ -174,17 +174,26 @@ export interface FactorsResponse {
   readonly factors: readonly ForecastFactor[];
 }
 
+/**
+ * 모델 성적표.
+ *
+ * `hit_rate` 는 `model`·`random_walk` 양쪽에서 제거됐다(divurve-api#90 · PR #147).
+ * 이 모델은 드리프트가 0 이라 점예측이 언제나 기준값과 같고, 그래서 방향
+ * 적중률이 구조적으로 항상 0 이 된다 — 계산 버그가 아니라 지표 자체가
+ * 성립하지 않아 서버가 키를 없앴다. 다시 넣지 말 것.
+ *
+ * 주의: `/v3/api-docs` 에는 아직 `hitRate` 가 남아 있으나 실제 응답에는 없다.
+ * 스펙이 배포본보다 낡은 상태이므로 여기서는 실제 응답을 기준으로 삼는다.
+ */
 export interface ModelPerformanceResponse {
   readonly pairCode: string;
   readonly horizonDays: number;
   readonly model: {
-    readonly hitRate: number;
     readonly mae: number;
     readonly coverage80: number;
     readonly avgWidth: number;
   };
   readonly randomWalk: {
-    readonly hitRate: number;
     readonly mae: number;
   };
   readonly rwImprovement: number;

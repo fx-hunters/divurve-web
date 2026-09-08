@@ -122,12 +122,6 @@ function ModelScoreRows({ score }: { readonly score: ModelPerformanceScore }) {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-        <span style={{ color: "var(--text-muted)" }}>적중률</span>
-        <span style={{ color: "var(--text)", fontWeight: 700 }}>
-          {score.hitRatePct}%
-        </span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
         <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
         <span style={{ color: "var(--text)", fontWeight: 700 }}>
           {score.maePct}%
