@@ -10,18 +10,12 @@ import {
   toAsOfLabel,
   toConcentrationStatusLabel,
   toDateLabel,
-  toPercent,
   toShockLabel,
   toStressRunResult,
   toXRayDashboardData,
 } from "./xray-presenter";
 
 describe("표시용 변환", () => {
-  it("비율을 소수 첫째 자리 퍼센트로 바꾼다", () => {
-    expect(toPercent(0.7512)).toBe(75.1);
-    expect(toPercent(0)).toBe(0);
-  });
-
   // 서버 어휘를 하나라도 빠뜨리면 `Record<ConcentrationStatus, string>` 이 컴파일 단계에서
   // 잡는다. 모르는 코드를 넘기는 테스트는 더 만들 수 없다 — 타입이 막는다.
   it("집중도 판정 코드를 서버 어휘 그대로 한국어 라벨로 바꾼다", () => {

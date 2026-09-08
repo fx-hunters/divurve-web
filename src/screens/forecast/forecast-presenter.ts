@@ -1,6 +1,7 @@
 import type { ForecastBundleView } from "../../api/forecast";
 import type { BadgeVariant } from "../../components/common/badge";
 import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
+import { toPercent } from "../../lib/percent";
 import {
   DEFAULT_FORECAST_PAIR,
   FORECAST_PAIRS,
@@ -96,11 +97,6 @@ export function toFanChartData(
       range50Lower: band?.p50Lo ?? null,
     };
   });
-}
-
-/** 비율(0~1)을 소수 첫째 자리까지의 퍼센트 수치로 바꾼다. 표시 단위 변환이다. */
-export function toPercent(ratio: number): number {
-  return Math.round(ratio * 1000) / 10;
 }
 
 export function toPercentileLabel(percentile5y: number): string {
