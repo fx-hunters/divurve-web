@@ -63,4 +63,22 @@ describe("HomeDashboardView", () => {
     expect(screen.queryByRole("heading", { name: /주의 필요/ })).not.toBeInTheDocument();
     expect(screen.queryByText("오늘의 시장 자리")).not.toBeInTheDocument();
   });
+
+  it("일정 블록이 비면 헤드라인 칩도 올리지 않는다", () => {
+    const data = toHomeDashboardData(HOME_SUMMARY_FIXTURE);
+    render(
+      <HomeDashboardView
+        data={{
+          ...data,
+          blockStates: { ...data.blockStates, attention: "empty" },
+        }}
+        marketSlot={MARKET_SLOT}
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: /주의 필요/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "다가오는 고변동성 일정" }),
+    ).not.toBeInTheDocument();
+  });
 });

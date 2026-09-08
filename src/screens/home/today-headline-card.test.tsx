@@ -4,7 +4,7 @@ import {
   HOME_SUMMARY_FIXTURE,
   SPARSE_HOME_SUMMARY_FIXTURE,
 } from "../../test/api-fixtures";
-import { toHomeDashboardData } from "./home-presenter";
+import { toHeadlineEvents, toHomeDashboardData } from "./home-presenter";
 import { TodayHeadlineCard, toBadgeVariant } from "./today-headline-card";
 
 const DATA = toHomeDashboardData(HOME_SUMMARY_FIXTURE);
@@ -66,6 +66,39 @@ describe("TodayHeadlineCard", () => {
     expect(screen.getByText(/위험성향을 진단하면/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "진단하러 가기" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("다가오는 일정을 칩으로 띠에 올린다", () => {
+    render(
+      <TodayHeadlineCard
+        today={DATA.today}
+        profileFit={DATA.profileFit}
+        isProfileMeasured
+        asOfLabel={DATA.asOfLabel}
+        upcomingEvents={toHeadlineEvents(DATA.attention.events)}
+      />,
+    );
+
+    const chips = screen.getByRole("list", { name: "다가오는 고변동성 일정" });
+    // 경제 일정 카드는 첫 화면 밖이라 신호만 올린다 — 고변동성 건만.
+    expect(chips).toHaveTextContent("Federal Funds Rate Decision");
+    expect(chips).not.toHaveTextContent("Retail Sales");
+  });
+
+  it("올릴 일정이 없으면 칩 줄 자체를 그리지 않는다", () => {
+    render(
+      <TodayHeadlineCard
+        today={DATA.today}
+        profileFit={DATA.profileFit}
+        isProfileMeasured
+        asOfLabel={DATA.asOfLabel}
+        upcomingEvents={[]}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("list", { name: "다가오는 고변동성 일정" }),
     ).not.toBeInTheDocument();
   });
 });

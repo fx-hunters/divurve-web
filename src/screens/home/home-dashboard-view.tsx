@@ -12,6 +12,7 @@ import { TodayHeadlineCard } from "./today-headline-card";
 import { FxHoldingCard } from "./fx-holding-card";
 import { GoalsRouteCard } from "./goals-route-card";
 import { AttentionBanner } from "./attention-banner";
+import { toHeadlineEvents } from "./home-presenter";
 import type { HomeDashboardData } from "../../types/home";
 import "./home-dashboard.css";
 
@@ -44,6 +45,11 @@ export function HomeDashboardView({
             profileFit={data.profileFit}
             isProfileMeasured={blockStates.profile_fit === "filled"}
             asOfLabel={data.asOfLabel}
+            upcomingEvents={
+              blockStates.attention === "empty"
+                ? undefined
+                : toHeadlineEvents(data.attention.events)
+            }
             onNavigateToMypage={onNavigateToMypage}
           />
         </div>

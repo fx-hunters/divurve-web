@@ -7,12 +7,50 @@
   background-color: var(--surface);
 }
 
+.ai-explanation__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .ai-explanation__title {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.ai-explanation__toggle {
+  flex: none;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background-color: var(--surface-subtle);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.ai-explanation__toggle:hover,
+.ai-explanation__toggle:focus-visible {
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+.ai-explanation__body {
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* 접힘은 hidden 속성으로 표시한다. grid 컨테이너의 display 가 이겨 버리지
+   않도록 여기서 못을 박는다. */
+.ai-explanation__body[hidden] {
+  display: none;
 }
 
 .ai-explanation__status {

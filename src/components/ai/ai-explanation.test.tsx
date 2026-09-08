@@ -128,4 +128,44 @@ describe("AiExplanation", () => {
       container.querySelector(".ai-explanation.home-card__ai"),
     ).not.toBeNull();
   });
+
+  describe("접기/펼치기", () => {
+    it("핸들러가 없으면 버튼 없이 늘 펼쳐 둔다", () => {
+      render(<AiExplanation state={successState()} />);
+      expect(screen.queryByRole("button", { name: "접기" })).toBeNull();
+      expect(
+        screen.getByText("지금 환율은 최근 3개월 범위 안에 있습니다."),
+      ).toBeVisible();
+    });
+
+    it("펼쳐 있으면 접기 버튼을 주고 누르면 알린다", () => {
+      const onToggle = vi.fn();
+      render(
+        <AiExplanation state={successState()} isOpen onToggle={onToggle} />,
+      );
+
+      const toggle = screen.getByRole("button", { name: "접기" });
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+      fireEvent.click(toggle);
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("접혀 있으면 문장을 감추고 펼치기 버튼을 준다", () => {
+      render(
+        <AiExplanation
+          state={successState()}
+          isOpen={false}
+          onToggle={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "펼치기" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(
+        screen.getByText("지금 환율은 최근 3개월 범위 안에 있습니다."),
+      ).not.toBeVisible();
+    });
+  });
 });
