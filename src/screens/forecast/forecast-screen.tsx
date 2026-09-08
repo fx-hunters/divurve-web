@@ -17,6 +17,7 @@ import {
   type FanChartDataPoint,
   type ForecastPair,
   type ForecastPeriod,
+  type ModelPerformanceScore,
   type PairForecastInfo,
 } from "../../types/forecast";
 import {
@@ -47,6 +48,13 @@ const PERIOD_GROUP_LABEL = "전망 기간";
 const PERIOD_HELP_TEXT =
   "선택한 기간만큼 앞으로의 환율 범위를 팬 차트와 요약 카드에 표시합니다.";
 const PERIOD_HELP_ID = "forecast-period-help";
+
+/**
+ * 성적표를 못 받은 지평의 안내. 성적표는 지평만큼의 과거 관측을 잘라 검증한
+ * 결과라 긴 지평에서는 서버가 이 값만 주지 못할 수 있다(`api/forecast.ts`).
+ */
+const MODEL_SCORE_EMPTY_TEXT =
+  "이 기간의 성적표는 아직 표시할 수 없습니다. 검증할 과거 관측이 쌓이면 나타납니다.";
 
 export function ForecastScreen({
   onNavigate,
@@ -106,6 +114,38 @@ export function ForecastScreen({
       onSelectPeriod={setPeriod}
       onNavigate={onNavigate}
     />
+  );
+}
+
+/** 성적표 행. 값만 받아 그리는 표현 컴포넌트다(§7.2). */
+function ModelScoreRows({ score }: { readonly score: ModelPerformanceScore }) {
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
+        <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
+        <span style={{ color: "var(--text)", fontWeight: 700 }}>
+          {score.maePct}%
+        </span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
+        <span style={{ color: "var(--text-muted)" }}>포함률(80%)</span>
+        <span style={{ color: "var(--text)", fontWeight: 700 }}>
+          {score.inclusion80Pct}%
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--normal)",
+          fontWeight: 700,
+          marginTop: "0.5rem",
+          borderTop: "1px solid var(--border-subtle)",
+          paddingTop: "0.5rem",
+        }}
+      >
+        랜덤워크 대비 +{score.randomWalkImprovementPct}% 우수
+      </div>
+    </>
   );
 }
 
@@ -210,23 +250,39 @@ function ForecastView({
           </select>
         </label>
 
-        {/* 전망 기간 토글 — 무엇에 대한 기간인지 라벨과 보조 설명으로 밝힌다 */}
+        {/* 전망 기간 칩 — 무엇에 대한 기간인지 라벨과 보조 설명으로 밝힌다.
+            선택지가 여섯이라 좁은 폭에서는 줄바꿈으로 넘어간다(가로 스크롤을
+            쓰면 뒤쪽 선택지가 화면 밖에 숨는다). */}
         <div
           role="group"
           aria-label={PERIOD_GROUP_LABEL}
           aria-describedby={PERIOD_HELP_ID}
-          style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.375rem",
+            flex: "1 1 18rem",
+            minWidth: 0,
+          }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 700,
-                color: "var(--text-muted)",
-              }}
-            >
-              {PERIOD_GROUP_LABEL}
-            </span>
+          <span
+            style={{
+              fontSize: "0.8125rem",
+              fontWeight: 700,
+              color: "var(--text-muted)",
+            }}
+          >
+            {PERIOD_GROUP_LABEL}
+          </span>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.375rem",
+              minWidth: 0,
+              maxWidth: "100%",
+            }}
+          >
             {FORECAST_HORIZON_DAYS.map((option) => {
               const isSelected = period === option;
               return (
@@ -236,10 +292,15 @@ function ForecastView({
                   aria-pressed={isSelected}
                   onClick={() => onSelectPeriod(option)}
                   style={{
-                    padding: "0.5rem 1rem",
+                    flex: "0 0 auto",
+                    whiteSpace: "nowrap",
+                    padding: "0.5rem 0.75rem",
                     fontWeight: 700,
-                    fontSize: "0.875rem",
+                    fontSize: "0.8125rem",
                     borderRadius: "var(--radius-md)",
+                    border: isSelected
+                      ? "1px solid var(--border)"
+                      : "1px solid var(--border-subtle)",
                     backgroundColor: isSelected ? "var(--border)" : "transparent",
                     color: isSelected ? "var(--text)" : "var(--text-muted)",
                     transition: "all 0.15s ease",
@@ -675,36 +736,19 @@ function ForecastView({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-                <span style={{ color: "var(--text-muted)" }}>적중률</span>
-                <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {pairInfo.modelScore.hitRatePct}%
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-                <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
-                <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {pairInfo.modelScore.maePct}%
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-                <span style={{ color: "var(--text-muted)" }}>포함률(80%)</span>
-                <span style={{ color: "var(--text)", fontWeight: 700 }}>
-                  {pairInfo.modelScore.inclusion80Pct}%
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--normal)",
-                  fontWeight: 700,
-                  marginTop: "0.5rem",
-                  borderTop: "1px solid var(--border-subtle)",
-                  paddingTop: "0.5rem",
-                }}
-              >
-                랜덤워크 대비 +{pairInfo.modelScore.randomWalkImprovementPct}% 우수
-              </div>
+              {pairInfo.modelScore === null ? (
+                <p
+                  style={{
+                    fontSize: "0.8125rem",
+                    color: "var(--text-muted)",
+                    margin: 0,
+                  }}
+                >
+                  {MODEL_SCORE_EMPTY_TEXT}
+                </p>
+              ) : (
+                <ModelScoreRows score={pairInfo.modelScore} />
+              )}
             </div>
           </details>
         </div>

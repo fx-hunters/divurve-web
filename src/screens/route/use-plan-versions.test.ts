@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
-import type { ActivePlanResponse } from "../../api/generated/divurve-api";
+import type { PlanResponse } from "../../api/generated/divurve-api";
 import type { PlanVersion } from "../../api/planner";
 import {
   usePlanVersions,
@@ -20,25 +20,39 @@ const VERSIONS: readonly PlanVersion[] = [
   { planId: "plan-1", version: 1, status: "superseded", supersededBy: "plan-2" },
 ];
 
-const PLAN_DETAIL: ActivePlanResponse = {
-  id: "plan-2",
+const PLAN_DETAIL: PlanResponse = {
+  planId: "plan-2",
   goalId: "goal-usd",
   version: 2,
-  isActive: true,
-  reason: "재계산",
-  safeRatio: 0.6,
-  splitCount: 2,
-  opportunityAmount: 200,
-  opportunityTriggerRate: 1_350,
+  goal: {
+    goalType: "deadline",
+    purpose: "investment",
+    currencyCode: "USD",
+    targetAmount: 3_000,
+    allocatedHoldingAmount: 1_260,
+    remainingAmount: 1_740,
+    targetDate: "2026-12-31",
+  },
+  summary: {
+    status: "active",
+    planEndDate: "2026-12-26",
+    totalRounds: 1,
+    completedRounds: 1,
+    scheduledRounds: 0,
+    skippedRounds: 0,
+  },
   steps: [
     {
       seq: 1,
       scheduledDate: "2026-09-01",
       amount: 145,
-      krwEstimate: 203_000,
+      executedAmount: 145,
       status: "completed",
+      nextAction: false,
     },
   ],
+  warnings: [],
+  disclaimer: "이 계획은 조건부 계산 결과입니다.",
 };
 
 function dependencies(
@@ -157,7 +171,7 @@ describe("usePlanVersions", () => {
 
   it("언마운트 뒤 도착한 응답은 상태를 바꾸지 않는다", async () => {
     let resolveVersions!: (value: readonly PlanVersion[]) => void;
-    let resolveDetail!: (value: ActivePlanResponse) => void;
+    let resolveDetail!: (value: PlanResponse) => void;
     const deps = dependencies({
       loadVersions: vi.fn().mockReturnValue(
         new Promise<readonly PlanVersion[]>((resolve) => {
@@ -165,7 +179,7 @@ describe("usePlanVersions", () => {
         }),
       ),
       loadDetail: vi.fn().mockReturnValue(
-        new Promise<ActivePlanResponse>((resolve) => {
+        new Promise<PlanResponse>((resolve) => {
           resolveDetail = resolve;
         }),
       ),
@@ -192,7 +206,7 @@ describe("usePlanVersions", () => {
         rejectVersions = reject;
       },
     );
-    const detailPromise = new Promise<ActivePlanResponse>(
+    const detailPromise = new Promise<PlanResponse>(
       (_resolve, reject) => {
         rejectDetail = reject;
       },

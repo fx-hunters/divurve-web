@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ActivePlanResponse } from "../../api/generated/divurve-api";
+import type { PlanResponse } from "../../api/generated/divurve-api";
 import type { PlanVersion } from "../../api/planner";
 import { PlanVersionList } from "./plan-version-list";
 import type {
@@ -17,35 +17,70 @@ const VERSIONS: readonly PlanVersion[] = [
     planEndDate: "2026-12-31",
     createdAt: "2026-09-01T00:00:00Z",
   },
-  { planId: "plan-1", version: 1, status: "unknown-status" },
+  // 백엔드가 새 상태를 추가하면 라벨 없이도 원문이 보여야 한다
+  { planId: "plan-1", version: 1, status: "unknown-status" as never },
 ];
 
-const PLAN_DETAIL: ActivePlanResponse = {
-  id: "plan-2",
+/** 백엔드 `PlanResponse` 구조 그대로. 저장된 계획이라 warnings 는 빈 배열이다. */
+const PLAN_DETAIL: PlanResponse = {
+  planId: "plan-2",
   goalId: "goal-usd",
   version: 2,
-  isActive: true,
-  reason: "재계산",
-  safeRatio: 0.6,
-  splitCount: 2,
-  opportunityAmount: 200,
-  opportunityTriggerRate: 1_350,
+  goal: {
+    goalType: "deadline",
+    purpose: "investment",
+    currencyCode: "USD",
+    targetAmount: 3_000,
+    allocatedHoldingAmount: 1_260,
+    remainingAmount: 1_740,
+    targetDate: "2026-12-31",
+  },
+  summary: {
+    status: "active",
+    planEndDate: "2026-12-26",
+    totalRounds: 4,
+    completedRounds: 1,
+    scheduledRounds: 2,
+    skippedRounds: 1,
+    nextActionSeq: 2,
+  },
   steps: [
     {
       seq: 1,
       scheduledDate: "2026-09-01",
       amount: 145,
-      krwEstimate: 203_000,
+      executedAmount: 145,
       status: "completed",
+      nextAction: false,
     },
     {
       seq: 2,
       scheduledDate: "2026-09-12",
       amount: 145,
-      krwEstimate: 203_000,
-      status: "brand-new-status",
+      executedAmount: 0,
+      status: "due",
+      nextAction: true,
+    },
+    {
+      seq: 3,
+      scheduledDate: "2026-09-19",
+      amount: 145,
+      executedAmount: 0,
+      status: "scheduled",
+      nextAction: false,
+    },
+    {
+      seq: 4,
+      scheduledDate: "2026-09-26",
+      amount: 145,
+      executedAmount: 0,
+      // 백엔드가 새 회차 상태를 추가해도 원문이 그대로 보여야 한다
+      status: "brand-new-status" as never,
+      nextAction: false,
     },
   ],
+  warnings: [],
+  disclaimer: "이 계획은 조건부 계산 결과입니다.",
 };
 
 function renderList(
@@ -141,10 +176,13 @@ describe("PlanVersionList", () => {
       { status: "success", versions: VERSIONS },
       { status: "success", planId: "plan-2", plan: PLAN_DETAIL },
     );
-    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getByText("전체 회차")).toBeInTheDocument();
     expect(screen.getByText("1회차")).toBeInTheDocument();
     expect(screen.getByText("2026-09-01 · 145 USD")).toBeInTheDocument();
     expect(screen.getByText("완료")).toBeInTheDocument();
+    // 백엔드 PlanStepStatus 어휘가 라벨로 나온다 (예전엔 없던 scheduled·due)
+    expect(screen.getByText("예정일 도래")).toBeInTheDocument();
+    expect(screen.getByText("예정")).toBeInTheDocument();
     // 알 수 없는 회차 상태도 서버 값 그대로 표시한다
     expect(screen.getByText("brand-new-status")).toBeInTheDocument();
   });

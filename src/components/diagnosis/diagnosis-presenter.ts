@@ -1,4 +1,8 @@
 import type {
+  RiskGrade,
+  RiskProfileStatus,
+} from "../../api/generated/divurve-api";
+import type {
   CompletedDetailedDiagnosisAnswers,
   DetailedChoiceCode,
   ExplanationDomain,
@@ -71,6 +75,42 @@ const RISK_PROFILE_COPY: Readonly<Record<RiskProfileKind, RiskProfileCopy>> = {
     sentencePrefix: "큰 변동에도 적극적으로 대응하는",
   },
 };
+
+/**
+ * 위험성향 진단이 끝났는지. 간편·상세 어느 쪽이든 기준선이 나온다.
+ *
+ * X-Ray 적합도와 마이페이지가 같은 판정을 쓴다. 화면마다 따로 두면 어휘가
+ * 갈라지므로 여기 한 곳에 둔다.
+ */
+const RISK_PROFILE_MEASURED: Readonly<Record<RiskProfileStatus, boolean>> = {
+  not_measured: false,
+  simple_done: true,
+  detail_done: true,
+};
+
+export function isRiskProfileMeasured(status: RiskProfileStatus): boolean {
+  return RISK_PROFILE_MEASURED[status];
+}
+
+/**
+ * 서버 위험성향 등급(`RiskGrade`)을 프론트 진단 어휘(`RiskProfileKind`)로 옮긴다.
+ *
+ * 두 어휘를 잇는 표는 여기 하나뿐이다. 서버가 보내지 않는 값을 키로 두거나
+ * 한글 라벨을 되짚어 코드를 알아내는 일은 하지 않는다 — 서버가 기계 코드
+ * `grade` 를 함께 주므로 라벨 문구가 바뀌어도 흔들릴 이유가 없다.
+ *
+ * `Record<RiskGrade, …>` 라서 서버 등급이 하나라도 빠지면 컴파일이 실패한다.
+ */
+const SERVER_GRADE_KIND: Readonly<Record<RiskGrade, RiskProfileKind>> = {
+  stable: "stable",
+  balanced: "balanced",
+  aggressive: "active",
+  challenging: "challenger",
+};
+
+export function toRiskProfileKind(grade: RiskGrade): RiskProfileKind {
+  return SERVER_GRADE_KIND[grade];
+}
 
 const FUND_PHRASES: Readonly<Record<DetailedChoiceCode, DetailPhrase>> = {
   A: {

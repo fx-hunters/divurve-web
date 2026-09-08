@@ -61,14 +61,16 @@ describe("toMyPageViewData", () => {
     });
     expect(data.riskProfile).toMatchObject({
       isMeasured: true,
-      gradeLabel: "균형 항로형",
-      scoreLabel: "서버 점수 72",
+      grade: "balanced",
+      gradeLabel: "균형항로형",
+      scoreLabel: "서버 점수 4",
     });
     expect(data.riskProfile?.diagnosedOnLabel).toMatch(/진단일 2026/);
     expect(data.notifications).toHaveLength(1);
     expect(data.notifications[0]).toMatchObject({
-      id: "notice-1",
-      title: "회차 확인",
+      id: "0fc0bc6e-9277-4ed3-8d98-4b10ee2eb802",
+      title: "목표 구간에 가까워지고 있어요",
+      message: "미국 대학원 학비 목표가 목표 금액의 약 70%에 도달했습니다.",
       isRead: false,
     });
   });
@@ -101,6 +103,7 @@ describe("toMyPageViewData", () => {
 
     expect(toMyPageViewData(bundle).riskProfile).toEqual({
       isMeasured: false,
+      grade: null,
       gradeLabel: "",
       scoreLabel: null,
       diagnosedOnLabel: null,
@@ -111,13 +114,29 @@ describe("toMyPageViewData", () => {
   it("gradeLabel이 없으면 grade 값을 그대로 쓴다", () => {
     const bundle: MyPageBundle = {
       ...MY_PAGE_API_FIXTURE,
-      riskProfile: { status: "measured", grade: "balanced", score: 50 },
+      riskProfile: { status: "simple_done", grade: "balanced", score: 50 },
     };
 
     expect(toMyPageViewData(bundle).riskProfile).toMatchObject({
       isMeasured: true,
+      grade: "balanced",
       gradeLabel: "balanced",
       scoreLabel: "서버 점수 50",
+    });
+  });
+
+  // 진단 여부는 서버 `status` 가 정한다. 라벨이 비었는지로 넘겨짚으면
+  // 등급은 왔는데 라벨만 빠진 응답에서 판정이 뒤집힌다.
+  it("status가 not_measured면 등급이 없는 것으로 본다", () => {
+    const bundle: MyPageBundle = {
+      ...MY_PAGE_API_FIXTURE,
+      riskProfile: { status: "not_measured" },
+    };
+
+    expect(toMyPageViewData(bundle).riskProfile).toMatchObject({
+      isMeasured: false,
+      grade: null,
+      gradeLabel: "",
     });
   });
 });

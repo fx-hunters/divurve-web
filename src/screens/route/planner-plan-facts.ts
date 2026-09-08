@@ -14,10 +14,16 @@ export function toPlanSummaryFacts(
   const { plan, selectedGoal } = view;
   if (plan === null || selectedGoal === null) return null;
 
+  // `safe_ratio`·`split_count` 는 백엔드 `PlanResponse` 에 없는 값이라 늘 undefined
+  // 로 실려 두 키가 조용히 사라졌다(점검 리포트 H2). 서버가 실제로 주는
+  // `summary` 값으로 바꾼다.
   return {
     plan_version: plan.version,
-    safe_ratio: plan.safeRatio,
-    split_count: plan.splitCount,
+    plan_status: plan.status,
+    total_rounds: plan.totalRounds,
+    completed_rounds: plan.completedRounds,
+    skipped_rounds: plan.skippedRounds,
+    next_action_seq: plan.nextActionSeq,
     currency_code: selectedGoal.currencyCode,
     target_amount: selectedGoal.targetAmount,
     held_amount: selectedGoal.heldAmount,

@@ -4,7 +4,9 @@ import {
   STRESS_RUN_FIXTURE,
   XRAY_API_FIXTURE,
 } from "../../test/api-fixtures";
+import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import {
+  isConcentrationAboveThreshold,
   toAsOfLabel,
   toConcentrationStatusLabel,
   toDateLabel,
@@ -14,12 +16,24 @@ import {
 } from "./xray-presenter";
 
 describe("표시용 변환", () => {
-  it("집중도 판정 코드를 한국어 라벨로 바꾸고, 모르는 값은 그대로 둔다", () => {
-    expect(toConcentrationStatusLabel("over")).toBe("기준선 초과");
-    expect(toConcentrationStatusLabel("ok")).toBe("적정");
-    expect(toConcentrationStatusLabel("watch")).toBe("관찰");
+  // 서버 어휘를 하나라도 빠뜨리면 `Record<ConcentrationStatus, string>` 이 컴파일 단계에서
+  // 잡는다. 모르는 코드를 넘기는 테스트는 더 만들 수 없다 — 타입이 막는다.
+  it("집중도 판정 코드를 서버 어휘 그대로 한국어 라벨로 바꾼다", () => {
+    expect(toConcentrationStatusLabel("above_threshold")).toBe("기준선 초과");
+    expect(toConcentrationStatusLabel("within_threshold")).toBe("기준선 이내");
     expect(toConcentrationStatusLabel("unknown")).toBe("판정 불가");
-    expect(toConcentrationStatusLabel("brand_new")).toBe("brand_new");
+  });
+
+  it("기준선 초과 판정에서만 경고를 켠다", () => {
+    expect(isConcentrationAboveThreshold("above_threshold")).toBe(true);
+    expect(isConcentrationAboveThreshold("within_threshold")).toBe(false);
+    expect(isConcentrationAboveThreshold("unknown")).toBe(false);
+  });
+
+  it("간편·상세 진단은 측정 완료로, 미측정만 미완료로 본다", () => {
+    expect(isRiskProfileMeasured("simple_done")).toBe(true);
+    expect(isRiskProfileMeasured("detail_done")).toBe(true);
+    expect(isRiskProfileMeasured("not_measured")).toBe(false);
   });
 
   it("날짜는 로케일 형식으로, 없거나 해석 불가하면 그대로 둔다", () => {
@@ -90,12 +104,12 @@ describe("toXRayDashboardData", () => {
     expect(concentration).toEqual({
       topCurrencyCode: "USD",
       sharePct: 75,
-      status: "over",
+      status: "above_threshold",
       statusLabel: "기준선 초과",
       thresholdPct: 60,
-      gapPp: 15,
-      riskProfileStatus: "measured",
-      gradeLabel: "중립형",
+      gapPp: 0.15,
+      riskProfileStatus: "simple_done",
+      gradeLabel: "균형항로형",
       diagnosedOnLabel: expect.stringMatching(/2026/),
       basisNote:
         "참고 기준선은 MVP 가설값이며 통계적으로 검증된 배분 기준이 아닙니다.",

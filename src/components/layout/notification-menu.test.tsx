@@ -1,21 +1,34 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
-import { fetchNotifications } from "../../api/notifications";
+import {
+  fetchNotifications,
+  type NotificationItem,
+  type NotificationKind,
+} from "../../api/notifications";
+import { NOTIFICATIONS_FIXTURE } from "../../test/api-fixtures";
 import { NotificationMenu } from "./notification-menu";
 
 vi.mock("../../api/notifications", () => ({ fetchNotifications: vi.fn() }));
 
-const UNREAD = {
-  id: "n-1",
-  type: "STEP_DUE",
-  title: "1회차 환전일",
-  message: "오늘 1회차 환전 예정입니다.",
-  createdAt: "2026-09-08T00:00:00Z",
-  read: false,
+/** 백엔드 실제 응답(2026-09-08 데모 세션)을 그대로 옮긴 픽스처. */
+const UNREAD = NOTIFICATIONS_FIXTURE[0] as NotificationItem;
+
+const READ: NotificationItem = {
+  ...UNREAD,
+  id: "0fc0bc6e-9277-4ed3-8d98-4b10ee2eb803",
+  title: "읽은 알림",
+  isRead: true,
 };
 
-const READ = { ...UNREAD, id: "n-2", title: "읽은 알림", read: true };
+const ALL_KINDS: readonly NotificationKind[] = [
+  "step_due",
+  "regime_shift",
+  "deadline_near",
+  "target_zone",
+  "safe_mode",
+  "concentration",
+];
 
 function openMenu() {
   fireEvent.click(screen.getByRole("button", { name: "알림" }));
@@ -52,15 +65,41 @@ describe("NotificationMenu", () => {
     expect(fetchNotifications).toHaveBeenCalledTimes(1);
   });
 
-  it("알림이 있으면 제목·내용·날짜를 목록으로 보여준다", async () => {
+  it("알림이 있으면 제목·본문·날짜를 목록으로 보여준다", async () => {
     vi.mocked(fetchNotifications).mockResolvedValue([UNREAD, READ]);
     render(<NotificationMenu />);
     openMenu();
 
-    expect(await screen.findByText("1회차 환전일")).toBeInTheDocument();
+    expect(
+      await screen.findByText("목표 구간에 가까워지고 있어요"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "미국 대학원 학비 목표가 목표 금액의 약 70%에 도달했습니다.",
+      ),
+    ).toHaveLength(2);
     expect(screen.getByText("읽은 알림")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByText("2026-09-08")).toHaveLength(2);
+  });
+
+  it("종류 6종 모두 한국어 라벨로 보여준다", async () => {
+    vi.mocked(fetchNotifications).mockResolvedValue(
+      ALL_KINDS.map((kind) => ({ ...UNREAD, id: kind, kind })),
+    );
+    render(<NotificationMenu />);
+    openMenu();
+
+    expect(await screen.findByText("회차 일정")).toBeInTheDocument();
+    for (const label of [
+      "국면 변화",
+      "기한 임박",
+      "목표 구간",
+      "안전 모드",
+      "집중도",
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it("조회에 실패하면 오류 문구를 보여준다", async () => {

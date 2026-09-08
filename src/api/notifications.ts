@@ -8,10 +8,12 @@
 import { request } from "./client";
 import type {
   NotificationDto,
+  NotificationKind,
   NotificationsResponse,
 } from "./generated/divurve-api";
 
 export type NotificationItem = NotificationDto;
+export type { NotificationKind };
 
 /** 로그인 계정의 알림 목록을 조회한다. 알림이 없으면 빈 배열이다. */
 export async function fetchNotifications(): Promise<

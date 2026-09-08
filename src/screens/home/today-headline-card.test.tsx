@@ -68,4 +68,5 @@ describe("TodayHeadlineCard", () => {
       screen.queryByRole("button", { name: "진단하러 가기" }),
     ).not.toBeInTheDocument();
   });
+
 });

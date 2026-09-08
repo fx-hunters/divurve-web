@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "../../api/client";
-import type { ActivePlanResponse } from "../../api/generated/divurve-api";
+import type { PlanResponse } from "../../api/generated/divurve-api";
 import {
   fetchPlanDetail,
   fetchPlanVersions,
@@ -31,7 +31,7 @@ export type PlanVersionDetailState =
   | {
       readonly status: "success";
       readonly planId: string;
-      readonly plan: ActivePlanResponse;
+      readonly plan: PlanResponse;
     };
 
 export interface PlanVersionDependencies {

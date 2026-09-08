@@ -11,6 +11,7 @@ import {
   toMarketRateLabel,
   toMarketView,
   toSummaryMarketSnapshot,
+  toTrendDateLabel,
 } from "./home-market";
 
 const FORECAST_RESULT: ApiResult<ForecastResponse> = {
@@ -57,6 +58,12 @@ describe("toSummaryMarketSnapshot", () => {
       lower: 1_330.6,
       upper: 1_389.02,
       regime: "elevated",
+      history: [
+        { date: "2026-09-02", rate: 1_351.2 },
+        { date: "2026-09-03", rate: 1_377.8 },
+        { date: "2026-09-04", rate: 1_365.1 },
+        { date: "2026-09-05", rate: 1_382.4 },
+      ],
     });
   });
 
@@ -72,6 +79,8 @@ describe("toSummaryMarketSnapshot", () => {
       lower: undefined,
       upper: undefined,
       regime: undefined,
+      // 키가 없으면 빈 배열로 접는다 — 카드가 길이만 보고 선을 감춘다.
+      history: [],
     });
   });
 });
@@ -84,6 +93,11 @@ describe("toForecastMarketSnapshot", () => {
       lower: 1_350,
       upper: 1_450,
       regime: "normal",
+      // `/forecast` 는 `d`, 홈 요약은 `date` 라 여기서 이름을 맞춘다.
+      history: [
+        { date: "2026-09-01", rate: 1_390 },
+        { date: "2026-09-02", rate: 1_400 },
+      ],
     });
   });
 });
@@ -133,6 +147,7 @@ describe("toMarketView", () => {
       currentRateLabel: "1.0854",
       lowerLabel: "1.0512",
       upperLabel: "1.1204",
+      trendPoints: [],
     });
   });
 
@@ -145,6 +160,7 @@ describe("toMarketView", () => {
       currentRateLabel: undefined,
       lowerLabel: undefined,
       upperLabel: undefined,
+      trendPoints: [],
     });
   });
 });
@@ -177,5 +193,48 @@ describe("toMarketFacts", () => {
 
   it("수치가 하나도 없으면 요청하지 않도록 null을 준다", () => {
     expect(toMarketFacts({ pairCode: "USDKRW" })).toBeNull();
+  });
+});
+
+describe("toMarketView 의 스파크라인", () => {
+  it("관측값을 시간순 그대로 환율 수열로 넘긴다", () => {
+    expect(
+      toMarketView({
+        pairCode: "USDKRW",
+        history: [
+          { date: "2026-09-01", rate: 1_390 },
+          { date: "2026-09-02", rate: 1_400 },
+        ],
+      }).trendPoints,
+    ).toEqual([
+      { date: "2026-09-01", rate: 1_390 },
+      { date: "2026-09-02", rate: 1_400 },
+    ]);
+  });
+
+  it("가로축 날짜는 월·일만 적고, 해석 불가하면 원문을 그대로 둔다", () => {
+    expect(toTrendDateLabel("2026-09-08")).toMatch(/9/);
+    expect(toTrendDateLabel("모름")).toBe("모름");
+  });
+
+  it("점이 하나면 선을 그릴 수 없어 비운다", () => {
+    expect(
+      toMarketView({
+        pairCode: "USDKRW",
+        history: [{ date: "2026-09-01", rate: 1_390 }],
+      }).trendPoints,
+    ).toEqual([]);
+  });
+
+  it("값이 전부 같으면 진폭이 0이라 비운다 — 평평한 선으로 오해를 주지 않는다", () => {
+    expect(
+      toMarketView({
+        pairCode: "USDKRW",
+        history: [
+          { date: "2026-09-01", rate: 1_390 },
+          { date: "2026-09-02", rate: 1_390 },
+        ],
+      }).trendPoints,
+    ).toEqual([]);
   });
 });

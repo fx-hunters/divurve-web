@@ -50,10 +50,17 @@ describe("MyPageScreen", () => {
     expect(screen.getByText("내 계정")).toBeInTheDocument();
     expect(screen.getByText("균형항로형")).toBeInTheDocument();
     expect(screen.getByText("서버 결과")).toBeInTheDocument();
-    expect(screen.getByText("서버 점수 72")).toBeInTheDocument();
+    expect(screen.getByText("서버 점수 4")).toBeInTheDocument();
     expect(screen.getByText(/진단일 2026/)).toBeInTheDocument();
     expect(screen.getByText(/해커톤 MVP용 가설/)).toBeInTheDocument();
-    expect(screen.getByText("회차 확인")).toBeInTheDocument();
+    expect(
+      screen.getByText("목표 구간에 가까워지고 있어요"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "미국 대학원 학비 목표가 목표 금액의 약 70%에 도달했습니다.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/새 알림/)).toBeInTheDocument();
 
     expect(screen.getByLabelText("익숙한 설명 분야")).toHaveDisplayValue(
@@ -332,11 +339,11 @@ describe("MyPageScreen", () => {
               notifications: [
                 {
                   id: "read-notice",
-                  type: "plan",
+                  kind: "step_due",
                   title: "지난 회차 안내",
-                  message: "이미 확인한 알림입니다.",
+                  body: "이미 확인한 알림입니다.",
                   createdAt: "2026-09-01T00:00:00Z",
-                  read: true,
+                  isRead: true,
                 },
               ],
             },

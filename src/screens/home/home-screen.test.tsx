@@ -49,7 +49,7 @@ describe("HomeScreen", () => {
 
   it("홈 요약이 준 통화쌍으로 시장 카드를 그리고 드롭다운 선택을 조회로 잇는다", async () => {
     const stubs = marketStubs();
-    render(
+    const { container } = render(
       <HomeScreen
         onNavigate={vi.fn()}
         loadSummary={vi.fn().mockResolvedValue(HOME_SUMMARY_FIXTURE)}
@@ -59,7 +59,10 @@ describe("HomeScreen", () => {
 
     const select = await screen.findByRole("combobox", { name: "통화쌍" });
     expect(select).toHaveValue("USDKRW");
-    expect(screen.getByText("1,382.40")).toBeInTheDocument();
+    // 같은 숫자가 추세 그래프의 세로축 눈금에도 나오므로 현재 환율 자리를 짚는다.
+    expect(
+      container.querySelector(".market-summary-card__value"),
+    ).toHaveTextContent("1,382.40");
 
     fireEvent.change(select, { target: { value: "USDJPY" } });
 

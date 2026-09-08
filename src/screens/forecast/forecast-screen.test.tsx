@@ -7,6 +7,7 @@ import {
   EMPTY_FORECAST_API_FIXTURE,
   FORECAST_API_FIXTURE,
 } from "../../test/api-fixtures";
+import { FORECAST_HORIZON_DAYS } from "../../types/forecast";
 import { ForecastScreen } from "./forecast-screen";
 
 /**
@@ -32,7 +33,7 @@ const BUNDLE_BY_PAIR: Readonly<Record<string, ForecastBundle>> = {
     performance: {
       ...FORECAST_API_FIXTURE.performance,
       pairCode: "USDJPY",
-      model: { hitRate: 0.55, mae: 0.042, coverage80: 0.79, avgWidth: 0.08 },
+      model: { mae: 0.042, coverage80: 0.79, avgWidth: 0.08 },
     },
   },
   EURUSD: {
@@ -51,7 +52,7 @@ const BUNDLE_BY_PAIR: Readonly<Record<string, ForecastBundle>> = {
     performance: {
       ...FORECAST_API_FIXTURE.performance,
       pairCode: "EURUSD",
-      model: { hitRate: 0.58, mae: 0.027, coverage80: 0.85, avgWidth: 0.06 },
+      model: { mae: 0.027, coverage80: 0.85, avgWidth: 0.06 },
     },
   },
 };
@@ -72,7 +73,12 @@ function explanationResult(regime?: string): ApiResult<ExplainResult> {
         explainDomain: "general",
         fallback: false,
       },
-      verification: { numericMatch: true, blockedPhrases: [] },
+      verification: {
+        numericMatch: true,
+        regimeDisclosed: true,
+        blockedPhrases: [],
+        fallbackReason: null,
+      },
     },
     meta: { asOf: "2026-09-06T22:14:01.070Z", regime },
   };
@@ -115,6 +121,65 @@ describe("ForecastScreen", () => {
     expect(onNavigate).toHaveBeenCalledWith("planner");
   });
 
+  it("여섯 지평을 모두 칩으로 늘어놓고, 고른 값을 그대로 서버에 보낸다", async () => {
+    const loader = loaderByPair();
+    render(
+      <ForecastScreen
+        loader={loader}
+        explanationRequester={explanationRequester()}
+      />,
+    );
+
+    // 기본은 30일이고, 여섯 선택지가 모두 눌러 볼 수 있게 놓인다.
+    await waitFor(() => expect(loader).toHaveBeenLastCalledWith("USDKRW", 30));
+    for (const days of FORECAST_HORIZON_DAYS) {
+      expect(
+        screen.getByRole("button", { name: `향후 ${days}일` }),
+      ).toBeInTheDocument();
+    }
+
+    for (const days of FORECAST_HORIZON_DAYS) {
+      fireEvent.click(screen.getByRole("button", { name: `향후 ${days}일` }));
+      await waitFor(() =>
+        expect(loader).toHaveBeenLastCalledWith("USDKRW", days),
+      );
+      const selected = await screen.findByRole("button", {
+        name: `향후 ${days}일`,
+      });
+      expect(selected).toHaveAttribute("aria-pressed", "true");
+      expect(
+        await screen.findByText(`80% 범위 (향후 ${days}일)`),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "시뮬레이션 팬 차트 (USD/KRW)" }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("성적표가 없는 지평에서도 팬 차트는 그리고 성적표 카드만 빈 상태로 둔다", async () => {
+    render(
+      <ForecastScreen
+        explanationRequester={explanationRequester()}
+        loader={vi.fn().mockResolvedValue({
+          ...FORECAST_API_FIXTURE,
+          performance: null,
+        })}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "이 기간의 성적표는 아직 표시할 수 없습니다. 검증할 과거 관측이 쌓이면 나타납니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("평균 오차율")).not.toBeInTheDocument();
+    // 팬 차트와 요약 카드는 그대로 보인다.
+    expect(
+      screen.getByRole("heading", { name: "시뮬레이션 팬 차트 (USD/KRW)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1,350.00 ~ 1,450.00")).toBeInTheDocument();
+  });
+
   it("전망 기간 컨트롤은 무엇에 대한 기간인지 라벨과 보조 설명으로 알린다", async () => {
     render(
       <ForecastScreen
@@ -138,6 +203,14 @@ describe("ForecastScreen", () => {
       "aria-pressed",
       "false",
     );
+
+    // 여섯 칩은 좁은 폭에서 줄바꿈으로 넘어간다 — 가로로 삐져나가지 않는다.
+    const chip = screen.getByRole("button", { name: "향후 180일" });
+    expect(chip).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(chip.parentElement).toHaveStyle({
+      flexWrap: "wrap",
+      maxWidth: "100%",
+    });
   });
 
   it("통화쌍 3종을 전환하면 팬 차트·동인·성적표가 모두 갱신된다", async () => {
@@ -162,7 +235,8 @@ describe("ForecastScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("140.25 ~ 152.75")).toBeInTheDocument();
     expect(screen.getByText("일본 정책 기조")).toBeInTheDocument();
-    expect(screen.getByText("55%")).toBeInTheDocument();
+    // 성적표도 통화쌍을 따라 갱신된다 — USDJPY 의 mae 0.042 가 평균 오차율로 보인다.
+    expect(screen.getByText("4.2%")).toBeInTheDocument();
     // 통화쌍을 이루는 두 통화의 일정이 함께 보인다.
     expect(screen.getByText("일본 정책 회의")).toBeInTheDocument();
 
@@ -175,7 +249,7 @@ describe("ForecastScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1.02 ~ 1.14")).toBeInTheDocument();
     expect(screen.getByText("유로존 금리")).toBeInTheDocument();
-    expect(screen.getByText("58%")).toBeInTheDocument();
+    expect(screen.getByText("2.7%")).toBeInTheDocument();
   });
 
   it("목록에 없는 통화쌍 값이 오면 기본 통화쌍으로 되돌린다", async () => {

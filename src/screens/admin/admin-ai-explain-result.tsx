@@ -6,6 +6,7 @@
  * 걸렸는지(`verification`)를 결과의 맨 앞에 세운다.
  */
 import type { ExplainResult } from "../../api/ai-explain";
+import { getFallbackReasonLabel } from "./admin-ai-explain-copy";
 import {
   AdminErrorPanel,
   AdminIdlePanel,
@@ -50,15 +51,30 @@ export function AdminAiExplainResult({
       {explanation.fallback === true && (
         <p className="admin-panel admin-panel--warn" role="alert">
           fallback=true — LLM 결과가 검증을 통과하지 못해 고정 템플릿이
-          나갔습니다. 아래 verification을 확인하세요.
+          나갔습니다.
+          {verification.fallbackReason === null
+            ? " 아래 verification을 확인하세요."
+            : ` 사유: ${getFallbackReasonLabel(verification.fallbackReason)}`}
         </p>
       )}
 
       <h3 className="admin-subtitle">verification</h3>
       <dl className="admin-kv admin-kv--inline">
         <div className="admin-kv__pair">
+          <dt>fallbackReason</dt>
+          <dd>
+            {verification.fallbackReason === null
+              ? "-"
+              : `${verification.fallbackReason} — ${getFallbackReasonLabel(verification.fallbackReason)}`}
+          </dd>
+        </div>
+        <div className="admin-kv__pair">
           <dt>numericMatch</dt>
           <dd>{formatAdminValue(verification.numericMatch)}</dd>
+        </div>
+        <div className="admin-kv__pair">
+          <dt>regimeDisclosed</dt>
+          <dd>{formatAdminValue(verification.regimeDisclosed)}</dd>
         </div>
         <div className="admin-kv__pair">
           <dt>blockedPhrases</dt>
@@ -69,6 +85,13 @@ export function AdminAiExplainResult({
           </dd>
         </div>
       </dl>
+      {(verification.numericMatch === null ||
+        verification.regimeDisclosed === null) && (
+        <p className="admin-note">
+          null은 &quot;검증 단계에 닿지 못했다&quot;는 뜻입니다. 통과했다는
+          뜻이 아닙니다.
+        </p>
+      )}
 
       <h3 className="admin-subtitle">explanation</h3>
       <dl className="admin-kv admin-kv--inline">
