@@ -4,16 +4,35 @@ import {
   EMPTY_FORECAST_API_FIXTURE,
   FORECAST_API_FIXTURE,
 } from "../../test/api-fixtures";
+import { FORECAST_PAIRS } from "../../types/forecast";
 import {
+  currencyColor,
   directionType,
   toAsOfLabel,
-  toCurrencyForecastInfo,
+  toExplanationFacts,
   toFanChartData,
   toImpactLabel,
+  toPair,
+  toPairForecastInfo,
+  toPairLabel,
   toPercent,
   toPercentileLabel,
+  toPeriodLabel,
   toRateLabel,
+  toRegimeBadge,
 } from "./forecast-presenter";
+
+const [USD_KRW, USD_JPY, EUR_USD] = FORECAST_PAIRS;
+
+function withRegime(regime: string): ForecastBundle {
+  return {
+    ...FORECAST_API_FIXTURE,
+    forecast: {
+      ...FORECAST_API_FIXTURE.forecast,
+      volatility: { ...FORECAST_API_FIXTURE.forecast.volatility, regime },
+    },
+  };
+}
 
 describe("toFanChartData", () => {
   it("history·band·modelPath를 날짜 기준으로 합친다", () => {
@@ -53,6 +72,31 @@ describe("toFanChartData", () => {
   });
 });
 
+describe("선택지 표시", () => {
+  it("통화쌍을 기준/표시통화 표기로 바꾼다", () => {
+    expect(toPairLabel(USD_KRW)).toBe("USD/KRW");
+    expect(toPairLabel(USD_JPY)).toBe("USD/JPY");
+    expect(toPairLabel(EUR_USD)).toBe("EUR/USD");
+  });
+
+  it("드롭다운이 돌려준 코드를 통화쌍으로 되돌리고, 모르는 코드는 기본 쌍으로 둔다", () => {
+    expect(toPair("EURUSD")).toBe(EUR_USD);
+    expect(toPair("XXXYYY")).toBe(USD_KRW);
+  });
+
+  it("전망 기간은 앞으로의 구간임을 문구로 밝힌다", () => {
+    expect(toPeriodLabel(30)).toBe("향후 30일");
+    expect(toPeriodLabel(90)).toBe("향후 90일");
+  });
+
+  it("통화 색은 고정 배정하고 배정이 없는 통화는 중립색으로 둔다", () => {
+    expect(currencyColor("USD")).toBe("var(--usd)");
+    expect(currencyColor("JPY")).toBe("var(--jpy)");
+    expect(currencyColor("EUR")).toBe("var(--eur)");
+    expect(currencyColor("KRW")).toBe("var(--text-muted)");
+  });
+});
+
 describe("표시용 변환", () => {
   it("비율을 소수 첫째 자리 퍼센트로 바꾼다", () => {
     expect(toPercent(0.6666)).toBe(66.7);
@@ -84,9 +128,23 @@ describe("표시용 변환", () => {
   });
 });
 
-describe("toCurrencyForecastInfo", () => {
+describe("toRegimeBadge", () => {
+  it("국면 코드를 명세 §2 어휘로 옮긴다", () => {
+    expect(toRegimeBadge("calm")).toEqual({ label: "정상", tone: "normal" });
+    expect(toRegimeBadge("normal")).toEqual({ label: "정상", tone: "normal" });
+    expect(toRegimeBadge("elevated")).toEqual({ label: "주의", tone: "warn" });
+    expect(toRegimeBadge("stress")).toEqual({ label: "급변", tone: "danger" });
+  });
+
+  it("국면이 없거나 모르는 코드면 배지를 만들지 않는다", () => {
+    expect(toRegimeBadge(undefined)).toBeNull();
+    expect(toRegimeBadge("unknown")).toBeNull();
+  });
+});
+
+describe("toPairForecastInfo", () => {
   it("서버 값을 화면 뷰 데이터로 옮긴다", () => {
-    const info = toCurrencyForecastInfo(FORECAST_API_FIXTURE, "USD");
+    const info = toPairForecastInfo(FORECAST_API_FIXTURE, USD_KRW);
 
     expect(info.summary).toEqual({
       upperLabel: "1,450.00",
@@ -115,9 +173,10 @@ describe("toCurrencyForecastInfo", () => {
     );
   });
 
-  it("선택 통화의 일정만 남기고 중요도가 낮으면 중변동성으로 표시한다", () => {
-    const info = toCurrencyForecastInfo(FORECAST_API_FIXTURE, "JPY");
+  it("통화쌍을 이루는 두 통화의 일정만 남기고 중요도가 낮으면 중변동성으로 표시한다", () => {
+    const info = toPairForecastInfo(FORECAST_API_FIXTURE, USD_JPY);
     expect(info.events).toEqual([
+      { title: "미국 물가 발표", dateLabel: "2026-09-12", severity: "고변동성" },
       { title: "일본 정책 회의", dateLabel: "2026-09-15", severity: "중변동성" },
     ]);
   });
@@ -133,31 +192,47 @@ describe("toCurrencyForecastInfo", () => {
         ],
       },
     };
-    expect(toCurrencyForecastInfo(bundle, "USD").drivers).toEqual([
+    expect(toPairForecastInfo(bundle, USD_KRW).drivers).toEqual([
       { name: "금리 차", type: "muted", barWidthPx: 0 },
       { name: "수급", type: "muted", barWidthPx: 0 },
     ]);
   });
 
   it("동인과 일정이 비어 있어도 안전하게 변환한다", () => {
-    const info = toCurrencyForecastInfo(EMPTY_FORECAST_API_FIXTURE, "USD");
+    const info = toPairForecastInfo(EMPTY_FORECAST_API_FIXTURE, USD_KRW);
     expect(info.drivers).toEqual([]);
     expect(info.events).toEqual([]);
   });
 
-  it.each(["high", "extreme"])(
+  it.each(["elevated", "stress"])(
     "변동성 국면이 %s이면 백분위를 경고 톤으로 표시한다",
     (regime) => {
-      const bundle: ForecastBundle = {
-        ...FORECAST_API_FIXTURE,
-        forecast: {
-          ...FORECAST_API_FIXTURE.forecast,
-          volatility: { ...FORECAST_API_FIXTURE.forecast.volatility, regime },
-        },
-      };
       expect(
-        toCurrencyForecastInfo(bundle, "USD").summary.isPercentileWarn,
+        toPairForecastInfo(withRegime(regime), USD_KRW).summary.isPercentileWarn,
       ).toBe(true);
     },
   );
+
+  it.each(["calm", "normal", "unknown"])(
+    "변동성 국면이 %s이면 평상 톤으로 둔다",
+    (regime) => {
+      expect(
+        toPairForecastInfo(withRegime(regime), USD_KRW).summary.isPercentileWarn,
+      ).toBe(false);
+    },
+  );
+});
+
+describe("toExplanationFacts", () => {
+  it("서버가 준 값을 가공 없이 백엔드 계약 표기로 싣는다", () => {
+    expect(toExplanationFacts(FORECAST_API_FIXTURE)).toEqual({
+      pair_code: "USDKRW",
+      horizon_days: 30,
+      band_lower: 1_350,
+      band_upper: 1_450,
+      vol_30d: 0.08,
+      vol_percentile_5y: 0.63,
+      regime: "normal",
+    });
+  });
 });
