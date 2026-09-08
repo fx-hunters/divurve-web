@@ -1,11 +1,6 @@
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
-import type {
-  HomeTone,
-  ProfileFitData,
-  TodaySummaryData,
-  UpcomingEventItem,
-} from "../../types/home";
+import type { HomeTone, ProfileFitData, TodaySummaryData } from "../../types/home";
 import "./today-headline-card.css";
 
 /** 뷰 톤을 Badge 변형으로 옮긴다. Badge는 primary/normal/warn/danger/default를 받는다. */
@@ -20,11 +15,6 @@ interface TodayHeadlineCardProps {
   readonly profileFit: ProfileFitData;
   readonly isProfileMeasured: boolean;
   readonly asOfLabel: string;
-  /**
-   * 띠에 올릴 일정. 비면 줄 자체를 그리지 않는다 — 빈 칩 줄은 자리만 먹는다.
-   * 고르는 일은 presenter(`toHeadlineEvents`)가 한다.
-   */
-  readonly upcomingEvents?: readonly UpcomingEventItem[];
   readonly onNavigateToMypage?: () => void;
 }
 
@@ -33,7 +23,6 @@ export function TodayHeadlineCard({
   profileFit,
   isProfileMeasured,
   asOfLabel,
-  upcomingEvents = [],
   onNavigateToMypage,
 }: TodayHeadlineCardProps) {
   return (
@@ -60,19 +49,6 @@ export function TodayHeadlineCard({
           <span className="today-headline__asof">기준 시각: {asOfLabel}</span>
         </span>
       </div>
-
-      {upcomingEvents.length > 0 && (
-        <ul className="today-headline__events" aria-label="다가오는 고변동성 일정">
-          {upcomingEvents.map((event) => (
-            <li className="today-headline__event" key={`${event.dateLabel}-${event.title}`}>
-              <span className="today-headline__event-date">
-                {event.shortDateLabel}
-              </span>
-              <span className="today-headline__event-title">{event.title}</span>
-            </li>
-          ))}
-        </ul>
-      )}
 
       {!isProfileMeasured && (
         <p className="today-headline__notice">

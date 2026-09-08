@@ -9,9 +9,7 @@ import {
   toBadgeTone,
   toBlockStates,
   toDateLabel,
-  toHeadlineEvents,
   toHomeDashboardData,
-  toShortDateLabel,
 } from "./home-presenter";
 
 describe("표시용 변환", () => {
@@ -34,31 +32,6 @@ describe("표시용 변환", () => {
   it("날짜는 로케일 형식으로, 해석 불가하면 원문 그대로 둔다", () => {
     expect(toDateLabel("2026-09-09")).toMatch(/2026/);
     expect(toDateLabel("모름")).toBe("모름");
-  });
-
-  it("칩용 날짜는 연도를 떼고, 읽을 수 없는 값은 그대로 둔다", () => {
-    expect(toShortDateLabel("2026-09-09")).toBe("9. 9.");
-    expect(toShortDateLabel("모름")).toBe("모름");
-  });
-
-  it("띠에 올릴 일정은 고변동성만, 앞에서 두 건까지다", () => {
-    const event = (title: string, severity: "고변동성" | "중변동성") => ({
-      title,
-      dateLabel: "2026년 9월 9일",
-      shortDateLabel: "9. 9.",
-      currencyCode: "USD",
-      severity,
-    });
-
-    expect(
-      toHeadlineEvents([
-        event("A", "고변동성"),
-        event("B", "중변동성"),
-        event("C", "고변동성"),
-        event("D", "고변동성"),
-      ]).map((picked) => picked.title),
-      // 서버 순서를 그대로 따르고 날짜 정렬을 다시 하지 않는다.
-    ).toEqual(["A", "C"]);
   });
 
   it("서버가 보내지 않은 블록은 빈 상태로 채운다", () => {
@@ -109,19 +82,16 @@ describe("toHomeDashboardData", () => {
         status: "active",
       },
     ]);
-    expect(data.attention.regimeLabel).toBe("주의");
     expect(data.attention.events).toEqual([
       {
         title: "Federal Funds Rate Decision",
         dateLabel: expect.stringMatching(/2026/),
-        shortDateLabel: "9. 9.",
         currencyCode: "USD",
         severity: "고변동성",
       },
       {
         title: "Retail Sales",
         dateLabel: expect.stringMatching(/2026/),
-        shortDateLabel: "9. 18.",
         currencyCode: "USD",
         severity: "중변동성",
       },
