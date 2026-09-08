@@ -1,5 +1,6 @@
 import { Card } from "./card";
 import { Icon } from "./icon";
+import { Spinner } from "./spinner";
 
 interface ApiStateViewProps {
   readonly status: "loading" | "error" | "empty";
@@ -14,12 +15,7 @@ export function ApiStateView({
   message,
   onRetry,
 }: ApiStateViewProps) {
-  const iconName =
-    status === "loading"
-      ? "sparkles"
-      : status === "error"
-        ? "alertCircle"
-        : "database";
+  const iconName = status === "error" ? "alertCircle" : "database";
 
   return (
     <Card className="api-state-view">
@@ -37,11 +33,16 @@ export function ApiStateView({
           textAlign: "center",
         }}
       >
+        {/* 바깥 컨테이너가 이미 상태를 읽어주므로, 안쪽 시각 요소는 숨긴다 */}
         <span
           aria-hidden="true"
           style={{ color: status === "error" ? "var(--danger)" : "var(--primary)" }}
         >
-          <Icon name={iconName} size={28} />
+          {status === "loading" ? (
+            <Spinner size={28} />
+          ) : (
+            <Icon name={iconName} size={28} />
+          )}
         </span>
         <div>
           <h2
