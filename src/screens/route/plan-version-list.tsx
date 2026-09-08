@@ -6,6 +6,10 @@
  */
 import { Badge } from "../../components/common/badge";
 import { Spinner } from "../../components/common/spinner";
+import type {
+  PlanStatusCode,
+  PlanStepStatusCode,
+} from "../../api/generated/divurve-api";
 import type { PlanVersion } from "../../api/planner";
 import type {
   PlanVersionDetailState,
@@ -21,8 +25,16 @@ interface PlanVersionListProps {
   readonly onCloseDetail: () => void;
 }
 
+/**
+ * 라벨 표. 리터럴 유니온 키를 **모두** 요구하므로 백엔드가 값을 추가하면
+ * 컴파일 에러가 난다. 인덱스 시그니처를 함께 두어, 그럼에도 모르는 코드가
+ * 도착하면 원문을 그대로 노출한다 — 조용히 삼키지 않는다.
+ */
+type LabelTable<Code extends string> = Readonly<Record<Code, string>> &
+  Readonly<Record<string, string | undefined>>;
+
 /** 백엔드 `PlanStatus` 리터럴을 화면 문구로 옮긴다. 값은 서버 계약 그대로다. */
-const STATUS_LABELS: Readonly<Record<string, string>> = {
+const STATUS_LABELS: LabelTable<PlanStatusCode> = {
   draft: "계산됨",
   active: "적용 중",
   needs_review: "재검토 필요",
@@ -31,10 +43,17 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   superseded: "대체됨",
 };
 
-const STEP_STATUS_LABELS: Readonly<Record<string, string>> = {
+/**
+ * 백엔드 `PlanStepStatus` 리터럴(`scheduled·due·completed·skipped`).
+ *
+ * 예전 이 표에 있던 `pending` 은 백엔드에 존재하지 않는 값이었고, 실제로 오는
+ * `scheduled`·`due` 에는 라벨이 없어 원문 코드가 노출됐다(점검 리포트 M4).
+ */
+const STEP_STATUS_LABELS: LabelTable<PlanStepStatusCode> = {
+  scheduled: "예정",
+  due: "예정일 도래",
   completed: "완료",
   skipped: "건너뜀",
-  pending: "예정",
 };
 
 function statusLabel(status: string): string {
@@ -47,11 +66,6 @@ function stepStatusLabel(status: string): string {
 
 const amountFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
-});
-
-const ratioFormatter = new Intl.NumberFormat("ko-KR", {
-  style: "percent",
-  maximumFractionDigits: 1,
 });
 
 function PlanVersionRow({
@@ -117,12 +131,16 @@ function PlanVersionRow({
             <>
               <dl className="plan-version-list__facts">
                 <div>
-                  <dt>안전 비율</dt>
-                  <dd>{ratioFormatter.format(detailState.plan.safeRatio)}</dd>
+                  <dt>전체 회차</dt>
+                  <dd>{detailState.plan.summary.totalRounds}</dd>
                 </div>
                 <div>
-                  <dt>분할 회차</dt>
-                  <dd>{detailState.plan.splitCount}</dd>
+                  <dt>완료 회차</dt>
+                  <dd>{detailState.plan.summary.completedRounds}</dd>
+                </div>
+                <div>
+                  <dt>건너뛴 회차</dt>
+                  <dd>{detailState.plan.summary.skippedRounds}</dd>
                 </div>
               </dl>
               <ol className="plan-version-list__steps">

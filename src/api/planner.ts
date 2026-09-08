@@ -1,8 +1,9 @@
 import { ApiError, request } from "./client";
 import type {
-  ActivePlanResponse,
   GoalListResponse,
   GoalResponse,
+  PlanResponse,
+  PlanStatusCode,
   StepCompleteRequest,
   StepCompleteResponse,
   StepSkipResponse,
@@ -10,7 +11,7 @@ import type {
 
 export interface PlannerApiItem {
   readonly goal: GoalResponse;
-  readonly activePlan: ActivePlanResponse | null;
+  readonly activePlan: PlanResponse | null;
 }
 
 export interface PlannerApiOverview {
@@ -27,7 +28,7 @@ export interface PlanVersion {
   readonly planId: string;
   readonly version: number;
   /** 계획 상태. 백엔드 `PlanStatus` 의 소문자 리터럴을 그대로 쓴다. */
-  readonly status: string;
+  readonly status: PlanStatusCode;
   readonly reason?: string;
   readonly planEndDate?: string;
   /** 이 계획을 대체한 계획 id. 최신 버전에는 없다. */
@@ -39,9 +40,9 @@ export interface PlanVersionListResponse {
   readonly versions: readonly PlanVersion[];
 }
 
-async function fetchActivePlan(goalId: string): Promise<ActivePlanResponse | null> {
+async function fetchActivePlan(goalId: string): Promise<PlanResponse | null> {
   try {
-    return await request<ActivePlanResponse>(
+    return await request<PlanResponse>(
       `/api/v1/goals/${encodeURIComponent(goalId)}/plans/active`,
     );
   } catch (error) {
@@ -77,8 +78,8 @@ export async function fetchPlanVersions(
 }
 
 /** 계획 버전 하나의 상세(`GET /api/v1/plans/{id}`). 회차까지 함께 온다. */
-export function fetchPlanDetail(planId: string): Promise<ActivePlanResponse> {
-  return request<ActivePlanResponse>(
+export function fetchPlanDetail(planId: string): Promise<PlanResponse> {
+  return request<PlanResponse>(
     `/api/v1/plans/${encodeURIComponent(planId)}`,
   );
 }
@@ -94,6 +95,14 @@ export function completePlanStep(
   );
 }
 
+/**
+ * 회차 건너뛰기(`POST /api/v1/plans/{id}/steps/{seq}/skip`).
+ *
+ * **미리보기다.** 백엔드 `PlanController.skipStep` 는 "건너뛴 뒤의 변경 계획을
+ * 미리보기로 반환한다. 계획을 즉시 덮어쓰지 않는다"고 못박고 응답 `applied` 는
+ * 항상 `false` 다(명세 §15·§21-9). 호출해도 활성 계획은 그대로이므로 재조회할
+ * 것이 없다.
+ */
 export function skipPlanStep(
   planId: string,
   sequence: number,
