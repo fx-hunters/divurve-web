@@ -35,12 +35,26 @@ export type HomeBlockKey =
   | "attention"
   | "forecast";
 
-/** 데이터가 없는 블록도 생략되지 않고 이 상태로만 구분된다. */
-export type HomeBlockState =
-  | "filled"
-  | "empty"
-  | "route_pending"
-  | "not_measured";
+/**
+ * 데이터가 없는 블록도 생략되지 않고 이 상태로만 구분된다.
+ *
+ * `route_pending`은 목표 Route 기능 플래그와 함께 사라졌다(divurve-api#84) —
+ * 계산이 확정돼 "아직 준비 중"인 상태가 더는 발생하지 않는다.
+ */
+export type HomeBlockState = "filled" | "empty" | "not_measured";
+
+/**
+ * 시장 국면 배지 3종. 백엔드 `RegimeBadgeMapper.Badge`가 국면 4종
+ * (`calm`·`normal`·`elevated`·`stress`)을 이 3종으로 옮겨 실어 준다. 매핑 책임은
+ * 서버에 있으므로 프론트는 이 값을 그대로 그리기만 한다(API 명세 v2 §2).
+ */
+/**
+ * 위험성향 등급. 백엔드 `HomeSummaryResponse.ProfileFitDto.grade`와
+ * `RiskProfileResponse`의 `allowableValues` 4종과 같은 리터럴이다.
+ */
+export type RiskGrade = "stable" | "balanced" | "aggressive" | "challenging";
+
+export type HomeBadge = "normal" | "caution" | "turbulent";
 
 export interface HomeBlock {
   readonly order: number;
@@ -69,6 +83,7 @@ export interface HomeSummaryResponse {
   readonly blocks: readonly HomeBlock[];
   readonly today: {
     readonly headlineCode?: string;
+    /** 어휘는 `HomeBadge`. 응답은 런타임 검증을 거치지 않아 문자열로 받고 표시 계층에서 좁힌다. */
     readonly badge?: string;
   };
   readonly profileFit: {
@@ -83,9 +98,9 @@ export interface HomeSummaryResponse {
   };
   readonly goalsRoute: {
     readonly activeGoals: readonly HomeActiveGoal[];
-    readonly routeEnabled: boolean;
   };
   readonly attention: {
+    /** 어휘는 `HomeBadge`. `today.badge`와 같은 이유로 문자열로 받는다. */
     readonly regimeBadge?: string;
     readonly upcomingEvents: readonly HomeUpcomingEvent[];
   };

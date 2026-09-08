@@ -4,7 +4,6 @@ import { GoalsRouteCard } from "./goals-route-card";
 import type { GoalsRouteData } from "../../types/home";
 
 const GOALS: GoalsRouteData = {
-  isRouteEnabled: true,
   goals: [
     {
       id: "goal-1",
@@ -30,18 +29,13 @@ describe("GoalsRouteCard", () => {
     expect(onNavigateToPlanner).toHaveBeenCalled();
   });
 
-  it("경로 계산이 꺼져 있으면 준비 중 안내를 보여준다", () => {
-    render(
-      <GoalsRouteCard data={{ goals: [], isRouteEnabled: false }} />,
-    );
-    expect(screen.getByText(/환전 경로 계산 기능은 아직/)).toBeInTheDocument();
+  it("목표가 없으면 빈 안내만 보여주고, 준비 중 안내는 더 이상 없다", () => {
+    render(<GoalsRouteCard data={{ goals: [] }} />);
+
+    expect(screen.getByText(/등록된 목표가 없습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/준비 중/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "플래너 열기" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("경로 계산이 켜져 있는데 목표가 없으면 빈 안내를 보여준다", () => {
-    render(<GoalsRouteCard data={{ goals: [], isRouteEnabled: true }} />);
-    expect(screen.getByText("등록된 목표가 없습니다.")).toBeInTheDocument();
   });
 });

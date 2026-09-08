@@ -414,6 +414,11 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
   ],
 };
 
+/**
+ * `GET /api/v1/home/summary` 실제 응답 형태 그대로다(2026-09 데모 세션에서 확인).
+ * `goals_route` 의 키는 `active_goals` 하나뿐이며, `route_enabled`·`route_pending`
+ * 은 divurve-api#84 에서 사라졌다. 배지 어휘는 `normal`·`caution`·`turbulent` 3종.
+ */
 export const HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
   data: {
     blocks: [
@@ -443,7 +448,6 @@ export const HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
           status: "active",
         },
       ],
-      routeEnabled: true,
     },
     attention: {
       regimeBadge: "caution",
@@ -478,7 +482,7 @@ export const SPARSE_HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
       { order: 1, key: "today", state: "filled" },
       { order: 2, key: "profile_fit", state: "not_measured" },
       { order: 3, key: "fx_status", state: "filled" },
-      { order: 4, key: "goals_route", state: "route_pending" },
+      { order: 4, key: "goals_route", state: "empty" },
       { order: 5, key: "attention", state: "filled" },
       { order: 6, key: "forecast", state: "filled" },
     ],
@@ -489,7 +493,7 @@ export const SPARSE_HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
       topCurrencyCode: "USD",
       sensitivity1pctKrw: 93_806,
     },
-    goalsRoute: { activeGoals: [], routeEnabled: false },
+    goalsRoute: { activeGoals: [] },
     attention: { regimeBadge: "normal", upcomingEvents: [] },
     forecast: {
       pairCode: "USDKRW",
@@ -514,7 +518,7 @@ export const EMPTY_HOME_SUMMARY_FIXTURE: ApiResult<HomeSummaryResponse> = {
     today: {},
     profileFit: {},
     fxStatus: {},
-    goalsRoute: { activeGoals: [], routeEnabled: false },
+    goalsRoute: { activeGoals: [] },
     attention: { upcomingEvents: [] },
     forecast: {},
   },
