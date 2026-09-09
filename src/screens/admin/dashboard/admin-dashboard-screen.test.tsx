@@ -113,7 +113,7 @@ describe("AdminDashboardScreen", () => {
       screen.getByRole("heading", { name: "운영 현황" }),
     ).toBeInTheDocument();
     await screen.findAllByText("12건");
-    const aiCard = within(card("AI 호출"));
+    const aiCard = within(card("AI 결과 분해"));
     expect(aiCard.getByText("3건")).toBeInTheDocument();
     expect(aiCard.getByText("25.0%")).toBeInTheDocument();
     expect(aiCard.getByText("4건")).toBeInTheDocument();
