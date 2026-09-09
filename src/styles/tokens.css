@@ -21,6 +21,13 @@
   --header-height: 64px;
   --footer-height: 48px;
   --mobile-nav-height: 64px;
+  /*
+   * 콜드 스타트 배너가 차지한 높이. 배너가 없으면 0이고, 뜨면 배너가 자기
+   * 실제 높이를 여기에 적는다(cold-start-banner.tsx). 화면 한 판을 채우는
+   * 셸들은 100vh 대신 --viewport-height를 써서 배너에 자리를 내준다.
+   */
+  --cold-start-banner-height: 0px;
+  --viewport-height: calc(100vh - var(--cold-start-banner-height));
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
