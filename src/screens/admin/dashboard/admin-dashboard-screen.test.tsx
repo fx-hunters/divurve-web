@@ -1,18 +1,40 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminDashboardScreen } from "./admin-dashboard-screen";
-import { fetchAdminAiCalls, fetchAdminRefreshStatus } from "../../../api/admin";
+import {
+  fetchAdminAiCalls,
+  fetchAdminAiUsageSummary,
+  fetchAdminCurrencies,
+  fetchAdminRefreshStatus,
+  fetchAdminUsers,
+} from "../../../api/admin";
 import { fetchAdminFxGaps } from "../../../api/admin-fx-gaps";
 
-vi.mock("../../../api/admin", () => ({
-  fetchAdminAiCalls: vi.fn(),
-  fetchAdminRefreshStatus: vi.fn(),
-}));
+// 실제 모듈을 살려 둔다 — 카드가 어휘 상수(ADMIN_AI_OUTCOMES 등)도 함께 쓴다.
+vi.mock("../../../api/admin", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../../api/admin")>(
+      "../../../api/admin",
+    );
+  return {
+    ...actual,
+    fetchAdminAiCalls: vi.fn(),
+    fetchAdminRefreshStatus: vi.fn(),
+    fetchAdminUsers: vi.fn(),
+    fetchAdminAiUsageSummary: vi.fn(),
+    fetchAdminCurrencies: vi.fn(),
+  };
+});
 vi.mock("../../../api/admin-fx-gaps", () => ({
   fetchAdminFxGaps: vi.fn(),
 }));
 
 const META = { asOf: "2026-09-09T00:00:00Z", dataState: "live", sources: [] };
+
+/** 카드 제목으로 그 카드만 집는다 — 같은 문구가 여러 카드에 나온다. */
+function card(title: string) {
+  return screen.getByRole("heading", { name: title }).closest("section")!;
+}
 
 function callPage(totalElements: number) {
   return {
@@ -22,11 +44,13 @@ function callPage(totalElements: number) {
 }
 
 beforeEach(() => {
-  vi.mocked(fetchAdminAiCalls).mockImplementation((query) =>
-    Promise.resolve(
-      (query.outcome === "error" ? callPage(3) : callPage(12)) as never,
-    ),
-  );
+  vi.mocked(fetchAdminAiCalls).mockImplementation((query) => {
+    if (query.outcome === "error") return Promise.resolve(callPage(3) as never);
+    if (query.outcome === "fallback") {
+      return Promise.resolve(callPage(4) as never);
+    }
+    return Promise.resolve(callPage(12) as never);
+  });
   vi.mocked(fetchAdminRefreshStatus).mockResolvedValue({
     data: {
       fx: {
@@ -42,6 +66,18 @@ beforeEach(() => {
       },
       macro: { lastRefreshedAt: "2026-09-08T00:00:00Z" },
     },
+    meta: META,
+  } as never);
+  vi.mocked(fetchAdminUsers).mockResolvedValue({
+    data: { items: [], page: 0, size: 1, totalElements: 10, totalPages: 1 },
+    meta: META,
+  } as never);
+  vi.mocked(fetchAdminAiUsageSummary).mockResolvedValue({
+    data: { buckets: [] },
+    meta: META,
+  } as never);
+  vi.mocked(fetchAdminCurrencies).mockResolvedValue({
+    data: { currencies: [], currencyPairs: [] },
     meta: META,
   } as never);
   vi.mocked(fetchAdminFxGaps).mockResolvedValue({
@@ -76,14 +112,16 @@ describe("AdminDashboardScreen", () => {
     expect(
       screen.getByRole("heading", { name: "운영 현황" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("12건")).toBeInTheDocument();
-    expect(screen.getByText("3건")).toBeInTheDocument();
-    expect(screen.getByText("25.0%")).toBeInTheDocument();
+    await screen.findAllByText("12건");
+    const aiCard = within(card("AI 호출"));
+    expect(aiCard.getByText("3건")).toBeInTheDocument();
+    expect(aiCard.getByText("25.0%")).toBeInTheDocument();
+    expect(aiCard.getByText("4건")).toBeInTheDocument();
     expect(await screen.findByText("결측 2영업일")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 미완전")).toBeInTheDocument();
   });
 
-  it("총 호출과 실패를 각각 서버에서 센다", async () => {
+  it("총 호출·실패·템플릿 대체를 각각 서버에서 센다", async () => {
     render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
 
     await waitFor(() => {
@@ -94,6 +132,41 @@ describe("AdminDashboardScreen", () => {
       size: 1,
       outcome: "error",
     });
+    expect(fetchAdminAiCalls).toHaveBeenCalledWith({
+      page: 0,
+      size: 1,
+      outcome: "fallback",
+    });
+  });
+
+  it("전부 템플릿으로 나갔으면 실패 0건이어도 그 사실을 알린다", async () => {
+    vi.mocked(fetchAdminAiCalls).mockImplementation((query) => {
+      if (query.outcome === "error") {
+        return Promise.resolve(callPage(0) as never);
+      }
+      return Promise.resolve(callPage(295) as never);
+    });
+
+    render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
+
+    expect(
+      await screen.findByText(/모든 호출이 템플릿으로 나갔습니다/),
+    ).toBeInTheDocument();
+  });
+
+  it("서버가 아직 열지 않은 지표는 붉은 에러 대신 준비 중으로 둔다", async () => {
+    const { ApiError } = await import("../../../api/client");
+    vi.mocked(fetchAdminRefreshStatus).mockRejectedValue(
+      new ApiError("요청한 리소스를 찾을 수 없습니다.", 404, "NOT_FOUND"),
+    );
+
+    render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
+
+    expect(await screen.findByText("준비 중")).toBeInTheDocument();
+    expect(
+      screen.getByText("서버가 아직 제공하지 않습니다."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("카드 하나가 실패해도 나머지는 그대로 선다", async () => {
@@ -103,7 +176,7 @@ describe("AdminDashboardScreen", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     // AI 카드와 수집 카드는 살아 있다.
-    expect(await screen.findByText("12건")).toBeInTheDocument();
+    expect((await screen.findAllByText("12건")).length).toBeGreaterThan(0);
     expect(screen.getByText("2026-09-08")).toBeInTheDocument();
   });
 
