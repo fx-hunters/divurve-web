@@ -7,6 +7,11 @@
  *
  * `quota_blocked`는 실패도 성공도 아니지만 **사용자에게는 서비스가 막힌 것**이라
  * 따로 보인다.
+ *
+ * 실패 비율과 템플릿 경고는 원래 옆의 `AI 호출` 카드에 있었다. 그 카드가 총
+ * 건수·error·fallback 을 세는데 이 카드가 다섯 종을 모두 세므로 상위 집합이었고,
+ * 같은 숫자가 두 카드에 찍혀 보는 사람이 "둘이 왜 다른가" 를 먼저 의심하게 됐다.
+ * 잃을 정보 없이 여기로 합쳤다(이슈 #108).
  */
 import { useCallback, useEffect } from "react";
 import {
@@ -20,7 +25,11 @@ import {
 } from "../../admin-ai-call-vocabulary";
 import { formatAdminValue } from "../../admin-value";
 import { useAdminRequest } from "../../use-admin-request";
-import { toOutcomeWidth } from "../admin-dashboard-presenter";
+import {
+  formatFailureRate,
+  isAllFallback,
+  toOutcomeWidth,
+} from "../admin-dashboard-presenter";
 import { AdminMetricCard } from "../admin-metric-card";
 import {
   COUNT_ONLY_PAGE,
@@ -73,11 +82,14 @@ export function AiOutcomeCard({ onAuthFailure }: AdminCardProps) {
       count: dataOf(request.state)?.totalElements ?? null,
     }),
   );
+  const fallbackCount = dataOf(fallback.state)?.totalElements ?? null;
+  const errorCount = dataOf(errored.state)?.totalElements ?? null;
 
   return (
     <AdminMetricCard
       title="AI 결과 분해"
       headline={`${formatAdminValue(totalCount)}건`}
+      tone={errorCount !== null && errorCount > 0 ? "warn" : "neutral"}
       isLoading={isLoadingOf(total.state)}
       error={errorOf(total.state)}
     >
@@ -106,6 +118,17 @@ export function AiOutcomeCard({ onAuthFailure }: AdminCardProps) {
           );
         })}
       </ul>
+      <dl className="admin-kv admin-kv--inline">
+        <div className="admin-kv__pair">
+          <dt>실패 비율</dt>
+          <dd>{formatFailureRate(errorCount, totalCount)}</dd>
+        </div>
+      </dl>
+      {isAllFallback(fallbackCount, totalCount) && (
+        <p className="admin-empty">
+          모든 호출이 템플릿으로 나갔습니다. 실 API 가 꺼져 있으면 정상입니다.
+        </p>
+      )}
     </AdminMetricCard>
   );
 }

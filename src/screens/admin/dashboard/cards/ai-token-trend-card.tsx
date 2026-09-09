@@ -6,6 +6,12 @@
  *
  * 서버가 준 일자별 버킷을 날짜로 접어 그린다. 추세선·이동평균 같은 파생값을
  * 그리지 않는다(`admin-fx-rate-chart.tsx` 와 같은 규칙).
+ *
+ * 기간은 AI 호출 로그 화면과 같은 것을 쓴다(`admin-ai-call-query.ts`). 이유가
+ * 둘이다. 서버가 `from`·`to` 를 `Instant` 로 받아 ISO datetime 이 아니면 400 을
+ * 내고, 집계 버킷의 `day` 가 UTC 로 잘려 오므로 서울 기준으로 기간을 끊으면
+ * 차트의 x축이 응답과 9시간 어긋난다. 환율용 `toDefaultFxRateRange` 는 서울
+ * 기준이라 여기 쓸 수 없다(이슈 #107).
  */
 import { useCallback, useEffect, useMemo } from "react";
 import {
@@ -22,7 +28,11 @@ import {
   fetchAdminAiUsageSummary,
   type AdminAiUsageSummary,
 } from "../../../../api/admin";
-import { toDefaultFxRateRange } from "../../admin-datetime";
+import {
+  toDefaultAiCallRange,
+  toUtcRangeEnd,
+  toUtcRangeStart,
+} from "../../admin-ai-call-query";
 import { useAdminRequest } from "../../use-admin-request";
 import {
   hasAnyLiveCall,
@@ -38,10 +48,14 @@ import {
 } from "./card-state";
 
 export function AiTokenTrendCard({ onAuthFailure }: AdminCardProps) {
-  const range = useMemo(() => toDefaultFxRateRange(new Date()), []);
+  const range = useMemo(() => toDefaultAiCallRange(new Date()), []);
   const usage = useAdminRequest<[], AdminAiUsageSummary>(
     useCallback(
-      () => fetchAdminAiUsageSummary({ from: range.from, to: range.to }),
+      () =>
+        fetchAdminAiUsageSummary({
+          from: toUtcRangeStart(range.from),
+          to: toUtcRangeEnd(range.to),
+        }),
       [range],
     ),
     onAuthFailure,
