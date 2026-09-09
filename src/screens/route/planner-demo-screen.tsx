@@ -15,6 +15,7 @@ import {
   type PlannerJourneyFeedback,
 } from "./planner-journey-screen";
 import type { PlannerGoalInput, PlannerLocalGoal } from "./planner-goal-input";
+import type { PlannerJourneyNavigation } from "./use-planner-journey-flow";
 import { getPlannerToday } from "./use-planner-api";
 import {
   readPlannerUiSelection,
@@ -23,6 +24,9 @@ import {
 
 interface PlannerDemoScreenProps {
   readonly data: RoutePlanData;
+  /** 주소가 가리키는 데모 목표. 목표 선택 화면에서는 null이다. */
+  readonly goalId: string | null;
+  readonly navigation: PlannerJourneyNavigation;
   readonly onExitDemo?: () => void;
   readonly createGoalId?: () => string;
   readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
@@ -30,17 +34,21 @@ interface PlannerDemoScreenProps {
 
 export function PlannerDemoScreen({
   data,
+  goalId,
+  navigation,
   onExitDemo,
   createGoalId = () => crypto.randomUUID(),
   onOpenPlanDetail = () => undefined,
 }: PlannerDemoScreenProps) {
   const initialPlan = data.plans[0];
-  const [selectedGoalId, setSelectedGoalId] = useState(() => {
+  // 주소에 목표가 없는 목표 선택 화면에서만 쓰는 강조 상태다(API 화면과 같은 규칙).
+  const [highlightedGoalId, setHighlightedGoalId] = useState(() => {
     const storedGoalId = readPlannerUiSelection().goalId;
     return data.plans.some((plan) => plan.id === storedGoalId)
       ? storedGoalId!
       : initialPlan.id;
   });
+  const selectedGoalId = goalId ?? highlightedGoalId;
   const [appliedScenarioId, setAppliedScenarioId] = useState<string>(
     initialPlan.baseScenarioId,
   );
@@ -59,15 +67,15 @@ export function PlannerDemoScreen({
     localGoals,
   );
 
-  const handleSelectGoal = (goalId: string) => {
-    const plan = findDemoPlan(data, goalId);
-    setSelectedGoalId(goalId);
-    writePlannerGoalSelection(goalId);
+  const handleSelectGoal = (nextGoalId: string) => {
+    const plan = findDemoPlan(data, nextGoalId);
+    setHighlightedGoalId(nextGoalId);
+    writePlannerGoalSelection(nextGoalId);
     setAppliedScenarioId(plan.baseScenarioId);
     setRecordedRound(false);
     setComparison(null);
     setFeedback(
-      goalId.startsWith("demo-")
+      nextGoalId.startsWith("demo-")
         ? {
             status: "success",
             message:
@@ -132,7 +140,7 @@ export function PlannerDemoScreen({
   const handleCreateGoal = async (input: PlannerGoalInput) => {
     const id = `demo-${createGoalId()}`;
     setLocalGoals((current) => [...current, { id, input }]);
-    setSelectedGoalId(id);
+    setHighlightedGoalId(id);
     writePlannerGoalSelection(id);
     setComparison(null);
     return id;
@@ -144,6 +152,7 @@ export function PlannerDemoScreen({
       view={view}
       feedback={feedback}
       scenarioComparison={comparison}
+      navigation={navigation}
       goalCreation={{
         sourceLabel: "데모",
         canCreateRecurring: true,

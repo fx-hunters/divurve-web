@@ -8,6 +8,10 @@ import {
   createGoalPlan,
   createPlannerGoal,
   createPlannerExecutionKey,
+  deletePlannerGoal,
+  fetchPlannerGoal,
+  previewPlanDraft,
+  updatePlannerGoal,
   fetchPlanDetail,
   fetchPlanVersions,
   fetchPlannerOverview,
@@ -286,5 +290,62 @@ describe("planner API", () => {
     const spy = vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(uuid);
     expect(createPlannerExecutionKey()).toBe(uuid);
     spy.mockRestore();
+  });
+});
+
+describe("저장 전 계획 미리보기와 목표 단건 계약", () => {
+  it("목표를 저장하지 않고 조건 전체로 계획을 계산한다", async () => {
+    vi.mocked(request).mockResolvedValue(activePlan);
+    const input = {
+      goalType: "deadline",
+      purpose: "TRAVEL",
+      currencyCode: "USD",
+      allocatedHoldingAmount: 0,
+      targetAmount: 5_000,
+      targetDate: "2027-03-01",
+      budgetAmount: 500_000,
+      budgetPeriod: "monthly",
+      preferredCadence: null,
+      recurringBudgetAmount: null,
+      recurInterval: null,
+      startDate: null,
+      reviewHorizonMonths: null,
+    } as const;
+
+    await previewPlanDraft(input);
+
+    // goalId를 싣지 않는다 — 저장된 목표가 아직 없는 경로다.
+    expect(request).toHaveBeenCalledWith("/api/v1/plans/preview", {
+      method: "POST",
+      body: input,
+    });
+  });
+
+  it("목표 단건을 조회한다", async () => {
+    vi.mocked(request).mockResolvedValue(firstItem.goal);
+
+    await expect(fetchPlannerGoal("goal usd")).resolves.toEqual(firstItem.goal);
+    expect(request).toHaveBeenCalledWith("/api/v1/goals/goal%20usd");
+  });
+
+  it("바꿀 필드만 담아 목표를 수정한다", async () => {
+    vi.mocked(request).mockResolvedValue(firstItem.goal);
+
+    await updatePlannerGoal("goal-usd", { targetAmount: 7_000 });
+
+    expect(request).toHaveBeenCalledWith("/api/v1/goals/goal-usd", {
+      method: "PUT",
+      body: { targetAmount: 7_000 },
+    });
+  });
+
+  it("목표 삭제는 본문 없는 성공 응답을 허용한다", async () => {
+    vi.mocked(request).mockResolvedValue(undefined);
+
+    await expect(deletePlannerGoal("goal-usd")).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith("/api/v1/goals/goal-usd", {
+      method: "DELETE",
+      isEmptyDataAllowed: true,
+    });
   });
 });
