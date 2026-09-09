@@ -68,3 +68,4 @@
 | [0078](./0078-api-configuration-error-boundary.md) | 로컬 API 설정 오류와 연결 실패 구분 | 2026-09-09 |
 | [0079](./0079-planner-followup-review.md) | Planner 후속 검수의 금액·세션·데모 경계 보완 | 2026-09-09 |
 | [0080](./0080-planner-release-integration.md) | 최신 Planner 계약·주소와 상태 일관성 수정 통합 | 2026-09-09 |
+| [0081](./0081-planner-comparison-next-action.md) | 데모 비교 안내의 다음 회차 동기화 | 2026-09-09 |

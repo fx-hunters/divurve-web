@@ -474,6 +474,7 @@ export function presentDemoScenarioComparison(
   const goalProgress = getPlannerDemoGoalProgress(progress, plan.id);
   const baseScenario = findScenario(plan, goalProgress.appliedScenarioId);
   if (scenario === undefined || scenario.id === baseScenario.id) return null;
+  const nextAction = presentDemoPlanner(data, selectedGoalId, progress).nextAction;
   const baseInput = demoCurveInput(plan, goalProgress, baseScenario.curveData ?? plan.curveData);
   const alternativeInput =
     scenario.curveData === undefined
@@ -541,8 +542,9 @@ export function presentDemoScenarioComparison(
       },
       {
         label: "다음 행동",
-        before:
-          baseScenario.nextAction,
+        before: nextAction === null
+          ? "제공된 다음 회차가 없습니다"
+          : `${nextAction.sequence}회차 · ${nextAction.scheduledDate} · ${nextAction.amountLabel}`,
         after: scenario.nextAction,
       },
     ],
