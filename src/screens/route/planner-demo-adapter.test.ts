@@ -53,6 +53,22 @@ function withoutScenarioCurveData(
 }
 
 describe("planner demo adapter", () => {
+  it.each([
+    ["usd-etf-recurring-demo", "2회차 · 2026-10-16 · 290 USD"],
+    ["jpy-travel-deadline-demo", "2회차 · 2026-10-05 · 35,000 JPY"],
+  ])("%s 기록 후 비교의 기존 다음 행동도 두 번째 회차를 가리킨다", (id, expected) => {
+    const progress = recordPlannerDemoSequence(EMPTY_PLANNER_DEMO_PROGRESS, id, 1);
+    const comparison = presentDemoScenarioComparison(data, id, "missedRound", progress)!;
+    expect(comparison.rows.find((row) => row.label === "다음 행동")?.before).toBe(expected);
+  });
+
+  it("제공된 회차를 모두 기록하면 비교에 첫 회차 안내를 되살리지 않는다", () => {
+    const comparison = presentDemoScenarioComparison(data, "usd-etf-recurring-demo",
+      "rapidRise", demoProgress("usd-etf-recurring-demo", [1, 2]))!;
+    expect(comparison.rows.find((row) => row.label === "다음 행동")?.before)
+      .toBe("제공된 다음 회차가 없습니다");
+  });
+
   it("적용한 경로가 다음 비교의 기준이며 기록 당시 금액은 다른 경로 적용 후에도 유지된다", () => {
     const id = "jpy-travel-deadline-demo";
     const first = recordPlannerDemoSequence(EMPTY_PLANNER_DEMO_PROGRESS, id, 1);
