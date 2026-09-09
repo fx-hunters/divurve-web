@@ -631,3 +631,62 @@
 .admin-metric-card__headline--muted {
   color: var(--text-muted);
 }
+
+/* 차트는 카드 한 칸보다 넓어야 읽힌다(#100). */
+.admin-metric-grid--wide {
+  grid-template-columns: 1fr;
+}
+
+/* AI 결과 분해(#101). 색만으로 구분하지 않도록 라벨과 건수를 함께 세운다. */
+.admin-outcome-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-outcome-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.admin-outcome-row__label {
+  color: var(--text-muted);
+}
+
+.admin-outcome-row__track {
+  height: 0.5rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-hover);
+  overflow: hidden;
+}
+
+.admin-outcome-row__bar {
+  display: block;
+  height: 100%;
+}
+
+.admin-outcome-row__bar--ok {
+  background-color: var(--primary);
+}
+
+.admin-outcome-row__bar--warn {
+  background-color: var(--warn);
+}
+
+.admin-outcome-row__bar--off {
+  background-color: var(--danger);
+}
+
+.admin-outcome-row__bar--unknown {
+  background-color: var(--text-muted);
+}
+
+.admin-outcome-row__count {
+  font-variant-numeric: tabular-nums;
+}

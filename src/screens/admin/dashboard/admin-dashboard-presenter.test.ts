@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { AdminFxPairCoverage } from "../../../api/admin-fx-gaps";
 import type { AdminRefreshStatus } from "../../../api/admin";
+import type { AdminAiUsageBucket, AdminCurrencyMaster } from "../../../api/admin";
 import {
   formatFailureRate,
+  hasAnyLiveCall,
   isAllFallback,
+  toCurrencyDigest,
+  toOutcomeWidth,
+  toTokenPoints,
   toGapDigest,
   toGapTone,
   toRefreshDigest,
@@ -137,5 +142,177 @@ describe("isAllFallback", () => {
     expect(isAllFallback(0, 0)).toBe(false);
     expect(isAllFallback(null, 10)).toBe(false);
     expect(isAllFallback(10, null)).toBe(false);
+  });
+});
+
+describe("toOutcomeWidth", () => {
+  it("총계 대비 비율을 %로 준다", () => {
+    expect(toOutcomeWidth(3, 12)).toBe(25);
+    expect(toOutcomeWidth(12, 12)).toBe(100);
+  });
+
+  it("총계를 모르거나 0이면 그리지 않는다", () => {
+    expect(toOutcomeWidth(3, 0)).toBeNull();
+    expect(toOutcomeWidth(null, 12)).toBeNull();
+    expect(toOutcomeWidth(3, null)).toBeNull();
+  });
+
+  it("총계를 넘는 값도 띠 안으로 눌러 담는다", () => {
+    expect(toOutcomeWidth(20, 12)).toBe(100);
+  });
+});
+
+describe("toTokenPoints", () => {
+  function bucketOf(
+    overrides: Partial<AdminAiUsageBucket> = {},
+  ): AdminAiUsageBucket {
+    return {
+      day: "2026-09-01",
+      purpose: "narrate",
+      model: "claude-opus-5",
+      calls: 1,
+      inputTokens: 10,
+      outputTokens: 5,
+      ...overrides,
+    };
+  }
+
+  it("같은 날의 버킷을 하나로 접고 날짜순으로 세운다", () => {
+    const points = toTokenPoints([
+      bucketOf({ day: "2026-09-02", inputTokens: 3, outputTokens: 1 }),
+      bucketOf({ day: "2026-09-01", inputTokens: 10, outputTokens: 5 }),
+      bucketOf({ day: "2026-09-01", inputTokens: 7, outputTokens: 2 }),
+    ]);
+
+    expect(points.map((point) => point.day)).toEqual([
+      "2026-09-01",
+      "2026-09-02",
+    ]);
+    expect(points[0]!.inputTokens).toBe(17);
+    expect(points[0]!.outputTokens).toBe(7);
+  });
+
+  it("토큰 칸이 비어도 0으로 세고 버리지 않는다", () => {
+    const points = toTokenPoints([
+      bucketOf({ inputTokens: null, outputTokens: null }),
+    ]);
+
+    expect(points[0]!.inputTokens).toBe(0);
+    expect(points[0]!.outputTokens).toBe(0);
+  });
+
+  it("날짜를 모르는 버킷은 점으로 세우지 않는다", () => {
+    expect(toTokenPoints([bucketOf({ day: null })])).toEqual([]);
+  });
+
+  it("model 이 null 인 날은 LLM 을 부르지 않은 것으로 표시한다", () => {
+    const points = toTokenPoints([
+      bucketOf({ day: "2026-09-01", model: null }),
+      bucketOf({ day: "2026-09-02", model: "claude-opus-5" }),
+    ]);
+
+    expect(points[0]!.hasLiveCall).toBe(false);
+    expect(points[1]!.hasLiveCall).toBe(true);
+  });
+
+  it("한 날에 실호출이 하나라도 있으면 그 날은 실호출로 본다", () => {
+    const points = toTokenPoints([
+      bucketOf({ model: null }),
+      bucketOf({ model: "claude-opus-5" }),
+    ]);
+
+    expect(points[0]!.hasLiveCall).toBe(true);
+  });
+});
+
+describe("hasAnyLiveCall", () => {
+  it("한 점이라도 실호출이 있으면 참", () => {
+    expect(
+      hasAnyLiveCall([
+        { day: "d1", inputTokens: 0, outputTokens: 0, hasLiveCall: false },
+        { day: "d2", inputTokens: 1, outputTokens: 1, hasLiveCall: true },
+      ]),
+    ).toBe(true);
+  });
+
+  it("전부 템플릿이면 거짓", () => {
+    expect(
+      hasAnyLiveCall([
+        { day: "d1", inputTokens: 0, outputTokens: 0, hasLiveCall: false },
+      ]),
+    ).toBe(false);
+    expect(hasAnyLiveCall([])).toBe(false);
+  });
+});
+
+describe("toCurrencyDigest", () => {
+  function masterOf(
+    overrides: Partial<AdminCurrencyMaster> = {},
+  ): AdminCurrencyMaster {
+    return {
+      currencies: [],
+      currencyPairs: [],
+      ...overrides,
+    };
+  }
+
+  function currencyOf(code: string, isSupported: boolean | null) {
+    return {
+      currencyCode: code,
+      nameKo: code,
+      symbol: "$",
+      minorUnits: 2,
+      quoteUnit: 1,
+      usdSide: "quote",
+      isHomeCurrency: false,
+      isSupported,
+      supportNote: isSupported === false ? "미고시" : null,
+      colorToken: null,
+      sortOrder: 1,
+    };
+  }
+
+  it("미지원 통화와 저장·유도 쌍을 갈라 센다", () => {
+    const digest = toCurrencyDigest(
+      masterOf({
+        currencies: [
+          currencyOf("USD", true),
+          currencyOf("GBP", false),
+          currencyOf("XXX", null),
+        ],
+        currencyPairs: [
+          {
+            pairCode: "USDKRW",
+            baseCurrencyCode: "USD",
+            quoteCurrencyCode: "KRW",
+            isStored: true,
+            deriveViaPairCode: null,
+          },
+          {
+            pairCode: "GBPKRW",
+            baseCurrencyCode: "GBP",
+            quoteCurrencyCode: "KRW",
+            isStored: false,
+            deriveViaPairCode: "USDKRW",
+          },
+        ],
+      }),
+    );
+
+    expect(digest.totalCurrencies).toBe(3);
+    // isSupported 를 모르는 통화는 미지원으로 몰지 않는다.
+    expect(digest.unsupported).toHaveLength(1);
+    expect(digest.unsupported[0]!.currencyCode).toBe("GBP");
+    expect(digest.storedPairs).toBe(1);
+    expect(digest.derivedPairs).toBe(1);
+  });
+
+  it("비어 있으면 0으로 센다", () => {
+    expect(toCurrencyDigest(masterOf())).toEqual({
+      totalCurrencies: 0,
+      unsupported: [],
+      storedPairs: 0,
+      derivedPairs: 0,
+    });
   });
 });
