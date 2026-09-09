@@ -6,6 +6,9 @@ import {
   completePlanStep,
   createPlannerGoal,
   createGoalPlan,
+  deletePlannerGoal,
+  previewPlanDraft,
+  updatePlannerGoal,
   createPlannerExecutionKey,
   fetchPlannerOverview,
   previewGoalPlan,
@@ -16,6 +19,8 @@ import {
 import type {
   PlannerPlanResponse,
   PlannerGoalCreateRequest,
+  PlannerGoalUpdateRequest,
+  PlannerPlanPreviewRequest,
   PlannerScenarioPreviewRequest,
   PlannerScenarioPreviewResponse,
   PlannerStepCompleteResponse,
@@ -41,7 +46,8 @@ export type PlannerActionState =
   | {
       readonly status: "success";
       readonly message: string;
-      readonly result: PlannerActionResult;
+      /** 서버가 돌려준 결과. 삭제처럼 본문이 없는 요청에는 없다. */
+      readonly result?: PlannerActionResult;
     }
   | { readonly status: "error"; readonly message: string };
 
@@ -52,6 +58,10 @@ export interface PlannerApiDependencies {
   readonly preview: typeof previewGoalPlan;
   readonly create: typeof createGoalPlan;
   readonly createGoal: typeof createPlannerGoal;
+  readonly updateGoal: typeof updatePlannerGoal;
+  readonly deleteGoal: typeof deletePlannerGoal;
+  /** 저장된 목표 없이 조건만으로 계산하는 미리보기. */
+  readonly previewDraft: typeof previewPlanDraft;
   readonly previewScenario: typeof previewPlanScenario;
   readonly apply: typeof applyDraftPlan;
   readonly createExecutionKey: () => string;
@@ -69,6 +79,9 @@ const DEFAULT_DEPENDENCIES: PlannerApiDependencies = {
   preview: previewGoalPlan,
   create: createGoalPlan,
   createGoal: createPlannerGoal,
+  updateGoal: updatePlannerGoal,
+  deleteGoal: deletePlannerGoal,
+  previewDraft: previewPlanDraft,
   previewScenario: previewPlanScenario,
   apply: applyDraftPlan,
   createExecutionKey: createPlannerExecutionKey,
@@ -108,6 +121,8 @@ export function usePlannerApi(
     readonly goalId: string;
     readonly plan: PlannerPlanResponse;
   } | null>(null);
+  const [draftPreview, setDraftPreview] =
+    useState<PlannerPlanResponse | null>(null);
   const [scenarioPreview, setScenarioPreview] =
     useState<PlannerScenarioPreviewResponse | null>(null);
   const [skipPreview, setSkipPreview] =
@@ -304,6 +319,102 @@ export function usePlannerApi(
     [dependencies],
   );
 
+  /**
+   * 목표를 저장하기 전에 조건만으로 계획을 계산한다.
+   *
+   * 저장된 목표가 없으므로 `planPreview`(목표별 미리보기)와 자리를 나눠 쓴다.
+   * 응답의 planId·goalId·version은 모두 null이다.
+   *
+   * 계산할 수 없는 조건은 `null`로 들어온다(반복형 — BE 계획 §1-1). 요청을 보내지
+   * 않고 조용히 물러난다. 없는 값을 지어내 보내는 것보다 낫다.
+   */
+  const previewDraft = useCallback(
+    async (input: PlannerPlanPreviewRequest | null): Promise<boolean> => {
+      if (input === null || isActionPendingRef.current) return false;
+      isActionPendingRef.current = true;
+      setActionState({ status: "loading" });
+      try {
+        const result = await dependencies.previewDraft(input);
+        setDraftPreview(result);
+        setActionState({
+          status: "success",
+          message:
+            "입력한 조건으로 계산한 미리보기입니다. 목표도 계획도 아직 저장되지 않았습니다.",
+          result,
+        });
+        isActionPendingRef.current = false;
+        return true;
+      } catch (error) {
+        setActionState({ status: "error", message: errorMessage(error) });
+        isActionPendingRef.current = false;
+        return false;
+      }
+    },
+    [dependencies],
+  );
+
+  const updateGoal = useCallback(
+    async (
+      goalId: string,
+      input: PlannerGoalUpdateRequest,
+    ): Promise<boolean> => {
+      if (isActionPendingRef.current) return false;
+      isActionPendingRef.current = true;
+      setActionState({ status: "loading" });
+      try {
+        const result = await dependencies.updateGoal(goalId, input);
+        const refreshed = await dependencies.load();
+        setState({ status: "success", data: refreshed });
+        setActionState({
+          status: "success",
+          message: "목표 조건을 바꾸고 서버에서 다시 확인했습니다.",
+          result,
+        });
+        isActionPendingRef.current = false;
+        return true;
+      } catch (error) {
+        setActionState({ status: "error", message: errorMessage(error) });
+        isActionPendingRef.current = false;
+        return false;
+      }
+    },
+    [dependencies],
+  );
+
+  /**
+   * 목표를 지운다.
+   *
+   * 되돌릴 수 없으므로 호출부가 확인을 받은 뒤에만 부른다. 지운 목표를 가리키던
+   * 화면 상태가 남지 않도록 임시 상태를 모두 비운다.
+   */
+  const deleteGoal = useCallback(
+    async (goalId: string): Promise<boolean> => {
+      if (isActionPendingRef.current) return false;
+      isActionPendingRef.current = true;
+      setActionState({ status: "loading" });
+      try {
+        await dependencies.deleteGoal(goalId);
+        const refreshed = await dependencies.load();
+        setState({ status: "success", data: refreshed });
+        setPlanPreview(null);
+        setDraftPreview(null);
+        setSkipPreview(null);
+        setScenarioPreview(null);
+        setActionState({
+          status: "success",
+          message: "목표를 지우고 남은 목표를 다시 확인했습니다.",
+        });
+        isActionPendingRef.current = false;
+        return true;
+      } catch (error) {
+        setActionState({ status: "error", message: errorMessage(error) });
+        isActionPendingRef.current = false;
+        return false;
+      }
+    },
+    [dependencies],
+  );
+
   const previewScenario = useCallback(
     async (
       planId: string,
@@ -378,6 +489,7 @@ export function usePlannerApi(
   }, []);
   const clearTransient = useCallback(() => {
     setPlanPreview(null);
+    setDraftPreview(null);
     setSkipPreview(null);
     setScenarioPreview(null);
     setActionState({ status: "idle" });
@@ -387,6 +499,7 @@ export function usePlannerApi(
     state,
     actionState,
     planPreview,
+    draftPreview,
     skipPreview,
     scenarioPreview,
     reload,
@@ -395,6 +508,9 @@ export function usePlannerApi(
     preview,
     create,
     createGoal,
+    updateGoal,
+    deleteGoal,
+    previewDraft,
     previewScenario,
     apply,
     clearTransient,

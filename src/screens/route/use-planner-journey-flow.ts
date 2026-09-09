@@ -9,11 +9,25 @@ import {
   writePlannerStepSelection,
 } from "./planner-ui-selection";
 
-export type JourneyStage =
-  | "goal"
-  | "main"
-  | "planSetup"
-  | "history";
+/** 목표 하나를 고른 뒤의 단계. */
+export type PlannerGoalStage = "main" | "planSetup" | "history" | "edit";
+
+export type JourneyStage = "goal" | PlannerGoalStage;
+
+/**
+ * 단계 이동을 화면 밖으로 넘기는 계약.
+ *
+ * 단계를 이 훅이 `useState`로 들고 있으면 주소창이 단계를 모른다 — 새로고침하면
+ * 첫 단계로 돌아가고, 뒤로가기는 플래너 전체를 벗어난다. 그래서 현재 단계는
+ * 받아서 쓰고, 이동은 호출부(주소를 아는 쪽)에 맡긴다.
+ */
+export interface PlannerJourneyNavigation {
+  readonly stage: JourneyStage;
+  /** 목표 선택으로 돌아간다. 주소에서 목표가 빠진다. */
+  readonly onOpenGoalSelect: () => void;
+  /** 목표 하나의 단계를 연다. 목표를 바꾸는 이동도 이 함수로 한다. */
+  readonly onOpenGoalStage: (goalId: string, stage: PlannerGoalStage) => void;
+}
 
 export interface PlannerJourneyOperations {
   readonly onSelectGoal: (goalId: string) => void;
@@ -34,8 +48,8 @@ export interface PlannerJourneyOperations {
 export function usePlannerJourneyFlow(
   view: PlannerViewModel,
   operations: PlannerJourneyOperations,
+  navigation: PlannerJourneyNavigation,
 ) {
-  const [stage, setStage] = useState<JourneyStage>("goal");
   const [selectedSequence, setSelectedSequenceState] = useState<number | null>(
     () => {
       const stored = readPlannerUiSelection();
@@ -62,44 +76,52 @@ export function usePlannerJourneyFlow(
     );
   }, [view.nextAction?.sequence, view.selectedGoal?.id, view.steps]);
 
+  const goalId = view.selectedGoal?.id ?? null;
+
   const setSelectedSequence = (sequence: number | null) => {
     setSelectedSequenceState(sequence);
     if (sequence !== null) {
-      writePlannerStepSelection(view.selectedGoal?.id ?? null, sequence);
+      writePlannerStepSelection(goalId, sequence);
     }
   };
 
-  const selectGoal = (goalId: string) => {
-    operations.onSelectGoal(goalId);
-    writePlannerGoalSelection(goalId);
+  /** 목표를 골라 곧바로 들어간다. 주소가 그 목표를 가리키게 된다. */
+  const selectGoal = (nextGoalId: string) => {
+    operations.onSelectGoal(nextGoalId);
+    writePlannerGoalSelection(nextGoalId);
     setSelectedScenarioId(null);
-    setStage("main");
+    navigation.onOpenGoalStage(nextGoalId, "main");
   };
-  const chooseGoal = (goalId: string) => {
-    operations.onSelectGoal(goalId);
-    writePlannerGoalSelection(goalId);
+  /** 목록에서 강조만 바꾼다. 아직 이동하지 않는다. */
+  const chooseGoal = (nextGoalId: string) => {
+    operations.onSelectGoal(nextGoalId);
+    writePlannerGoalSelection(nextGoalId);
     setSelectedScenarioId(null);
   };
-  const enterSelectedGoal = () => setStage("main");
+  const openStage = (stage: PlannerGoalStage) => {
+    if (goalId !== null) navigation.onOpenGoalStage(goalId, stage);
+  };
+  const enterSelectedGoal = () => openStage("main");
+  const openHistory = () => openStage("history");
+  const openEdit = () => openStage("edit");
+  const backToGoals = () => navigation.onOpenGoalSelect();
   const continueFromStatus = async () => {
     if (view.plan?.planSource === "active") {
-      setStage("main");
+      openStage("main");
       return;
     }
     if (view.plan?.planSource === "preview") {
-      setStage("planSetup");
+      openStage("planSetup");
       return;
     }
-    if (await operations.onPreviewPlan()) setStage("planSetup");
+    if (await operations.onPreviewPlan()) openStage("planSetup");
   };
   const returnFromPlanSetup = () => {
     operations.onDiscardPlanPreview();
-    setStage("main");
+    openStage("main");
   };
   const createPlan = async () => {
-    if (await operations.onCreatePlan()) {
-      setStage("main");
-    }
+    if (await operations.onCreatePlan()) openStage("main");
   };
   const complete = async (amount: number, rate: number) => {
     return operations.onComplete(amount, rate);
@@ -130,14 +152,16 @@ export function usePlannerJourneyFlow(
   };
 
   return {
-    stage,
-    setStage,
+    stage: navigation.stage,
     selectedSequence,
     setSelectedSequence,
     selectedScenarioId,
     selectGoal,
     chooseGoal,
     enterSelectedGoal,
+    openHistory,
+    openEdit,
+    backToGoals,
     continueFromStatus,
     returnFromPlanSetup,
     createPlan,

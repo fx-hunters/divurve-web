@@ -4,21 +4,28 @@ import {
   getDataSourceCopy,
 } from "../../components/common/data-source-badge";
 import type {
+  PlannerPlanSummaryViewModel,
   PlannerScenarioComparisonViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerGoalForm } from "./planner-goal-form";
+import { PlannerGoalEditForm } from "./planner-goal-edit-form";
+import type { PlannerGoalEditDraft } from "./planner-goal-edit-input";
 import type { PlannerGoalInput } from "./planner-goal-input";
+import type { PlannerGoalUpdateRequest } from "../../api/planner-contract";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
 import { PlannerJourneyMain } from "./planner-journey-main";
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerScenarioModal } from "./planner-journey-scenario";
+import { PlannerContextStrip } from "./planner-context-strip";
+import type { PlannerContextViewModel } from "./planner-context-presenter";
 import { PlannerPlanHistory } from "./planner-plan-history";
 import { toPlanSummaryFacts } from "./planner-plan-facts";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import {
   usePlannerJourneyFlow,
+  type PlannerJourneyNavigation,
   type PlannerJourneyOperations,
 } from "./use-planner-journey-flow";
 
@@ -42,7 +49,20 @@ interface PlannerJourneyScreenProps extends PlannerJourneyOperations {
     readonly canCreateRecurring: boolean;
     readonly today: string;
     readonly onCreate: (input: PlannerGoalInput) => Promise<string | null>;
+    /** 저장 전 계획 계산. 지원하지 않는 화면은 넘기지 않는다. */
+    readonly onPreview?: (input: PlannerGoalInput) => Promise<boolean>;
+    readonly preview?: PlannerPlanSummaryViewModel | null;
   };
+  /** 목표 수정·삭제. 지원하지 않는 화면은 넘기지 않는다. */
+  readonly goalEditing?: {
+    readonly initial: PlannerGoalEditDraft;
+    readonly today: string;
+    readonly onSave: (input: PlannerGoalUpdateRequest) => Promise<boolean>;
+    readonly onDelete: () => Promise<boolean>;
+  };
+  readonly navigation: PlannerJourneyNavigation;
+  /** 서버가 준 배경 정보. 없으면 띠를 그리지 않는다. */
+  readonly context?: PlannerContextViewModel | null;
   readonly onOpenPlanDetail: (goalId: string, planId: string) => void;
   readonly onExploreDemo?: () => void;
   readonly onExitDemo?: () => void;
@@ -67,12 +87,15 @@ export function PlannerJourneyScreen({
   scenarioComparison,
   history,
   goalCreation,
+  goalEditing,
+  navigation,
+  context = null,
   onOpenPlanDetail,
   onExploreDemo,
   onExitDemo,
   ...operations
 }: PlannerJourneyScreenProps) {
-  const flow = usePlannerJourneyFlow(view, operations);
+  const flow = usePlannerJourneyFlow(view, operations, navigation);
   const [isGoalFormOpen, setGoalFormOpen] = useState(false);
   const [isScenarioOpen, setScenarioOpen] = useState(false);
   const [isPlanChanged, setPlanChanged] = useState(false);
@@ -132,6 +155,8 @@ export function PlannerJourneyScreen({
         <DataSourceBadge kind={view.dataSource.kind} />
       </header>
 
+      {context !== null && <PlannerContextStrip context={context} />}
+
       <div className="planner-api-journey" data-stage={flow.stage}>
         {flow.stage === "goal" && isGoalFormOpen && (
           <PlannerGoalForm
@@ -140,6 +165,8 @@ export function PlannerJourneyScreen({
             isPending={isPending}
             today={goalCreation.today}
             onSubmit={handleCreateGoal}
+            onPreview={goalCreation.onPreview}
+            preview={goalCreation.preview}
             onCancel={() => setGoalFormOpen(false)}
           />
         )}
@@ -169,12 +196,9 @@ export function PlannerJourneyScreen({
             onSkip={() => void handleSkip()}
             onExploreScenario={handleOpenScenario}
             onOpenDetail={handleOpenDetail}
-            onOpenHistory={
-              history === undefined
-                ? undefined
-                : () => flow.setStage("history")
-            }
-            onBackToGoals={() => flow.setStage("goal")}
+            onOpenHistory={history === undefined ? undefined : flow.openHistory}
+            onOpenEdit={goalEditing === undefined ? undefined : flow.openEdit}
+            onBackToGoals={flow.backToGoals}
             onPlanChangeAnimationEnd={() => setPlanChanged(false)}
           />
         )}
@@ -186,7 +210,23 @@ export function PlannerJourneyScreen({
             facts={toPlanSummaryFacts(view)}
             dependencies={history.dependencies}
             explanationRequester={history.explanationRequester}
-            onBack={() => flow.setStage("main")}
+            onBack={flow.enterSelectedGoal}
+          />
+        )}
+        {flow.stage === "edit" && goalEditing !== undefined && goal !== null && (
+          <PlannerGoalEditForm
+            goal={goal}
+            initial={goalEditing.initial}
+            isPending={isPending}
+            today={goalEditing.today}
+            onSave={goalEditing.onSave}
+            onDelete={async () => {
+              // 목표를 지우면 그 목표를 가리키던 주소가 남으면 안 된다.
+              const isDeleted = await goalEditing.onDelete();
+              if (isDeleted) flow.backToGoals();
+              return isDeleted;
+            }}
+            onBack={flow.enterSelectedGoal}
           />
         )}
         {flow.stage === "planSetup" && view.plan !== null && (
