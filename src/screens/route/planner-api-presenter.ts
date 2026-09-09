@@ -1,89 +1,111 @@
-/**
- * 서버 계획 응답(`PlanResponse`)을 화면 ViewModel로 옮긴다.
- *
- * 계산은 하지 않는다(AGENTS.md §1). 회차 수·다음 회차·비용 범위·예산 상태는
- * 전부 `summary` 가 준 값을 그대로 쓰고, 여기서는 표시 문구만 만든다.
- */
-import type {
-  PlanBudgetState,
-  PlanCostRange,
-  PlanResponse,
-  PlanStatusCode,
-} from "../../api/generated/divurve-api";
 import type { PlannerApiOverview } from "../../api/planner";
 import type {
-  PlannerCurveNodeViewModel,
+  PlannerCostRange,
+  PlannerPlanResponse,
+  PlannerScenarioPreviewResponse,
+  PlannerScenarioSide,
+  PlannerStepSkipResponse,
+} from "../../api/planner-contract";
+import {
+  getDataSourceCopy,
+  toApiDataSourceKind,
+} from "../../components/common/data-source-badge";
+import type {
   PlannerCurveViewModel,
-  PlannerNodeStatus,
-  PlannerPlanSummaryViewModel,
+  PlannerStepNodeStatus,
   PlannerSourceItem,
+  PlannerScenarioComparisonViewModel,
+  PlannerScenarioOptionViewModel,
   PlannerStepViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
+import {
+  mergePlannerCurveDomains,
+  presentPlannerCurve,
+  type PlannerCurveInput,
+} from "./planner-curve-presenter";
+
+const API_SCENARIO_OPTIONS: readonly PlannerScenarioOptionViewModel[] = [
+  {
+    id: "expectedRange",
+    label: "현재 계획 유지",
+    description: "서버에 적용 중인 계획을 그대로 확인합니다.",
+    scenarioCode: null,
+    isCurrent: true,
+    requiresBudget: false,
+  },
+  {
+    id: "rapidRise",
+    label: "환율이 빠르게 상승하면",
+    description: "변화 조건을 서버에 전달해 대체 계획을 미리 봅니다.",
+    scenarioCode: "RATE_UP",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "decline",
+    label: "환율이 하락하면",
+    description: "변화 조건을 서버에 전달해 대체 계획을 미리 봅니다.",
+    scenarioCode: "RATE_DOWN",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "missedRound",
+    label: "이번 회차를 놓치면",
+    description: "다음 회차를 건너뛴 경우의 계획을 서버에서 비교합니다.",
+    scenarioCode: "STEP_SKIPPED",
+    isCurrent: false,
+    requiresBudget: false,
+  },
+  {
+    id: "reducedBudget",
+    label: "사용할 예산이 줄면",
+    description: "입력한 새 예산 조건으로 계획을 서버에서 비교합니다.",
+    scenarioCode: "BUDGET_DECREASED",
+    isCurrent: false,
+    requiresBudget: true,
+  },
+];
 
 const numberFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 2,
 });
-
 const krwFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 0,
 });
 
-/** 값이 없을 때 쓰는 문구. 숫자를 지어내지 않고 없다는 사실을 그대로 적는다. */
-const UNSET_LABEL = "미설정";
-const NO_SERVER_VALUE_LABEL = "서버 값 없음";
+function formatAmount(value: number, currencyCode: string): string {
+  return `${numberFormatter.format(value)} ${currencyCode}`;
+}
 
-/** 백엔드 `PlanStatus` 문구. 리터럴 유니온이라 누락은 컴파일 에러가 된다. */
-const PLAN_STATUS_LABELS: Readonly<Record<PlanStatusCode, string>> = {
-  draft: "계산됨",
-  active: "적용 중",
-  needs_review: "재검토 필요",
-  completed: "완료",
-  paused: "일시 정지",
-  superseded: "대체됨",
-};
+function formatKrw(value: number): string {
+  return `${krwFormatter.format(value)}원`;
+}
 
-/**
- * 백엔드 `BudgetState` 문구 (명세 §9.6).
- *
- * `COVERED_IN_RANGE` 는 목표 달성을 뜻하지 않으므로 문구도 "현재 환율 범위
- * 안에서"라는 조건을 지운 채 쓰지 않는다.
- */
-const BUDGET_STATE_LABELS: Readonly<Record<PlanBudgetState, string>> = {
+function formatCostRange(range: PlannerCostRange | null): string | null {
+  if (range === null) return null;
+  return `${formatKrw(range.lowKrw)} ~ ${formatKrw(range.highKrw)}`;
+}
+
+const BUDGET_STATE_LABELS: Readonly<Record<string, string | undefined>> = {
   COVERED_IN_RANGE: "현재 환율 범위에서 예산으로 감당됩니다",
   RANGE_SENSITIVE: "환율 범위에 따라 예산 조정이 필요할 수 있습니다",
   CONSTRAINT_ADJUSTMENT_REQUIRED: "금액·날짜·예산 중 하나를 조정해야 합니다",
   BUDGET_NOT_PROVIDED: "예산을 입력하지 않아 가능 여부를 판정하지 않았습니다",
 };
 
-/**
- * 서버 경고 코드 문구 (명세 §20).
- *
- * 모르는 코드는 `codeLabel()` 이 원문 그대로 노출한다 — 조용히 삼키면 경고가
- * 영구히 꺼진 줄도 모르게 된다(점검 리포트).
- */
 const WARNING_LABELS: Readonly<Record<string, string | undefined>> = {
   BUDGET_SHORTFALL: "예산이 계획 비용에 미치지 못합니다",
   TARGET_ALREADY_MET: "이미 목표 금액을 확보했습니다",
   FORECAST_UNAVAILABLE: "환율 구간을 얻지 못해 기준 환율만 사용했습니다",
 };
 
-function codeLabel(
-  labels: Readonly<Record<string, string | undefined>>,
-  code: string,
+function formatNullableAmount(
+  value: number | null,
+  currencyCode: string,
 ): string {
-  return labels[code] ?? code;
-}
-
-function formatAmount(value: number, currencyCode: string): string {
-  return `${numberFormatter.format(value)} ${currencyCode}`;
-}
-
-function formatCostRange(range: PlanCostRange | undefined): string {
-  if (range === undefined) return NO_SERVER_VALUE_LABEL;
-  return `${krwFormatter.format(range.lowKrw)} ~ ${krwFormatter.format(
-    range.highKrw,
-  )}원 (기준 ${krwFormatter.format(range.baseKrw)}원)`;
+  return value === null ? "제공되지 않음" : formatAmount(value, currencyCode);
 }
 
 function progressPercent(heldAmount: number, targetAmount: number): number {
@@ -97,7 +119,7 @@ function progressPercent(heldAmount: number, targetAmount: number): number {
   return Math.min(100, Math.max(0, (heldAmount / targetAmount) * 100));
 }
 
-function statusLabel(status: PlannerNodeStatus): string {
+function statusLabel(status: PlannerStepNodeStatus): string {
   switch (status) {
     case "completed":
       return "완료";
@@ -107,24 +129,41 @@ function statusLabel(status: PlannerNodeStatus): string {
       return "예정";
     case "skipped":
       return "건너뜀";
-    case "destination":
-      return "목표 도착";
   }
 }
 
-/**
- * 다음 행동 회차의 배열 인덱스. 판정은 서버의 `summary.nextActionSeq` 가 한다
- * (명세 §11.3) — 프론트가 회차 상태를 훑어 고르지 않는다.
- */
+function planStatusLabel(status: string): string {
+  switch (status.toLowerCase()) {
+    case "active":
+      return "적용 중";
+    case "draft":
+      return "적용 전 미리보기";
+    case "completed":
+      return "완료";
+    case "superseded":
+      return "이전 버전";
+    case "needs_review":
+      return "재검토 필요";
+    case "paused":
+      return "일시 정지";
+    default:
+      return status;
+  }
+}
+
 function nextStepIndex(item: PlannerSourceItem): number {
   const plan = item.activePlan;
-  if (plan === null || plan.summary.nextActionSeq === undefined) return -1;
+  if (plan === null) return -1;
+  const explicit = plan.steps.findIndex(
+    (step) => step.nextAction || step.seq === plan.summary.nextActionSeq,
+  );
+  if (explicit >= 0) return explicit;
   return plan.steps.findIndex(
-    (step) => step.seq === plan.summary.nextActionSeq,
+    (step) => step.status !== "completed" && step.status !== "skipped",
   );
 }
 
-function nodeStatus(status: string, isNext: boolean): PlannerNodeStatus {
+function nodeStatus(status: string, isNext: boolean): PlannerStepNodeStatus {
   if (status === "completed") return "completed";
   if (status === "skipped") return "skipped";
   return isNext ? "next" : "upcoming";
@@ -133,86 +172,73 @@ function nodeStatus(status: string, isNext: boolean): PlannerNodeStatus {
 function toSteps(
   item: PlannerSourceItem,
   nextIndex: number,
+  curve: PlannerCurveViewModel | null,
 ): readonly PlannerStepViewModel[] {
   const plan = item.activePlan;
   if (plan === null) return [];
-  return plan.steps.map((step, index) => ({
-    sequence: step.seq,
-    scheduledDate: step.scheduledDate,
-    amount: step.amount,
-    amountLabel: formatAmount(step.amount, item.goal.currencyCode),
-    executedAmount: step.executedAmount,
-    status: nodeStatus(step.status, index === nextIndex),
-    statusLabel: statusLabel(nodeStatus(step.status, index === nextIndex)),
-    sequenceLabel: `${step.seq}회차`,
-  }));
+  return plan.steps.map((step, index) => {
+    const status = nodeStatus(step.status, index === nextIndex);
+    const point = curve?.nodes.find((node) => node.sequence === step.seq);
+    const effectiveAmount = status === "completed" ? step.executedAmount : step.amount;
+    return {
+      sequence: step.seq,
+      scheduledDate: step.scheduledDate,
+      amount: step.amount,
+      amountLabel: formatAmount(step.amount, item.goal.currencyCode),
+      budgetLabel: step.budgetKrw === null ? null : formatKrw(step.budgetKrw),
+      estimatedCostLabel: formatCostRange(step.estimatedCost),
+      executedAmount: step.executedAmount > 0 ? step.executedAmount : null,
+      cumulativeAmount: point?.cumulativeAmount ?? 0,
+      cumulativeAmountLabel:
+        point?.cumulativeAmountLabel ?? "누적 금액 확인 불가",
+      actionLabel: point?.actionLabel ?? "회차 정보 확인",
+      calculationBasis:
+        status === "completed"
+          ? `실행 금액 ${formatAmount(effectiveAmount, item.goal.currencyCode)} 반영`
+          : status === "skipped"
+            ? "건너뛴 회차는 누적 금액에 더하지 않음"
+            : `서버 계획 금액 ${formatAmount(effectiveAmount, item.goal.currencyCode)} 반영`,
+      status,
+      statusLabel: statusLabel(status),
+      sequenceLabel: `${step.seq}회차`,
+    };
+  });
 }
 
-function toCurveNodes(
-  item: PlannerSourceItem,
-  nextIndex: number,
-): readonly PlannerCurveNodeViewModel[] {
+function currentAmount(item: PlannerSourceItem): number {
   const plan = item.activePlan;
-  if (plan === null) return [];
-  const count = plan.steps.length;
-  // 노드 id는 목표 id로 만든다. 미리보기 응답에는 planId가 없어 계획 id를 쓰면
-  // `undefined-1` 같은 키가 생긴다(점검 리포트 H2).
-  return plan.steps.map((step, index) => ({
-    id: `${item.goal.id}-${step.seq}`,
-    sequence: step.seq,
-    x: ((index + 1) / (count + 1)) * 100,
-    y: nodeStatus(step.status, index === nextIndex) === "completed" ? 70 : 30,
-    status: nodeStatus(step.status, index === nextIndex),
-    statusLabel: statusLabel(nodeStatus(step.status, index === nextIndex)),
-    roundLabel: `${step.seq}회차`,
-  }));
+  if (plan === null) return item.goal.heldAmount;
+  return (
+    plan.goal.allocatedHoldingAmount +
+    plan.steps
+      .filter((step) => step.status === "completed")
+      .reduce((sum, step) => sum + Math.max(0, step.executedAmount), 0)
+  );
 }
 
 function toCurve(
   item: PlannerSourceItem,
   nextIndex: number,
 ): PlannerCurveViewModel | null {
-  if (item.activePlan === null) return null;
-  const nodes = toCurveNodes(item, nextIndex);
-  const destination = {
-    id: `${item.goal.id}-destination`,
-    x: 100,
-    y: 20,
-    status: "destination" as const,
-    statusLabel: statusLabel("destination"),
-    label: "목표",
-    targetAmountLabel: formatAmount(
-      item.goal.targetAmount,
-      item.goal.currencyCode,
-    ),
-    targetDateLabel: item.goal.targetDate ?? UNSET_LABEL,
-  };
-  const points = [...nodes, destination].map((node) => `${node.x} ${node.y}`);
-  return { path: `M ${points.join(" L ")}`, nodes, destination };
-}
-
-function toPlanSummary(plan: PlanResponse): PlannerPlanSummaryViewModel {
-  const { summary } = plan;
-  return {
-    planId: plan.planId ?? null,
-    version: plan.version ?? null,
-    versionLabel: plan.version === undefined ? "저장 전" : `v${plan.version}`,
-    status: summary.status,
-    statusLabel: PLAN_STATUS_LABELS[summary.status],
-    totalRounds: summary.totalRounds,
-    completedRounds: summary.completedRounds,
-    scheduledRounds: summary.scheduledRounds,
-    skippedRounds: summary.skippedRounds,
-    nextActionSeq: summary.nextActionSeq ?? null,
-    planEndDateLabel: summary.planEndDate ?? UNSET_LABEL,
-    estimatedCostLabel: formatCostRange(summary.estimatedCost),
-    budgetStateLabel:
-      summary.budgetState === undefined
-        ? NO_SERVER_VALUE_LABEL
-        : BUDGET_STATE_LABELS[summary.budgetState],
-    warnings: plan.warnings.map((code) => codeLabel(WARNING_LABELS, code)),
-    disclaimer: plan.disclaimer,
-  };
+  const plan = item.activePlan;
+  if (plan === null) return null;
+  const planKey = plan.planId ?? `preview-${item.goal.id}`;
+  return presentPlannerCurve({
+    currencyCode: plan.goal.currencyCode,
+    allocatedAmount: plan.goal.allocatedHoldingAmount,
+    currentDate: plan.calculationMeta?.calculatedAt ?? null,
+    targetAmount: plan.goal.targetAmount ?? item.goal.targetAmount,
+    targetDate: plan.goal.targetDate ?? item.goal.targetDate ?? null,
+    steps: plan.steps.map((step, index) => ({
+      id: `${planKey}-${step.seq}`,
+      sequence: step.seq,
+      scheduledDate: step.scheduledDate,
+      plannedAmount: step.amount,
+      executedAmount: step.executedAmount,
+      executedDate: step.executedDate,
+      status: nodeStatus(step.status, index === nextIndex),
+    })),
+  });
 }
 
 function selectItem(
@@ -229,30 +255,34 @@ export function presentPlannerOverview(
 ): PlannerViewModel {
   const selected = selectItem(overview.items, selectedGoalId);
   const nextIndex = selected === null ? -1 : nextStepIndex(selected);
-  const activePlan = selected?.activePlan ?? null;
-  const nextSourceStep = nextIndex < 0 ? undefined : activePlan?.steps[nextIndex];
-  // 회차를 기록·건너뛰기하려면 계획 id가 필요하다. 저장 전 계획에는 없다.
-  const actionPlanId = activePlan?.planId;
-  const nextAction =
-    nextSourceStep === undefined || actionPlanId === undefined || selected === null
-      ? null
-      : {
-          planId: actionPlanId,
-          sequence: nextSourceStep.seq,
-          scheduledDate: nextSourceStep.scheduledDate,
-          amount: nextSourceStep.amount,
-          amountLabel: formatAmount(
-            nextSourceStep.amount,
-            selected.goal.currencyCode,
-          ),
-        };
+  const activePlan = selected?.activePlan;
+  const nextSourceStep =
+    activePlan !== undefined && activePlan !== null && nextIndex >= 0
+      ? activePlan.steps[nextIndex]
+      : undefined;
+  const dataSourceKind = toApiDataSourceKind(overview.isSampleData);
+  const curve = selected === null ? null : toCurve(selected, nextIndex);
+  const selectedCurrentAmount = selected === null ? 0 : currentAmount(selected);
+  const planTargetAmount =
+    selected === null
+      ? 0
+      : activePlan?.goal.targetAmount ?? selected.goal.targetAmount;
+  const remainingAmount = Math.max(
+    0,
+    planTargetAmount - selectedCurrentAmount,
+  );
 
   return {
     goalItems: overview.items.map((item) => ({
       id: item.goal.id,
       name: item.goal.name,
       currencyCode: item.goal.currencyCode,
+      targetAmountLabel: formatAmount(item.goal.targetAmount, item.goal.currencyCode),
+      heldAmountLabel: formatAmount(item.goal.heldAmount, item.goal.currencyCode),
+      targetDateLabel: item.goal.targetDate ?? "미설정",
       isSelected: item.goal.id === selected?.goal.id,
+      planStatusLabel:
+        item.activePlan === null ? "활성 계획 없음" : "활성 계획 있음",
     })),
     selectedGoal:
       selected === null
@@ -262,37 +292,344 @@ export function presentPlannerOverview(
             name: selected.goal.name,
             currencyCode: selected.goal.currencyCode,
             targetAmount: selected.goal.targetAmount,
-            heldAmount: selected.goal.heldAmount,
-            targetDate: selected.goal.targetDate ?? null,
-            targetDateLabel: selected.goal.targetDate ?? UNSET_LABEL,
+            heldAmount: selectedCurrentAmount,
+            targetDate: activePlan?.goal.targetDate ?? selected.goal.targetDate ?? null,
+            targetDateLabel:
+              activePlan?.goal.targetDate ?? selected.goal.targetDate ?? "미설정",
             targetAmountLabel: formatAmount(
               selected.goal.targetAmount,
               selected.goal.currencyCode,
             ),
             heldAmountLabel: formatAmount(
-              selected.goal.heldAmount,
+              selectedCurrentAmount,
               selected.goal.currencyCode,
             ),
+            remainingAmountLabel:
+              activePlan === undefined || activePlan === null
+                ? "목표별 배정 후 확인"
+                : formatAmount(remainingAmount, selected.goal.currencyCode),
+            heldAmountBasisLabel:
+              activePlan === undefined || activePlan === null
+                ? "같은 통화의 전체 보유액이며 목표별 배정액은 아닙니다."
+                : "목표 배정 외화와 완료 기록을 합산한 현재 값입니다.",
             progressPercent: progressPercent(
-              selected.goal.heldAmount,
-              selected.goal.targetAmount,
+              selectedCurrentAmount,
+              planTargetAmount,
             ),
-            progressLabel: "외화 확보 진행",
+            progressLabel:
+              activePlan === undefined || activePlan === null
+                ? "같은 통화 전체 보유액 기준 참고"
+                : "목표 배정 및 완료 기록 기준",
           },
-    plan: activePlan === null ? null : toPlanSummary(activePlan),
-    curveNodes: selected === null ? [] : toCurveNodes(selected, nextIndex),
-    curve: selected === null ? null : toCurve(selected, nextIndex),
-    steps: selected === null ? [] : toSteps(selected, nextIndex),
-    nextAction,
-    dataSource: { kind: "server", label: "서버 응답" },
-    supportedActions: {
-      canCompleteStep: nextAction !== null,
-      canSkipStep: nextAction !== null,
+    plan:
+      activePlan === undefined || activePlan === null
+        ? null
+        : {
+            planSource: activePlan.planId === null ? "preview" : "active",
+            id: activePlan.planId,
+            version: activePlan.version,
+            versionLabel:
+              activePlan.version === null ? "미리보기" : `v${activePlan.version}`,
+            status: activePlan.summary.status,
+            statusLabel: planStatusLabel(activePlan.summary.status),
+            planEndDateLabel:
+              activePlan.summary.planEndDate ?? "제공되지 않음",
+            totalRounds: activePlan.summary.totalRounds,
+            completedRounds: activePlan.summary.completedRounds,
+            scheduledRounds: activePlan.summary.scheduledRounds,
+            skippedRounds: activePlan.summary.skippedRounds,
+            nextActionSeq: activePlan.summary.nextActionSeq,
+            estimatedCostLabel: formatCostRange(activePlan.summary.estimatedCost),
+            budgetStateLabel:
+              activePlan.summary.budgetState === null
+                ? null
+                : BUDGET_STATE_LABELS[activePlan.summary.budgetState] ??
+                  activePlan.summary.budgetState,
+            policyVersion: activePlan.calculationMeta?.policyVersion ?? null,
+            calculatedAtLabel: activePlan.calculationMeta?.calculatedAt ?? null,
+            rateAsOfLabel: activePlan.calculationMeta?.rateAsOf ?? null,
+            disclaimer: activePlan.disclaimer,
+            warnings: activePlan.warnings.map(
+              (warning) => WARNING_LABELS[warning] ?? warning,
+            ),
+          },
+    curveNodes: curve?.nodes ?? [],
+    curve,
+    steps: selected === null ? [] : toSteps(selected, nextIndex, curve),
+    nextAction:
+      activePlan?.planId === null ||
+      activePlan === undefined ||
+      activePlan === null ||
+      nextSourceStep === undefined
+        ? null
+        : {
+            planId: activePlan.planId,
+            sequence: nextSourceStep.seq,
+            scheduledDate: nextSourceStep.scheduledDate,
+            amount: nextSourceStep.amount,
+            amountLabel: formatAmount(nextSourceStep.amount, selected!.goal.currencyCode),
+          },
+    dataSource: {
+      kind: dataSourceKind,
+      label: getDataSourceCopy(dataSourceKind).label,
     },
-    unsupportedAreas: [
-      "목표 및 계획 생성·재계산",
-      "대체 시나리오",
-      "회차 건너뛰기 적용",
-    ],
+    supportedActions: {
+      canPreviewPlan: selected !== null && activePlan === null,
+      canCreatePlan: selected !== null && activePlan === null,
+      canCompleteStep: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canSkipStep: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canPreviewScenario: nextSourceStep !== undefined && activePlan?.planId !== null,
+      canApplyDraft: false,
+    },
+    unsupportedAreas: ["서버에 없는 AI 설명 생성"],
+    planAvailabilityMessage:
+      activePlan === null
+        ? "활성 계획이 없습니다. 미리보기를 확인한 뒤 계획을 만들 수 있습니다."
+        : "서버에서 확인한 활성 계획입니다.",
+    scenarioOptions: API_SCENARIO_OPTIONS,
+  };
+}
+
+export function replacePlannerPlan(
+  overview: PlannerApiOverview,
+  goalId: string,
+  plan: PlannerPlanResponse,
+): PlannerApiOverview {
+  return {
+    ...overview,
+    items: overview.items.map((item) =>
+      item.goal.id === goalId ? { ...item, activePlan: plan } : item,
+    ),
+  };
+}
+
+function sideRows(
+  before: PlannerScenarioSide,
+  after: PlannerScenarioSide,
+  currencyCode: string,
+) {
+  return [
+    {
+      label: "남은 목표 금액",
+      before: formatAmount(before.remainingAmount, currencyCode),
+      after: formatAmount(after.remainingAmount, currencyCode),
+    },
+    {
+      label: "목표일",
+      before: before.targetDate,
+      after: after.targetDate,
+    },
+    {
+      label: "남은 회차",
+      before: `${before.openRounds}회`,
+      after: `${after.openRounds}회`,
+    },
+    {
+      label: "회차 금액",
+      before: formatNullableAmount(before.perRoundAmount, currencyCode),
+      after: formatNullableAmount(after.perRoundAmount, currencyCode),
+    },
+    {
+      label: "회차 예산",
+      before: before.roundBudgetKrw === null ? "제공되지 않음" : formatKrw(before.roundBudgetKrw),
+      after: after.roundBudgetKrw === null ? "제공되지 않음" : formatKrw(after.roundBudgetKrw),
+    },
+    {
+      label: "예상 원화 비용",
+      before: formatCostRange(before.costRange) ?? "제공되지 않음",
+      after: formatCostRange(after.costRange) ?? "제공되지 않음",
+    },
+  ];
+}
+
+function scenarioReason(code: string): string {
+  const reasons: Readonly<Record<string, string>> = {
+    RATE_UP: "환율 상승 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    RATE_DOWN: "환율 하락 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    STEP_SKIPPED: "선택한 회차를 놓친 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    BUDGET_DECREASED: "줄어든 회차 예산 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    TARGET_DATE_CHANGED: "변경된 목표일 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    TARGET_AMOUNT_CHANGED: "변경된 목표 금액 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+    HOLDING_ADDED: "추가 확보 외화 조건으로 서버가 남은 계획을 다시 계산했습니다.",
+  };
+  return reasons[code] ?? "서버가 전달한 변경 조건으로 남은 계획을 다시 계산했습니다.";
+}
+
+function curveInputFromView(view: PlannerViewModel): PlannerCurveInput | null {
+  if (view.curve === null) return null;
+  return {
+    currencyCode: view.curve.currencyCode,
+    allocatedAmount: view.curve.allocatedAmount,
+    currentDate: view.curve.currentDate,
+    targetAmount: view.curve.targetAmount,
+    targetDate: view.curve.targetDate,
+    dataNotice: view.curve.dataNotice,
+    steps: view.steps.map((step) => ({
+      id:
+        view.curveNodes.find((node) => node.sequence === step.sequence)?.id ??
+        `scenario-${step.sequence}`,
+      sequence: step.sequence,
+      scheduledDate: step.scheduledDate,
+      plannedAmount: step.amount ?? 0,
+      executedAmount: step.executedAmount ?? 0,
+      executedDate: step.status === "completed" ? step.scheduledDate : null,
+      status: step.status,
+    })),
+  };
+}
+
+function comparisonCurves(
+  view: PlannerViewModel,
+  response: PlannerScenarioPreviewResponse,
+): {
+  readonly baseCurve: PlannerCurveViewModel | null;
+  readonly alternativeCurve: PlannerCurveViewModel | null;
+} {
+  const baseInput = curveInputFromView(view);
+  if (baseInput === null) {
+    return { baseCurve: null, alternativeCurve: null };
+  }
+  const changes = new Map(response.changedSteps.map((step) => [step.seq, step]));
+  let hasForeignPathChange = false;
+  const alternativeSteps = baseInput.steps.map((step) => {
+    const change = changes.get(step.sequence);
+    if (change === undefined || step.status === "completed") return step;
+    const scheduledDate = change.dateAfter ?? step.scheduledDate;
+    const plannedAmount = change.amountAfter ?? step.plannedAmount;
+    if (
+      scheduledDate !== step.scheduledDate ||
+      plannedAmount !== step.plannedAmount
+    ) {
+      hasForeignPathChange = true;
+    }
+    return { ...step, scheduledDate, plannedAmount };
+  });
+  for (const change of response.changedSteps) {
+    if (
+      alternativeSteps.some((step) => step.sequence === change.seq) ||
+      change.dateAfter === null ||
+      change.amountAfter === null
+    ) {
+      continue;
+    }
+    hasForeignPathChange = true;
+    alternativeSteps.push({
+      id: `scenario-${change.seq}`,
+      sequence: change.seq,
+      scheduledDate: change.dateAfter,
+      plannedAmount: change.amountAfter,
+      executedAmount: 0,
+      executedDate: null,
+      status: "upcoming",
+    });
+  }
+  if (!hasForeignPathChange) {
+    return { baseCurve: view.curve, alternativeCurve: null };
+  }
+  const alternativeInput: PlannerCurveInput = {
+    ...baseInput,
+    targetDate: response.after.targetDate,
+    dataNotice:
+      "서버가 변경 전후로 제공한 회차 날짜와 외화 금액만 비교합니다.",
+    steps: alternativeSteps,
+  };
+  const firstBase = presentPlannerCurve(baseInput);
+  const firstAlternative = presentPlannerCurve(alternativeInput);
+  if (firstBase === null || firstAlternative === null) {
+    return { baseCurve: firstBase, alternativeCurve: firstAlternative };
+  }
+  const domain = mergePlannerCurveDomains(
+    firstBase.domain,
+    firstAlternative.domain,
+  );
+  return {
+    baseCurve: presentPlannerCurve(baseInput, domain),
+    alternativeCurve: presentPlannerCurve(alternativeInput, domain),
+  };
+}
+
+export function presentPlannerScenarioComparison(
+  response: PlannerScenarioPreviewResponse,
+  view: PlannerViewModel,
+  option: PlannerScenarioOptionViewModel,
+): PlannerScenarioComparisonViewModel {
+  const currencyCode = view.selectedGoal?.currencyCode ?? "외화";
+  const changedSequences = new Set(response.changedSteps.map((step) => step.seq));
+  const curves = comparisonCurves(view, response);
+  return {
+    id: option.id,
+    label: option.label,
+    reason: scenarioReason(response.changeReasonCode),
+    nextAction:
+      "변경 전후 조건을 확인한 뒤 적용 여부를 직접 선택해 주세요.",
+    draftPlanId: response.draftPlanId,
+    rows: sideRows(response.before, response.after, currencyCode),
+    baseCurve: curves.baseCurve,
+    alternativeCurve: curves.alternativeCurve,
+    changedNodeIds: (curves.alternativeCurve?.nodes ?? view.curveNodes)
+      .filter((node) => changedSequences.has(node.sequence))
+      .map((node) => node.id),
+    warnings: response.warnings,
+  };
+}
+
+/**
+ * 회차 건너뛰기 응답은 저장 가능한 draft가 아니라 재분배 영향만 담은 미리보기다.
+ * 서버가 직접 제공한 전후 값만 비교하고, 누락된 기존 값이나 Curve는 만들지 않는다.
+ */
+export function presentPlannerSkipComparison(
+  response: PlannerStepSkipResponse,
+  view: PlannerViewModel,
+  option: PlannerScenarioOptionViewModel,
+): PlannerScenarioComparisonViewModel {
+  const currencyCode = view.selectedGoal?.currencyCode ?? "외화";
+  const rows = [
+    {
+      label: "회차 준비 금액",
+      before: formatAmount(response.amountBefore, currencyCode),
+      after: formatAmount(response.amountAfter, currencyCode),
+    },
+    {
+      label: "남은 목표 금액",
+      before: "기존 값 제공되지 않음",
+      after: formatAmount(response.remainingAmount, currencyCode),
+    },
+    {
+      label: "재분배할 회차",
+      before: "기존 값 제공되지 않음",
+      after: `${response.remainingRounds}회`,
+    },
+    {
+      label: "회차 예상 원화",
+      before: "기존 값 제공되지 않음",
+      after:
+        response.perRoundCostKrw === null
+          ? "계산 근거 제공되지 않음"
+          : formatKrw(response.perRoundCostKrw),
+    },
+  ];
+  const adjustmentNotice =
+    response.adjustmentOptions.length === 0
+      ? []
+      : [
+          `서버가 ${response.adjustmentOptions.length}개의 추가 조정 선택지를 제공했습니다.`,
+        ];
+  const warnings = response.exceedsBudget
+    ? ["재분배 후 회차 금액이 설정한 예산 범위를 넘습니다.", ...adjustmentNotice]
+    : adjustmentNotice;
+
+  return {
+    id: option.id,
+    label: option.label,
+    reason: `${response.seq}회차를 건너뛴 조건으로 서버가 남은 금액의 재분배 영향을 계산했습니다.`,
+    nextAction:
+      "이 미리보기는 저장되지 않았습니다. 적용 가능한 변경 계획을 한 번 더 비교해 주세요.",
+    draftPlanId: null,
+    canRequestDraft: true,
+    rows,
+    baseCurve: view.curve,
+    alternativeCurve: null,
+    changedNodeIds: [],
+    warnings,
   };
 }

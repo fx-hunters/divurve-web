@@ -65,7 +65,7 @@ describe("InitialSetupScreen", () => {
     expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
   });
 
-  it("자산 단계에 들어오면 조회 결과를 표시하고 입력값을 유지한다", async () => {
+  it("자산 불러오기 선택 뒤 서버 조회 결과를 표시하고 입력값을 유지한다", async () => {
     let resolveImport!: (value: ImportedAssetSummary) => void;
     vi.mocked(fetchImportedAssetSummary).mockReturnValue(
       new Promise<ImportedAssetSummary>((resolve) => {
@@ -76,12 +76,14 @@ describe("InitialSetupScreen", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /개발·기술/ }));
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    expect(
+      screen.getByRole("button", { name: "자산 불러오기" }),
+    ).toBeInTheDocument();
+    expect(fetchImportedAssetSummary).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "보유 자산을 확인하고 있어요",
     );
-    expect(
-      screen.queryByRole("button", { name: "자산 불러오기" }),
-    ).not.toBeInTheDocument();
 
     await act(async () => {
       resolveImport(IMPORTED_ASSET_SUMMARY_FIXTURE);
@@ -91,7 +93,10 @@ describe("InitialSetupScreen", () => {
     expect(screen.getByText("64,058,000원")).toBeInTheDocument();
     expect(screen.getByText("36,000,000원")).toBeInTheDocument();
     expect(screen.getByText("USD · JPY · EUR")).toBeInTheDocument();
-    expect(screen.getByText("체험용 데이터")).toBeInTheDocument();
+    expect(screen.getByText("샘플 데이터")).toBeInTheDocument();
+    expect(screen.getByText("AAPL · 12주 · USD")).toBeInTheDocument();
+    expect(screen.getByText("400,000 JPY")).toBeInTheDocument();
+    expect(screen.getByText("생활비 통장 · 12,000,000원")).toBeInTheDocument();
     expect(fetchImportedAssetSummary).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
@@ -113,9 +118,12 @@ describe("InitialSetupScreen", () => {
     render(<InitialSetupScreen onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("radio", { name: /개발·기술/ }));
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
 
     expect(await screen.findByText("자산을 확인했어요")).toBeInTheDocument();
-    expect(screen.getByText("체험용 자산 데이터")).toBeInTheDocument();
+    expect(
+      screen.getByText(/현재 계정에 준비된 샘플 자산을 서버에서 조회했습니다/),
+    ).toBeInTheDocument();
     expect(screen.getByText("보유한 외화 없음")).toBeInTheDocument();
   });
 
@@ -126,6 +134,7 @@ describe("InitialSetupScreen", () => {
     render(<InitialSetupScreen onComplete={vi.fn()} />);
     fireEvent.click(screen.getByRole("radio", { name: /일상적인 설명/ }));
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("조회 실패");
     expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
@@ -133,6 +142,42 @@ describe("InitialSetupScreen", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "보유 자산을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
+  });
+
+  it("서버가 샘플이 아니라고 밝히면 내 계정 데이터 배지를 표시한다", async () => {
+    vi.mocked(fetchImportedAssetSummary).mockResolvedValue({
+      ...IMPORTED_ASSET_SUMMARY_FIXTURE,
+      isSampleData: false,
+    });
+    render(<InitialSetupScreen onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /금융·경제/ }));
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
+
+    expect(await screen.findByText("내 계정 데이터")).toBeInTheDocument();
+  });
+
+  it("등록 자산이 없으면 빈 상태를 표시하고 다음 이동을 허용한다", async () => {
+    vi.mocked(fetchImportedAssetSummary).mockResolvedValue({
+      ...IMPORTED_ASSET_SUMMARY_FIXTURE,
+      totalAssetKrw: 0,
+      fxAssetKrw: 0,
+      krwAssetKrw: 0,
+      currencyCodes: [],
+      hasAssets: false,
+      holdings: [],
+      deposits: [],
+      krwAssets: [],
+      isSampleData: undefined,
+    });
+    render(<InitialSetupScreen onComplete={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /금융·경제/ }));
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    fireEvent.click(screen.getByRole("button", { name: "자산 불러오기" }));
+
+    expect(await screen.findByText("불러올 자산이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("서버 조회 데이터")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음" })).toBeEnabled();
   });
 
   it("Q1~Q3를 한 문항씩 표시하고 항로형 결과 뒤 홈 시작 행동을 제공한다", () => {

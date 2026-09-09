@@ -21,7 +21,6 @@ interface PlannerPlanHistoryProps {
   readonly goalId: string;
   readonly goalName: string;
   readonly currencyCode: string;
-  /** 활성 계획의 근거 수치. 없으면 설명 영역을 그리지 않는다. */
   readonly facts: ExplanationFacts | null;
   readonly dependencies?: PlanVersionDependencies;
   readonly explanationRequester?: ExplanationRequester;
@@ -77,7 +76,7 @@ export function PlannerPlanHistory({
           className="planner-api-journey__secondary"
           onClick={onBack}
         >
-          현재 상태
+          현재 계획으로 돌아가기
         </button>
       </div>
     </section>

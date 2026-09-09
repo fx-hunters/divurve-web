@@ -58,6 +58,7 @@ describe("toXRayDashboardData", () => {
     const data = toXRayDashboardData(XRAY_API_FIXTURE);
 
     expect(data.totalAssetKrw).toBe(20_000_000);
+    expect(data.isSampleData).toBe(true);
     expect(data.krwAmount).toBe(12_000_000);
     expect(data.fxKrw).toBe(8_000_000);
     expect(data.fxRatioPct).toBe(40);

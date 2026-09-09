@@ -34,6 +34,7 @@ describe("XRayScreen", () => {
     expect(
       await screen.findByRole("heading", { name: "외화 비중" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("샘플 데이터")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "통화 적합도" }));
     expect(screen.getByRole("heading", { name: "집중도 진단" })).toBeInTheDocument();
@@ -43,6 +44,29 @@ describe("XRayScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "통화 노출 · 손익 분해" }));
     expect(screen.getByRole("heading", { name: "외화 비중" })).toBeInTheDocument();
+  });
+
+  it("서버가 샘플이 아니라고 밝히거나 메타가 없을 때 출처를 구분한다", async () => {
+    const account = {
+      ...XRAY_API_FIXTURE,
+      overview: { ...XRAY_API_FIXTURE.overview, isSampleData: false },
+      isSampleData: false,
+    };
+    const first = render(
+      <XRayScreen dependencies={makeDependencies({ loadBundle: vi.fn().mockResolvedValue(account) })} />,
+    );
+    expect(await screen.findByText("내 계정 데이터")).toBeInTheDocument();
+    first.unmount();
+
+    const unknown = {
+      ...XRAY_API_FIXTURE,
+      overview: { ...XRAY_API_FIXTURE.overview, isSampleData: undefined },
+      isSampleData: undefined,
+    };
+    render(
+      <XRayScreen dependencies={makeDependencies({ loadBundle: vi.fn().mockResolvedValue(unknown) })} />,
+    );
+    expect(await screen.findByText("서버 조회 데이터")).toBeInTheDocument();
   });
 
   it("onNavigate prop 없이도 에러 없이 렌더링되고 동작한다", async () => {

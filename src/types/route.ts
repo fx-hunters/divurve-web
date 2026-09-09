@@ -98,6 +98,26 @@ export interface RouteRoundSummary {
   readonly items: readonly RouteRoundItem[];
 }
 
+export interface RouteCurveAmountStep {
+  readonly id: string;
+  readonly sequence: number;
+  readonly scheduledDate: string;
+  readonly amount: number;
+  readonly status: "completed" | "next" | "upcoming" | "skipped";
+  readonly executedAmount: number;
+  readonly executedDate: string | null;
+}
+
+/** 데모 Curve에 사용할 명시적 날짜·외화 금액. 장식 좌표와 분리한다. */
+export interface RouteCurveAmountData {
+  readonly currentDate: string;
+  readonly allocatedAmount: number;
+  readonly targetAmount: number | null;
+  readonly targetDate: string | null;
+  readonly notice: string;
+  readonly steps: readonly RouteCurveAmountStep[];
+}
+
 export interface PlannerCurve {
   readonly id: string;
   readonly path: string;
@@ -137,6 +157,8 @@ export interface PlannerScenario {
   readonly nextAction: string;
   readonly tone: RouteTone;
   readonly curve: PlannerCurve;
+  /** 체험 응답에 날짜·외화 금액 변화가 명시된 경우에만 사용하는 대체 경로 데이터. */
+  readonly curveData?: RouteCurveAmountData;
   readonly checkpoints: readonly PlannerCheckpointData[];
   readonly changedCheckpointIds: readonly string[];
   readonly applyLabel: string;
@@ -175,6 +197,7 @@ export interface PlannerPlan {
   readonly plan: RoutePlanSummary;
   readonly buckets: RouteBucketSummary;
   readonly rounds: RouteRoundSummary;
+  readonly curveData: RouteCurveAmountData;
   readonly baseScenarioId: PlannerScenarioId;
   readonly scenarios: readonly [PlannerScenario, ...PlannerScenario[]];
   readonly action: PlannerAction;

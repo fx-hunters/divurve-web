@@ -4,20 +4,22 @@ import { presentPlannerOverview } from "./planner-api-presenter";
 import { toPlanSummaryFacts } from "./planner-plan-facts";
 
 describe("toPlanSummaryFacts", () => {
-  it("활성 계획과 목표의 서버 값을 그대로 옮긴다", () => {
+  it("활성 계획의 배정액과 완료 기록이 반영된 현재 확보액을 옮긴다", () => {
     const view = presentPlannerOverview(PLANNER_API_FIXTURE, "goal-usd");
 
-    // 백엔드 PlanResponse 에 없는 safe_ratio·split_count 대신 summary 값을 싣는다
     expect(toPlanSummaryFacts(view)).toEqual({
       plan_version: 2,
       plan_status: "active",
+      plan_end_date: "2026-12-26",
       total_rounds: 2,
       completed_rounds: 1,
+      scheduled_rounds: 1,
       skipped_rounds: 0,
       next_action_seq: 2,
+      policy_version: "plan-2026.09.1-equal-split",
       currency_code: "USD",
       target_amount: 3_000,
-      held_amount: 1_260,
+      held_amount: 1_405,
       target_date: "2026-12-31",
     });
   });

@@ -1,20 +1,41 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
-import type {
-  StepCompleteResponse,
-  StepSkipResponse,
-} from "../../api/generated/divurve-api";
 import type { PlannerApiOverview } from "../../api/planner";
-import { usePlannerApi, type PlannerApiDependencies } from "./use-planner-api";
+import type {
+  PlannerPlanResponse,
+  PlannerScenarioPreviewResponse,
+} from "../../api/planner-contract";
+import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
+import {
+  getPlannerToday,
+  usePlannerApi,
+  type PlannerApiDependencies,
+} from "./use-planner-api";
 
 const overview = (): PlannerApiOverview => ({ items: [{ goal: { id: "goal", name: "목표", kind: "deadline", purpose: "travel", currencyCode: "USD", targetAmount: 100, isSpeculative: false, status: "active", heldAmount: 10 }, activePlan: null }] });
-const completeResult: StepCompleteResponse = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 90, nextActionSeq: 2, alreadyApplied: false };
-/** 백엔드 `StepSkipResponse` 그대로. `applied` 는 항상 false 다(명세 §21-9). */
-const skipResult: StepSkipResponse = { seq: 1, applied: false, amountBefore: 1_153.84, amountAfter: 1_176.47, remainingAmount: 20_000, remainingRounds: 17, perRoundCostKrw: 1_579_000, exceedsBudget: false, adjustmentOptions: [] };
+const completeResult = { seq: 1, status: "completed", executedAmount: 10, executedRate: 1400, executedDate: "2026-09-08", remainingAmount: 90, nextActionSeq: 2, alreadyApplied: false };
+const skipResult = { seq: 1, applied: false as const, amountBefore: 10, amountAfter: 12, remainingAmount: 90, remainingRounds: 3, perRoundCostKrw: 16_800, exceedsBudget: false, adjustmentOptions: [] };
+const planResult: PlannerPlanResponse = PLANNER_API_FIXTURE.items[0]!.activePlan!;
+const scenarioResult: PlannerScenarioPreviewResponse = {
+  basePlanId: "plan",
+  baseVersion: 1,
+  draftPlanId: "draft",
+  draftVersion: 2,
+  changeReasonCode: "RATE_UP",
+  priorityConstraint: "budget",
+  before: { remainingAmount: 90, targetDate: "2026-12-01", totalRounds: 3, openRounds: 2, perRoundAmount: 45, roundBudgetKrw: null, costRange: null },
+  after: { remainingAmount: 90, targetDate: "2026-12-01", totalRounds: 4, openRounds: 3, perRoundAmount: 30, roundBudgetKrw: null, costRange: null },
+  changedSteps: [],
+  keptConstraints: [],
+  brokenConstraints: [],
+  budgetState: "within_budget",
+  adjustmentOptions: [],
+  warnings: [],
+};
 
 function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies {
-  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), ...overrides };
+  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), createGoal: vi.fn().mockResolvedValue(overview().items[0]!.goal), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -23,11 +44,19 @@ function deferred<T>() {
 }
 
 describe("usePlannerApi", () => {
-  it("목표가 없으면 empty, 재시도하면 최신 성공 상태를 표시한다", async () => {
+  it("기본 실행일은 현재 날짜의 ISO 일자를 사용한다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-08T23:30:00Z"));
+    expect(getPlannerToday()).toBe("2026-09-08");
+    vi.useRealTimers();
+  });
+
+  it("목표가 없어도 생성 가능한 성공 상태이며 재시도하면 최신 목록을 표시한다", async () => {
     const load = vi.fn().mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce(overview());
     const deps = dependencies({ load });
     const { result } = renderHook(() => usePlannerApi(deps));
-    await waitFor(() => expect(result.current.state.status).toBe("empty"));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    expect(result.current.state).toMatchObject({ data: { items: [] } });
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     expect(load).toHaveBeenCalledTimes(2);
@@ -62,7 +91,12 @@ describe("usePlannerApi", () => {
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     await act(async () => result.current.complete("plan", 1, 10, 1400));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(deps.complete).toHaveBeenCalledWith("plan", 1, { executedAmount: 10, executedRate: 1400 });
+    expect(deps.complete).toHaveBeenCalledWith("plan", 1, {
+      executedAmount: 10,
+      executedRate: 1400,
+      executedDate: "2026-09-08",
+      executionKey: "stable-key",
+    });
     expect(result.current.actionState).toMatchObject({ status: "success" });
     const firstReload = result.current.reload;
     act(() => result.current.reload());
@@ -71,17 +105,29 @@ describe("usePlannerApi", () => {
     expect(result.current.reload).toBe(firstReload);
   });
 
-  it("완료 실패는 재조회하지 않고 서버 오류 메시지를 보존한다", async () => {
+  it("완료 실패는 재조회하지 않고 같은 입력 재시도에 execution key를 유지한다", async () => {
     const load = vi.fn().mockResolvedValue(overview());
-    const deps = dependencies({ load, complete: vi.fn().mockRejectedValue(new ApiError("완료 실패", 400)) });
+    const complete = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("완료 실패", 400))
+      .mockResolvedValueOnce(completeResult);
+    const createExecutionKey = vi.fn(() => "retry-key");
+    const deps = dependencies({ load, complete, createExecutionKey });
     const { result } = renderHook(() => usePlannerApi(deps));
     await waitFor(() => expect(result.current.state.status).toBe("success"));
     await act(async () => result.current.complete("plan", 1, 10, 1400));
     expect(load).toHaveBeenCalledTimes(1);
     expect(result.current.actionState).toEqual({ status: "error", message: "완료 실패" });
+    await act(async () => result.current.complete("plan", 1, 10, 1400));
+    expect(createExecutionKey).toHaveBeenCalledTimes(1);
+    expect(complete).toHaveBeenLastCalledWith(
+      "plan",
+      1,
+      expect.objectContaining({ executionKey: "retry-key" }),
+    );
   });
 
-  it("진행 중에는 중복 완료와 건너뛰기를 막고, 건너뛰기는 미리보기라 재조회하지 않는다", async () => {
+  it("진행 중에는 중복 완료와 건너뛰기를 막고, 건너뛰기는 미리보기만 표시한다", async () => {
     const pending = deferred<typeof completeResult>();
     const load = vi.fn().mockResolvedValue(overview());
     const deps = dependencies({ load, complete: vi.fn().mockReturnValue(pending.promise) });
@@ -93,27 +139,29 @@ describe("usePlannerApi", () => {
     await act(async () => pending.resolve(completeResult));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     await act(async () => result.current.skip("plan", 1));
-    expect(deps.skip).toHaveBeenCalledWith("plan", 1);
-    // 서버에 저장된 것이 없으므로 재조회하지 않는다 (명세 §15·§21-9)
     expect(load).toHaveBeenCalledTimes(2);
+    expect(deps.skip).toHaveBeenCalledWith("plan", 1);
+    expect(result.current.skipPreview).toEqual(skipResult);
+    expect(result.current.scenarioPreview).toBeNull();
     expect(result.current.actionState).toMatchObject({
       status: "success",
-      message:
-        "1회차를 건너뛰었을 때의 변경안입니다. 아직 계획에 반영되지 않았습니다. " +
-        "남은 17회차가 회차당 1,153.84 → 1,176.47 로 바뀝니다.",
+      message: expect.stringContaining("아직 계획에 반영되지 않았습니다"),
     });
   });
 
-  it("재분배된 금액이 예산을 넘으면 그 사실을 문구에 붙인다", async () => {
+  it("건너뛰기 재분배가 예산을 넘으면 서버 수치와 주의 문구를 함께 표시한다", async () => {
+    const exceedsBudgetResult = { ...skipResult, exceedsBudget: true };
     const deps = dependencies({
-      skip: vi.fn().mockResolvedValue({ ...skipResult, exceedsBudget: true }),
+      skip: vi.fn().mockResolvedValue(exceedsBudgetResult),
     });
     const { result } = renderHook(() => usePlannerApi(deps));
     await waitFor(() => expect(result.current.state.status).toBe("success"));
-    await act(async () => result.current.skip("plan", 1));
+
+    await act(async () => result.current.skip("plan", 2));
+
     expect(result.current.actionState).toMatchObject({
       status: "success",
-      message: expect.stringContaining("재분배된 금액이 입력한 예산을 넘습니다."),
+      message: expect.stringMatching(/10 → 12.*예산을 넘습니다/),
     });
   });
 
@@ -135,6 +183,17 @@ describe("usePlannerApi", () => {
     await act(async () => pending.resolve(overview()));
   });
 
+  it("언마운트 뒤에 실패한 조회도 상태를 갱신하지 않는다", async () => {
+    let reject!: (reason: unknown) => void;
+    const pending = new Promise<PlannerApiOverview>((_resolve, rejectPromise) => {
+      reject = rejectPromise;
+    });
+    const deps = dependencies({ load: () => pending });
+    const { unmount } = renderHook(() => usePlannerApi(deps));
+    unmount();
+    await act(async () => reject(new Error("late failure")));
+  });
+
   it("건너뛰기 실패를 표시하고 재조회하지 않는다", async () => {
     const load = vi.fn().mockResolvedValue(overview());
     const deps = dependencies({ load, skip: vi.fn().mockRejectedValue(new Error("skip")) });
@@ -146,5 +205,238 @@ describe("usePlannerApi", () => {
     act(() => result.current.reload());
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(result.current.actionState).toEqual({ status: "idle" });
+  });
+
+  it("계획 미리보기는 저장하지 않고 transient plan을 제공한다", async () => {
+    const deps = dependencies();
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    await act(async () => {
+      expect(await result.current.preview(goal)).toBe(true);
+    });
+    expect(deps.preview).toHaveBeenCalledWith(goal);
+    expect(deps.create).not.toHaveBeenCalled();
+    expect(result.current.planPreview).toEqual({ goalId: "goal", plan: planResult });
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("저장되지 않은"),
+    });
+    act(() => result.current.clearTransient());
+    expect(result.current.planPreview).toBeNull();
+    expect(result.current.skipPreview).toBeNull();
+    expect(result.current.scenarioPreview).toBeNull();
+    expect(result.current.actionState).toEqual({ status: "idle" });
+  });
+
+  it("계획 생성 성공은 최신 활성 계획 재조회가 끝난 뒤 확정한다", async () => {
+    const refreshed: PlannerApiOverview = {
+      items: [{ ...overview().items[0]!, activePlan: planResult }],
+    };
+    const load = vi.fn().mockResolvedValueOnce(overview()).mockResolvedValue(refreshed);
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    await act(async () => {
+      expect(await result.current.create(goal)).toBe(true);
+    });
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.state).toMatchObject({
+        status: "success",
+        data: { items: [{ activePlan: planResult }] },
+      }),
+    );
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("최신 활성 계획을 확인했습니다"),
+    });
+  });
+
+  it("목표 생성은 중복 요청을 막고 서버 재조회 뒤 결과를 반환한다", async () => {
+    const pending = deferred<ReturnType<typeof overview>["items"][number]["goal"]>();
+    const createGoal = vi.fn().mockReturnValue(pending.promise);
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ createGoal, load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const input = {
+      name: "여행",
+      kind: "deadline" as const,
+      purpose: "TRAVEL" as const,
+      currencyCode: "USD",
+      targetAmount: 100,
+      targetDate: "2027-01-01",
+      recurInterval: "monthly",
+      budgetAmount: 0,
+      budgetCurrencyCode: "KRW" as const,
+      budgetPeriod: null,
+      isSpeculative: false as const,
+    };
+
+    act(() => {
+      void result.current.createGoal(input);
+      void result.current.createGoal(input);
+    });
+    expect(createGoal).toHaveBeenCalledOnce();
+    await act(async () => pending.resolve(overview().items[0]!.goal));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("서버에서 다시 확인"),
+    });
+  });
+
+  it("목표 생성 실패를 표시하고 재조회하지 않는다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({
+      load,
+      createGoal: vi.fn().mockRejectedValue(new ApiError("목표 생성 실패", 400)),
+    });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      expect(
+        await result.current.createGoal({
+          name: "여행",
+          kind: "deadline",
+          purpose: "TRAVEL",
+          currencyCode: "USD",
+          targetAmount: 100,
+          targetDate: "2027-01-01",
+          recurInterval: null,
+          budgetAmount: 0,
+          budgetCurrencyCode: "KRW",
+          budgetPeriod: null,
+          isSpeculative: false,
+        }),
+      ).toBeNull();
+    });
+
+    expect(load).toHaveBeenCalledOnce();
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message: "목표 생성 실패",
+    });
+  });
+
+  it("계획 생성 뒤 활성 계획을 재조회하지 못하면 preview를 유지한다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+
+    await act(async () => {
+      expect(await result.current.preview(goal)).toBe(true);
+      expect(await result.current.create(goal)).toBe(false);
+    });
+
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(result.current.planPreview).toEqual({ goalId: "goal", plan: planResult });
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message:
+        "계획 생성 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+    });
+  });
+
+  it("scenario preview와 사용자 승인 apply를 분리하고 성공 뒤 재조회한다", async () => {
+    const refreshed: PlannerApiOverview = {
+      items: [
+        {
+          goal: overview().items[0]!.goal,
+          activePlan: { ...planResult, goalId: "goal" },
+        },
+      ],
+    };
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(overview())
+      .mockResolvedValueOnce(refreshed);
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    await act(async () => {
+      expect(
+        await result.current.previewScenario("plan", { scenarioCode: "RATE_UP" }),
+      ).toBe(true);
+    });
+    expect(result.current.scenarioPreview).toBe(scenarioResult);
+    expect(result.current.skipPreview).toBeNull();
+    expect(deps.apply).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(await result.current.apply("goal", "draft")).toBe(true);
+    });
+    expect(deps.apply).toHaveBeenCalledWith("draft");
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(result.current.scenarioPreview).toBeNull();
+  });
+
+  it("apply 후 활성 계획을 재조회하지 못하면 성공으로 표시하지 않는다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deps = dependencies({ load });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      expect(await result.current.apply("goal", "draft")).toBe(false);
+    });
+
+    expect(result.current.actionState).toEqual({
+      status: "error",
+      message:
+        "변경안 적용 후 활성 계획을 확인하지 못했습니다. 다시 확인해 주세요.",
+    });
+  });
+
+  it("preview·create·scenario·apply 실패와 진행 중 중복 요청을 보존한다", async () => {
+    const pending = deferred<PlannerPlanResponse>();
+    const preview = vi.fn().mockReturnValue(pending.promise);
+    const deps = dependencies({ preview });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+    const goal = overview().items[0]!.goal;
+    act(() => {
+      void result.current.preview(goal);
+      void result.current.preview(goal);
+      void result.current.create(goal);
+      void result.current.previewScenario("plan", { scenarioCode: "RATE_UP" });
+      void result.current.apply("goal", "draft");
+    });
+    expect(preview).toHaveBeenCalledOnce();
+    expect(deps.create).not.toHaveBeenCalled();
+    expect(deps.previewScenario).not.toHaveBeenCalled();
+    expect(deps.apply).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(planResult));
+
+    for (const [method, invoke] of [
+      ["preview", () => result.current.preview(goal)],
+      ["create", () => result.current.create(goal)],
+      ["previewScenario", () => result.current.previewScenario("plan", { scenarioCode: "RATE_DOWN" })],
+      ["apply", () => result.current.apply("goal", "draft")],
+    ] as const) {
+      const failing = vi.fn().mockRejectedValue(new ApiError(`${method} 실패`, 500));
+      const failureDeps = dependencies({ [method]: failing });
+      const hook = renderHook(() => usePlannerApi(failureDeps));
+      await waitFor(() => expect(hook.result.current.state.status).toBe("success"));
+      const call =
+        method === "preview"
+          ? () => hook.result.current.preview(goal)
+          : method === "create"
+            ? () => hook.result.current.create(goal)
+            : method === "previewScenario"
+              ? () => hook.result.current.previewScenario("plan", { scenarioCode: "RATE_DOWN" })
+              : () => hook.result.current.apply("goal", "draft");
+      await act(async () => expect(await call()).toBe(false));
+      expect(hook.result.current.actionState).toEqual({
+        status: "error",
+        message: `${method} 실패`,
+      });
+      hook.unmount();
+      void invoke;
+    }
   });
 });

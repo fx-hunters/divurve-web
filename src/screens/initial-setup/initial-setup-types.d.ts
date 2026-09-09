@@ -22,6 +22,7 @@ export type AssetImportState =
   | { readonly status: "idle" }
   | { readonly status: "loading" }
   | { readonly status: "success"; readonly data: ImportedAssetSummary }
+  | { readonly status: "empty"; readonly data: ImportedAssetSummary }
   | { readonly status: "error"; readonly message: string };
 
 export type RiskFlow =
@@ -66,8 +67,8 @@ export interface InitialSetupState {
 
 export interface InitialSetupActions {
   readonly selectExplanationDomain: (domain: ExplanationDomain) => void;
-  /** 조회 실패 뒤 다시 시도. 진입 시 조회는 화면이 자동으로 한다. */
-  readonly retryAssetImport: () => Promise<void>;
+  /** 사용자의 명시적인 동작으로 계정 자산을 조회한다. */
+  readonly importAssets: () => Promise<void>;
   readonly selectQuickAnswer: (choice: QuickChoiceCode) => void;
   readonly selectDetailedAnswer: (choice: DetailedChoiceCode) => void;
   readonly goBack: () => void;

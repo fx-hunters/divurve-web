@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   clearDiagnosisProgress,
   readDiagnosisProgress,
@@ -45,7 +45,10 @@ function canContinue(state: InitialSetupControllerState): boolean {
     return state.draft.explanationDomain !== undefined;
   }
   if (currentStep === "assets") {
-    return state.assetImport.status === "success";
+    return (
+      state.assetImport.status === "success" ||
+      state.assetImport.status === "empty"
+    );
   }
 
   switch (state.riskFlow.kind) {
@@ -122,7 +125,10 @@ export function useInitialSetup(
       const importedAssets = await importAssets();
       setController((current) => ({
         ...current,
-        assetImport: { status: "success", data: importedAssets },
+        assetImport: {
+          status: importedAssets.hasAssets ? "success" : "empty",
+          data: importedAssets,
+        },
         draft: { ...current.draft, importedAssets },
         skippedSteps: removeSkippedStep(current.skippedSteps, "assets"),
       }));
@@ -141,14 +147,6 @@ export function useInitialSetup(
       isImportingRef.current = false;
     }
   }, [importAssets]);
-
-  // 자산은 계정 생성 시점에 이미 채워져 있다. 사용자가 누를 "불러오기" 요청이
-  // 따로 없으므로 자산 단계에 들어오면 곧바로 조회한다(이슈 #33).
-  useEffect(() => {
-    if (currentStep !== "assets") return;
-    if (controller.assetImport.status !== "idle") return;
-    void loadAssets();
-  }, [currentStep, controller.assetImport.status, loadAssets]);
 
   const selectQuickAnswer = (choice: QuickChoiceCode) => {
     if (
@@ -409,7 +407,7 @@ export function useInitialSetup(
     },
     actions: {
       selectExplanationDomain,
-      retryAssetImport: loadAssets,
+      importAssets: loadAssets,
       selectQuickAnswer,
       selectDetailedAnswer,
       goBack,

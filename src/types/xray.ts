@@ -67,6 +67,7 @@ export interface ConcentrationDiagnosis {
 }
 
 export interface XRayDashboardData {
+  readonly isSampleData?: boolean;
   readonly totalAssetKrw: number;
   readonly fxKrw: number;
   readonly krwAmount: number;

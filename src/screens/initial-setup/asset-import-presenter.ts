@@ -37,3 +37,40 @@ export function toAssetSummaryRows(
     { label: "확인 통화", value: toCurrenciesLabel(summary.currencyCodes) },
   ];
 }
+
+const decimalFormatter = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: 4,
+});
+
+export interface ImportedAssetGroup {
+  readonly label: string;
+  readonly items: readonly string[];
+}
+
+export function toImportedAssetGroups(
+  summary: ImportedAssetSummary,
+): readonly ImportedAssetGroup[] {
+  return [
+    {
+      label: "해외주식",
+      items: summary.holdings.map(
+        (holding) =>
+          `${holding.ticker} · ${decimalFormatter.format(holding.quantity)}주 · ${holding.currencyCode}`,
+      ),
+    },
+    {
+      label: "외화예금",
+      items: summary.deposits.map(
+        (deposit) =>
+          `${decimalFormatter.format(deposit.amount)} ${deposit.currencyCode}`,
+      ),
+    },
+    {
+      label: "원화 자산",
+      items: summary.krwAssets.map(
+        (asset) =>
+          `${asset.label ?? "이름 없는 원화 자산"} · ${toKrwAmountLabel(asset.amountKrw)}`,
+      ),
+    },
+  ].filter((group) => group.items.length > 0);
+}

@@ -1,67 +1,61 @@
-import type {
-  GoalResponse,
-  PlanResponse,
-  PlanStatusCode,
-  PlanStep,
-} from "../../api/generated/divurve-api";
+import type { PlannerApiItem } from "../../api/planner";
+import type { PlannerScenarioCode } from "../../api/planner-contract";
+import type { DataSourceKind } from "../../types/data-source";
 
-export type PlannerNodeStatus =
+export type PlannerStepNodeStatus =
   | "completed"
   | "next"
   | "upcoming"
-  | "skipped"
-  | "destination";
+  | "skipped";
 
 export interface PlannerGoalItemViewModel {
   readonly id: string;
   readonly name: string;
   readonly currencyCode: string;
+  readonly targetAmountLabel: string;
+  readonly heldAmountLabel: string;
+  readonly targetDateLabel: string;
   readonly isSelected: boolean;
+  readonly planStatusLabel: string;
 }
 
 export interface PlannerGoalSummaryViewModel {
   readonly id: string;
   readonly name: string;
   readonly currencyCode: string;
-  readonly targetAmount: number;
-  readonly heldAmount: number;
+  readonly targetAmount: number | null;
+  readonly heldAmount: number | null;
   readonly targetDate: string | null;
   readonly targetDateLabel: string;
   readonly targetAmountLabel: string;
   readonly heldAmountLabel: string;
+  readonly remainingAmountLabel: string;
+  readonly heldAmountBasisLabel: string;
   readonly progressPercent: number;
-  /** ProgressBar 왼쪽에 표시할 진행 설명. 퍼센트는 progressPercent를 사용한다. */
   readonly progressLabel: string;
 }
 
-/**
- * 활성 계획 요약. 전부 서버 `PlanResponse.summary` 를 옮기기만 한다 —
- * 회차 수·다음 회차는 프론트에서 세지 않는다(AGENTS.md §1).
- *
- * 예전 이 타입에 있던 `safeRatio`·`splitCount`·`reason`·`isActive` 는 백엔드
- * 응답에 존재하지 않는 필드였다(점검 리포트 H2). 없는 값을 포매터에 넣어
- * `NaN%` 가 나오던 자리다.
- */
 export interface PlannerPlanSummaryViewModel {
-  /** 저장된 계획 id. 미리보기 응답에는 없으므로 null 일 수 있다. */
-  readonly planId: string | null;
+  readonly planSource: "active" | "preview";
+  readonly id: string | null;
   readonly version: number | null;
   readonly versionLabel: string;
-  readonly status: PlanStatusCode;
+  readonly status: string;
   readonly statusLabel: string;
+  readonly planEndDateLabel: string;
   readonly totalRounds: number;
   readonly completedRounds: number;
   readonly scheduledRounds: number;
   readonly skippedRounds: number;
   readonly nextActionSeq: number | null;
-  readonly planEndDateLabel: string;
-  /** 예상 원화 비용 범위. 서버가 값을 주지 않으면 그 사실을 문구로 남긴다. */
-  readonly estimatedCostLabel: string;
-  readonly budgetStateLabel: string;
-  /** 서버 경고 코드의 화면 문구. 모르는 코드는 원문을 그대로 노출한다. */
-  readonly warnings: readonly string[];
-  /** 서버가 실어 보낸 고지 문장 (명세 §2·§26). 프론트가 다시 쓰지 않는다. */
+  readonly estimatedCostLabel: string | null;
+  readonly budgetStateLabel: string | null;
+  readonly policyVersion: string | null;
+  readonly calculatedAtLabel: string | null;
+  readonly rateAsOfLabel: string | null;
   readonly disclaimer: string;
+  readonly warnings: readonly string[];
+  readonly summaryText?: string;
 }
 
 export interface PlannerCurveNodeViewModel {
@@ -69,9 +63,16 @@ export interface PlannerCurveNodeViewModel {
   readonly sequence: number;
   readonly x: number;
   readonly y: number;
-  readonly status: PlannerNodeStatus;
+  readonly status: PlannerStepNodeStatus;
   readonly statusLabel: string;
   readonly roundLabel: string;
+  readonly date: string;
+  readonly dateLabel: string;
+  readonly cumulativeAmount: number;
+  readonly cumulativeAmountLabel: string;
+  readonly roundAmount: number;
+  readonly roundAmountLabel: string;
+  readonly actionLabel: string;
 }
 
 export interface PlannerDestinationNodeViewModel {
@@ -86,19 +87,54 @@ export interface PlannerDestinationNodeViewModel {
 }
 
 export interface PlannerCurveViewModel {
+  readonly viewBox?: string;
+  readonly accessibleLabel?: string;
   readonly path: string;
+  readonly actualPath: string | null;
+  readonly plannedPath: string | null;
   readonly nodes: readonly PlannerCurveNodeViewModel[];
   readonly destination: PlannerDestinationNodeViewModel | null;
+  readonly currentPoint: {
+    readonly x: number;
+    readonly y: number;
+    readonly date: string;
+    readonly dateLabel: string;
+    readonly amount: number;
+    readonly amountLabel: string;
+  } | null;
+  readonly targetLineY: number | null;
+  readonly yTicks: readonly {
+    readonly y: number;
+    readonly label: string;
+  }[];
+  readonly xStartLabel: string | null;
+  readonly xEndLabel: string | null;
+  readonly dataNotice: string | null;
+  readonly currencyCode: string;
+  readonly allocatedAmount: number;
+  readonly targetAmount: number | null;
+  readonly targetDate: string | null;
+  readonly currentDate: string | null;
+  readonly domain: {
+    readonly minDate: number;
+    readonly maxDate: number;
+    readonly maxAmount: number;
+  };
 }
 
 export interface PlannerStepViewModel {
   readonly sequence: number;
   readonly scheduledDate: string;
-  readonly amount: number;
+  readonly amount: number | null;
   readonly amountLabel: string;
-  /** 실행한 외화 금액. 서버가 항상 보내며 미실행 회차는 0 이다. */
-  readonly executedAmount: number;
-  readonly status: PlannerNodeStatus;
+  readonly budgetLabel: string | null;
+  readonly estimatedCostLabel: string | null;
+  readonly executedAmount: number | null;
+  readonly cumulativeAmount: number;
+  readonly cumulativeAmountLabel: string;
+  readonly actionLabel: string;
+  readonly calculationBasis: string;
+  readonly status: PlannerStepNodeStatus;
   readonly statusLabel: string;
   readonly sequenceLabel: string;
 }
@@ -107,8 +143,39 @@ export interface PlannerNextActionViewModel {
   readonly planId: string;
   readonly sequence: number;
   readonly scheduledDate: string;
-  readonly amount: number;
+  readonly amount: number | null;
   readonly amountLabel: string;
+  readonly title?: string;
+  readonly description?: string;
+}
+
+export interface PlannerScenarioOptionViewModel {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly scenarioCode: PlannerScenarioCode | null;
+  readonly isCurrent: boolean;
+  readonly requiresBudget: boolean;
+}
+
+export interface PlannerComparisonRowViewModel {
+  readonly label: string;
+  readonly before: string;
+  readonly after: string;
+}
+
+export interface PlannerScenarioComparisonViewModel {
+  readonly id: string;
+  readonly label: string;
+  readonly reason: string;
+  readonly nextAction: string;
+  readonly draftPlanId: string | null;
+  readonly canRequestDraft?: boolean;
+  readonly rows: readonly PlannerComparisonRowViewModel[];
+  readonly baseCurve: PlannerCurveViewModel | null;
+  readonly alternativeCurve: PlannerCurveViewModel | null;
+  readonly changedNodeIds: readonly string[];
+  readonly warnings: readonly string[];
 }
 
 export interface PlannerViewModel {
@@ -119,12 +186,18 @@ export interface PlannerViewModel {
   readonly curve: PlannerCurveViewModel | null;
   readonly steps: readonly PlannerStepViewModel[];
   readonly nextAction: PlannerNextActionViewModel | null;
-  readonly dataSource: { readonly kind: "server"; readonly label: string };
+  readonly dataSource: { readonly kind: DataSourceKind; readonly label: string };
   readonly supportedActions: {
+    readonly canPreviewPlan: boolean;
+    readonly canCreatePlan: boolean;
     readonly canCompleteStep: boolean;
     readonly canSkipStep: boolean;
+    readonly canPreviewScenario: boolean;
+    readonly canApplyDraft: boolean;
   };
   readonly unsupportedAreas: readonly string[];
+  readonly planAvailabilityMessage: string;
+  readonly scenarioOptions?: readonly PlannerScenarioOptionViewModel[];
 }
 
 export interface ExecutedStepInput {
@@ -136,10 +209,7 @@ export type ExecutedStepValidation =
   | { readonly isValid: true; readonly value: ExecutedStepInput }
   | { readonly isValid: false; readonly message: string };
 
-export interface PlannerSourceItem {
-  readonly goal: GoalResponse;
-  readonly activePlan: PlanResponse | null;
-}
+export type PlannerSourceItem = PlannerApiItem;
 
 export function validateExecutedStepInput(
   input: ExecutedStepInput,
@@ -159,4 +229,7 @@ export function validateExecutedStepInput(
   return { isValid: true, value: input };
 }
 
-export type PlannerSourceStep = PlanStep;
+/** 현재 데이터 공급처에서 제공하지 않는 Journey 동작의 명시적 경계. */
+export function rejectUnsupportedPlannerOperation(): Promise<boolean> {
+  return Promise.resolve(false);
+}

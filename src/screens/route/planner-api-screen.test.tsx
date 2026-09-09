@@ -1,163 +1,518 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import type {
-  StepCompleteResponse,
-  StepSkipResponse,
-} from "../../api/generated/divurve-api";
+  PlannerPlanResponse,
+  PlannerScenarioPreviewResponse,
+} from "../../api/planner-contract";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
+import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import type { PlanVersionDependencies } from "./use-plan-versions";
-import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerApiScreen } from "./planner-api-screen";
 
-const completeResult: StepCompleteResponse = { seq: 2, status: "completed", executedAmount: 145, executedRate: 1400, executedDate: "2026-09-12", remainingAmount: 1_595, alreadyApplied: false };
-/** 백엔드 `StepSkipResponse` 그대로 — 미리보기이며 `applied` 는 항상 false 다. */
-const skipResult: StepSkipResponse = { seq: 2, applied: false, amountBefore: 145, amountAfter: 160, remainingAmount: 1_595, remainingRounds: 10, perRoundCostKrw: 214_816, exceedsBudget: false, adjustmentOptions: [] };
-function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies { return { load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), ...overrides }; }
-async function openAction(deps = dependencies()) { render(<PlannerApiScreen dependencies={deps} />); await screen.findByRole("region", { name: "API 플래너" }); fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" })); fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" })); return deps; }
+const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
+const previewPlan: PlannerPlanResponse = {
+  ...activePlan,
+  planId: null,
+  goalId: "goal-jpy",
+  version: null,
+  summary: { ...activePlan.summary, status: "draft" },
+};
+const createdPlan: PlannerPlanResponse = {
+  ...previewPlan,
+  planId: "plan-jpy",
+  version: 1,
+  summary: { ...previewPlan.summary, status: "active" },
+};
+const completeResult = {
+  seq: 2,
+  status: "completed",
+  executedAmount: 145,
+  executedRate: 1_400,
+  executedDate: "2026-09-08",
+  remainingAmount: 1_595,
+  nextActionSeq: null,
+  alreadyApplied: false,
+};
+const skipResult = {
+  seq: 2,
+  applied: false as const,
+  amountBefore: 145,
+  amountAfter: 160,
+  remainingAmount: 1_595,
+  remainingRounds: 2,
+  perRoundCostKrw: 224_000,
+  exceedsBudget: false,
+  adjustmentOptions: [],
+};
+const scenarioResult: PlannerScenarioPreviewResponse = {
+  basePlanId: "plan-usd",
+  baseVersion: 2,
+  draftPlanId: "draft-usd",
+  draftVersion: 3,
+  changeReasonCode: "RATE_UP",
+  priorityConstraint: "budget",
+  before: {
+    remainingAmount: 1_740,
+    targetDate: "2026-12-31",
+    totalRounds: 2,
+    openRounds: 1,
+    perRoundAmount: 145,
+    roundBudgetKrw: 203_000,
+    costRange: null,
+  },
+  after: {
+    remainingAmount: 1_740,
+    targetDate: "2026-12-31",
+    totalRounds: 3,
+    openRounds: 2,
+    perRoundAmount: 80,
+    roundBudgetKrw: 203_000,
+    costRange: null,
+  },
+  changedSteps: [
+    {
+      seq: 2,
+      changeType: "amount_changed",
+      dateBefore: "2026-09-12",
+      dateAfter: "2026-09-12",
+      amountBefore: 145,
+      amountAfter: 80,
+    },
+  ],
+  keptConstraints: ["target_date"],
+  brokenConstraints: [],
+  budgetState: "within_budget",
+  adjustmentOptions: [],
+  warnings: ["조건을 다시 확인해 주세요."],
+};
+
+function dependencies(
+  overrides: Partial<PlannerApiDependencies> = {},
+): PlannerApiDependencies {
+  return {
+    load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+    complete: vi.fn().mockResolvedValue(completeResult),
+    skip: vi.fn().mockResolvedValue(skipResult),
+    preview: vi.fn().mockResolvedValue(previewPlan),
+    create: vi.fn().mockResolvedValue(createdPlan),
+    createGoal: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.goal),
+    previewScenario: vi.fn().mockResolvedValue(scenarioResult),
+    apply: vi.fn().mockResolvedValue(activePlan),
+    createExecutionKey: vi.fn(() => "screen-key"),
+    getToday: vi.fn(() => "2026-09-08"),
+    ...overrides,
+  };
+}
+
+async function openAction(deps = dependencies()) {
+  render(<PlannerApiScreen dependencies={deps} />);
+  await screen.findByRole("region", { name: "API 플래너" });
+  fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+  return deps;
+}
+
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
 
 describe("PlannerApiScreen", () => {
-  it("로딩, 오류 재시도, 빈 상태를 표시한다", async () => {
-    const load = vi.fn().mockRejectedValueOnce(new ApiError("조회 오류", 500, "SERVER")).mockResolvedValueOnce(PLANNER_API_FIXTURE);
-    render(<PlannerApiScreen dependencies={dependencies({ load })} />);
+  it("로딩, 오류 재시도, 빈 목표를 각각 표시한다", async () => {
+    const load = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("조회 오류", 500, "SERVER"))
+      .mockResolvedValueOnce(PLANNER_API_FIXTURE);
+    const first = render(<PlannerApiScreen dependencies={dependencies({ load })} />);
     expect(screen.getByText("플래너를 불러오는 중입니다")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("조회 오류");
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(await screen.findByRole("region", { name: "API 플래너" })).toBeInTheDocument();
-    render(<PlannerApiScreen dependencies={dependencies({ load: vi.fn().mockResolvedValue({ items: [] }) })} />);
-    expect(await screen.findByText("등록된 외화 목표가 없습니다")).toBeInTheDocument();
+    first.unmount();
+
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies({ load: vi.fn().mockResolvedValue({ items: [] }) })}
+      />,
+    );
+    expect(await screen.findByText("첫 외화 목표를 만들어 보세요")).toBeInTheDocument();
   });
 
-  it("목표 선택과 staged navigation을 제공하고 계획 없는 목표를 안내한다", async () => {
-    render(<PlannerApiScreen dependencies={dependencies()} />); await screen.findByRole("region", { name: "API 플래너" });
+  it("빈 상태에서 목표를 만들고 서버 재조회 결과로 선택한다", async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValue(PLANNER_API_FIXTURE);
+    const deps = dependencies({ load });
+    render(<PlannerApiScreen dependencies={deps} />);
+
+    await screen.findByText("첫 외화 목표를 만들어 보세요");
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "미국 학비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "60000" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-09-08" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+
+    await waitFor(() => expect(deps.createGoal).toHaveBeenCalledOnce());
+    expect(deps.createGoal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "deadline",
+        purpose: "TRAVEL",
+        currencyCode: "USD",
+        targetAmount: 60000,
+        budgetCurrencyCode: "KRW",
+      }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "미국 ETF 준비" }),
+    ).toBeInTheDocument();
+  });
+
+  it("목표 생성 실패는 입력 화면을 유지하고 서버 오류를 표시한다", async () => {
+    const createGoal = vi
+      .fn()
+      .mockRejectedValue(new ApiError("목표 생성 실패", 503, "SERVER"));
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies({
+          load: vi.fn().mockResolvedValue({ items: [] }),
+          createGoal,
+        })}
+      />,
+    );
+
+    await screen.findByText("첫 외화 목표를 만들어 보세요");
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "유학 준비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "60000" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-09-08" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("목표 생성 실패");
+    expect(screen.getByLabelText("목표 이름 또는 목적")).toHaveValue("유학 준비");
+    expect(createGoal).toHaveBeenCalledOnce();
+  });
+
+  it("활성 계획이 없으면 미리보기와 명시적 생성을 분리한다", async () => {
+    const withJpyPlan = {
+      ...PLANNER_API_FIXTURE,
+      items: PLANNER_API_FIXTURE.items.map((item) =>
+        item.goal.id === "goal-jpy" ? { ...item, activePlan: createdPlan } : item,
+      ),
+    };
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(PLANNER_API_FIXTURE)
+      .mockResolvedValue(withJpyPlan);
+    const deps = dependencies({ load });
+    render(<PlannerApiScreen dependencies={deps} />);
+    await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
-    expect(screen.getByText("일본 여행 준비의 현재 위치입니다")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    expect(screen.getByText("이 목표에는 활성 계획이 없습니다")).toBeInTheDocument();
-    expect(screen.queryByText("일본 여행 준비의 현재 위치입니다")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
-    expect(screen.getByText("일본 여행 준비의 현재 위치입니다")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "다른 목표 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: /미국 ETF 준비/ }));
-    expect(screen.getByText("미국 ETF 준비의 현재 위치입니다")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
-    fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    fireEvent.keyDown(screen.getByRole("button", { name: /2회차 다음/ }), { key: "Enter" });
-    expect(screen.getByRole("status")).toHaveTextContent("2회차");
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "계획 미리보기" }));
+
+    expect(await screen.findByRole("heading", { name: "이 계획을 만들기 전에 확인해 주세요" })).toBeInTheDocument();
+    expect(deps.preview).toHaveBeenCalledOnce();
+    expect(deps.create).not.toHaveBeenCalled();
+    expect(screen.getByText(/아직 활성 계획으로 저장되지 않았습니다/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "현재 상태로" }));
+    expect(
+      screen.getByRole("heading", { name: "일본 여행 준비" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "계획 미리보기" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "이 계획을 만들기 전에 확인해 주세요",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "계획 Curve" })).not.toBeInTheDocument();
+    expect(deps.create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "이 계획 만들기" }));
+    expect(await screen.findByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
+    expect(deps.create).toHaveBeenCalledOnce();
+    expect(deps.preview).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   });
 
-  it("Curve node를 키보드로 선택하고 완료 입력을 검증한다", async () => {
-    await openAction();
-    expect(screen.getByText("2회차를 기록할까요?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument(); fireEvent.keyDown(window, { key: "Escape" }); expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); expect(screen.getByRole("button", { name: "전체 계획 상세 보기" })).toHaveFocus();
+  it("현재 상태, Curve와 다음 행동을 함께 표시하고 상세 경로를 요청한다", async () => {
+    const onOpenPlanDetail = vi.fn();
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        onOpenPlanDetail={onOpenPlanDetail}
+      />,
+    );
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "2회차를 확인할까요?" })).toBeInTheDocument();
+    const detail = screen.getByRole("button", { name: "전체 계획 상세 보기" });
+    fireEvent.click(detail);
+    expect(onOpenPlanDetail).toHaveBeenCalledWith("goal-usd", "plan-usd");
+  });
+
+  it("완료 입력을 검증하고 안정적인 execution key로 한 번만 제출한다", async () => {
+    let resolveComplete!: (value: typeof completeResult) => void;
+    const pending = new Promise<typeof completeResult>((resolve) => {
+      resolveComplete = resolve;
+    });
+    const complete = vi.fn().mockReturnValue(pending);
+    const deps = await openAction(dependencies({ complete }));
     fireEvent.click(screen.getByRole("button", { name: "이번 회차 기록" }));
     expect(screen.getByRole("alert")).toHaveTextContent("실행 외화 금액");
-    fireEvent.click(screen.getByRole("button", { name: "Curve로 돌아가기" }));
-    expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("실행 외화 금액"), {
+      target: { value: "150" },
+    });
+    fireEvent.change(screen.getByLabelText("실행 환율"), {
+      target: { value: "1395" },
+    });
+    const submit = screen.getByRole("button", { name: "이번 회차 기록" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "서버에 반영 중…" })).toBeDisabled();
+    resolveComplete(completeResult);
+    expect(
+      await screen.findByText("2회차 기록 후 최신 계획을 확인했습니다."),
+    ).toBeInTheDocument();
+    expect(deps.complete).toHaveBeenCalledWith("plan-usd", 2, {
+      executedAmount: 150,
+      executedRate: 1395,
+      executedDate: "2026-09-08",
+      executionKey: "screen-key",
+    });
   });
 
-  it("서버 처리 중 중복 완료·건너뛰기를 막고 성공 상태를 보여 준다", async () => {
-    let resolve!: (value: typeof completeResult) => void; const promise = new Promise<typeof completeResult>((done) => { resolve = done; });
-    const deps = await openAction(dependencies({ complete: vi.fn().mockReturnValue(promise) }));
-    fireEvent.change(screen.getByLabelText("실행 외화 금액"), { target: { value: "150" } }); fireEvent.change(screen.getByLabelText("실행 환율"), { target: { value: "1395" } }); fireEvent.click(screen.getByRole("button", { name: "이번 회차 기록" }));
-    expect(screen.getByRole("button", { name: "서버에 반영 중…" })).toBeDisabled(); expect(screen.getByRole("button", { name: "이번 회차 건너뛰기 미리보기" })).toBeDisabled(); resolve(completeResult);
-    await waitFor(() => expect(deps.complete).toHaveBeenCalledWith("plan-usd", 2, { executedAmount: 150, executedRate: 1395 })); expect(await screen.findByRole("status")).toHaveTextContent("기록을 서버에 저장했습니다");
+  it("건너뛰기는 저장 완료가 아닌 미리보기로 안내한다", async () => {
+    const deps = await openAction();
+    fireEvent.click(screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }));
+    expect(await screen.findByRole("dialog", { name: "어떤 변화가 생겼나요?" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("아직 계획에 반영되지 않았습니다");
+    expect(screen.queryByText(/저장되었습니다|반영되었습니다/)).not.toBeInTheDocument();
+    expect(screen.getByText("변경 160 USD")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "적용 가능한 변경안 비교" }),
+    );
+    await waitFor(() =>
+      expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
+        scenarioCode: "STEP_SKIPPED",
+        skippedSeq: 2,
+      }),
+    );
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
+    expect(deps.skip).toHaveBeenCalledWith("plan-usd", 2);
+    expect(deps.load).toHaveBeenCalledTimes(1);
   });
 
-  it("건너뛰기 실패를 알리고 모바일 Curve 구조를 유지한다", async () => {
-    const deps = await openAction(dependencies({ skip: vi.fn().mockRejectedValue(new ApiError("건너뛰기 오류", 500, "SERVER")) }));
-    fireEvent.click(screen.getByRole("button", { name: "이번 회차 건너뛰기 미리보기" })); expect(await screen.findByRole("alert")).toHaveTextContent("건너뛰기 오류"); expect(deps.skip).toHaveBeenCalled();
+  it("scenario preview 후 최종 확인 전에는 apply를 호출하지 않는다", async () => {
+    const deps = await openAction();
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    fireEvent.click(screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }));
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
+    expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
+      scenarioCode: "RATE_UP",
+    });
+    expect(deps.apply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "변경안 적용" }));
+    expect(await screen.findByText(/최신 활성 계획을 확인했습니다/)).toBeInTheDocument();
+    expect(deps.apply).toHaveBeenCalledWith("draft-usd");
+    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
+    expect(
+      screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" }),
+    ).toBeInTheDocument();
   });
 
-  it("한 개 목표의 다음 회차를 기본 강조하고 Space로 Curve 노드를 선택한다", async () => {
-    render(<PlannerApiScreen dependencies={dependencies({ load: vi.fn().mockResolvedValue({ items: [PLANNER_API_FIXTURE.items[0]! ] }) })} />); await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" }));
-    const next = screen.getByRole("button", { name: /2회차 다음/ }); expect(next).toHaveAttribute("data-selected", "true");
-    fireEvent.keyDown(screen.getByRole("button", { name: /1회차 완료/ }), { key: " " }); expect(screen.getByRole("status")).toHaveTextContent("1회차");
+  it("draft 식별자가 없는 비교 응답은 최종 확인에서도 apply하지 않는다", async () => {
+    const deps = await openAction(
+      dependencies({
+        previewScenario: vi
+          .fn()
+          .mockResolvedValue({ ...scenarioResult, draftPlanId: null }),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }),
+    );
+    expect(await screen.findByText("변경 2회")).toBeInTheDocument();
+    const apply = screen.getByRole("button", { name: "변경안 적용" });
+    expect(apply).toBeDisabled();
+
+    expect(deps.apply).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "어떤 변화가 생겼나요?" }),
+    ).toBeInTheDocument();
   });
 
-  it("현재 상태에서 목표 선택 장면으로 돌아간다", async () => {
-    render(<PlannerApiScreen dependencies={dependencies()} />); await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "목표 다시 고르기" }));
-    expect(screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" })).toBeInTheDocument();
+  it("현재 계획 선택은 요청을 지우고 회차 누락 비교에는 다음 sequence를 보낸다", async () => {
+    const deps = await openAction();
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    fireEvent.click(screen.getByRole("button", { name: /현재 계획 유지/ }));
+    expect(deps.previewScenario).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /이번 회차를 놓치면/ }));
+    await waitFor(() =>
+      expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
+        scenarioCode: "STEP_SKIPPED",
+        skippedSeq: 2,
+      }),
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "상황 비교 닫기" })[1]!);
+    expect(
+      screen.getByRole("heading", { name: "2회차를 확인할까요?" }),
+    ).toBeInTheDocument();
   });
 
-  it("완료된 활성 계획의 action-null 상세와 모든 navigation handler를 제공한다", async () => {
-    const source = PLANNER_API_FIXTURE.items[0]!.activePlan!;
-    // 모든 회차를 마치면 백엔드는 next_action_seq 를 보내지 않는다
-    const completed = { items: [{ ...PLANNER_API_FIXTURE.items[0]!, activePlan: { ...source, summary: { ...source.summary, status: "completed" as const, completedRounds: 2, scheduledRounds: 0, nextActionSeq: undefined }, steps: source.steps.map((step) => ({ ...step, status: "completed" as const, nextAction: false })) } }] };
-    render(<PlannerApiScreen dependencies={dependencies({ load: vi.fn().mockResolvedValue(completed) })} />); await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" })); fireEvent.click(screen.getByRole("button", { name: "계획 Curve 보기" })); fireEvent.click(screen.getByRole("button", { name: "다음 행동 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" })); expect(screen.getByRole("dialog")).toBeInTheDocument(); const closeButtons = screen.getAllByRole("button", { name: "상세 닫기" }); fireEvent.click(closeButtons[closeButtons.length - 1]!); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  it("예산 감소는 유효한 예산을 받은 뒤에만 preview한다", async () => {
+    const deps = await openAction();
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    fireEvent.click(screen.getByRole("button", { name: /사용할 예산이 줄면/ }));
+    fireEvent.click(screen.getByRole("button", { name: "새 예산으로 비교" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("0보다 큰 금액");
+    expect(deps.previewScenario).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("새 회차 예산(원)"), {
+      target: { value: "180000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "새 예산으로 비교" }));
+    await waitFor(() =>
+      expect(deps.previewScenario).toHaveBeenCalledWith("plan-usd", {
+        scenarioCode: "BUDGET_DECREASED",
+        newBudgetKrw: 180000,
+      }),
+    );
   });
 
-  it("서버 경고와 고지 문장을 계획 상세에 그대로 표시한다", async () => {
-    const source = PLANNER_API_FIXTURE.items[0]!.activePlan!;
-    const warned = { items: [{ ...PLANNER_API_FIXTURE.items[0]!, activePlan: { ...source, warnings: ["BUDGET_SHORTFALL"] as const } }] };
-    await openAction(dependencies({ load: vi.fn().mockResolvedValue(warned) }));
+  it("완료된 계획은 남은 회차 없음과 상세 진입을 제공한다", async () => {
+    const completed = {
+      items: [
+        {
+          ...PLANNER_API_FIXTURE.items[0]!,
+          activePlan: {
+            ...activePlan,
+            summary: { ...activePlan.summary, nextActionSeq: null },
+            steps: activePlan.steps.map((step) => ({
+              ...step,
+              status: "completed",
+              nextAction: false,
+            })),
+          },
+        },
+      ],
+    };
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies({ load: vi.fn().mockResolvedValue(completed) })}
+      />,
+    );
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("heading", { name: "남은 회차가 없습니다" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
-    expect(screen.getByRole("list", { name: "계획 경고" })).toHaveTextContent("예산이 계획 비용에 미치지 못합니다");
-    expect(screen.getByText(source.disclaimer)).toBeInTheDocument();
   });
 
-  it("계획 이력 장면에서 버전 목록과 상세, AI 설명을 표시한다", async () => {
+  it("API 작업 실패를 fixture로 대체하지 않고 복구 메시지를 남긴다", async () => {
+    const deps = await openAction(
+      dependencies({
+        previewScenario: vi.fn().mockRejectedValue(new ApiError("비교 실패", 503)),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    fireEvent.click(screen.getByRole("button", { name: /환율이 빠르게 상승하면/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("비교 실패");
+    expect(screen.queryByText("미국 ETF 정기 투자")).not.toBeInTheDocument();
+    expect(deps.previewScenario).toHaveBeenCalledOnce();
+  });
+
+  it("공통 Journey 안에서 계획 버전 목록과 최신 상세를 표시한다", async () => {
     const planVersionDependencies: PlanVersionDependencies = {
       loadVersions: vi.fn().mockResolvedValue([
         { planId: "plan-usd", version: 2, status: "active", reason: "재계산" },
         { planId: "plan-usd-1", version: 1, status: "superseded" },
       ]),
-      loadDetail: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.activePlan!),
+      loadDetail: vi.fn().mockResolvedValue(activePlan),
     };
     const explanationRequester: ExplanationRequester = vi.fn().mockResolvedValue({
       data: {
-        explanation: { sentences: ["서버가 정리한 계획 설명입니다."], sentenceCount: 1, explainLevel: null, explainDomain: null, fallback: false },
-        verification: { numericMatch: true, blockedPhrases: [] },
+        explanation: {
+          sentences: ["서버가 정리한 계획 설명입니다."],
+          sentenceCount: 1,
+          explainLevel: null,
+          explainDomain: null,
+          fallback: false,
+        },
+        verification: {
+          numericMatch: true,
+          regimeDisclosed: true,
+          blockedPhrases: [],
+          fallbackReason: null,
+        },
       },
       meta: { asOf: "2026-09-08T00:00:00Z" },
     });
-    render(<PlannerApiScreen dependencies={dependencies()} planVersionDependencies={planVersionDependencies} explanationRequester={explanationRequester} />);
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        planVersionDependencies={planVersionDependencies}
+        explanationRequester={explanationRequester}
+      />,
+    );
     await screen.findByRole("region", { name: "API 플래너" });
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
 
     expect(screen.getByText("계획 이력을 불러오고 있습니다.")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /v2/ })).toBeInTheDocument();
+    const activeVersion = await screen.findByRole("button", { name: /v2/ });
     expect(planVersionDependencies.loadVersions).toHaveBeenCalledWith("goal-usd");
-    expect(await screen.findByText("서버가 정리한 계획 설명입니다.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("서버가 정리한 계획 설명입니다."),
+    ).toBeInTheDocument();
     expect(explanationRequester).toHaveBeenCalledWith({
       surface: "planner_plan_summary",
-      facts: { plan_version: 2, plan_status: "active", total_rounds: 2, completed_rounds: 1, skipped_rounds: 0, next_action_seq: 2, currency_code: "USD", target_amount: 3_000, held_amount: 1_260, target_date: "2026-12-31" },
+      facts: expect.objectContaining({
+        plan_version: 2,
+        plan_status: "active",
+        next_action_seq: 2,
+        currency_code: "USD",
+      }),
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /v2/ }));
+    fireEvent.click(activeVersion);
     expect(await screen.findByText("전체 회차")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "현재 상태" }));
-    expect(screen.getByText("미국 ETF 준비의 현재 위치입니다")).toBeInTheDocument();
+    expect(planVersionDependencies.loadDetail).toHaveBeenCalledWith("plan-usd");
+    fireEvent.click(screen.getByRole("button", { name: "현재 계획으로 돌아가기" }));
+    expect(screen.getByRole("heading", { name: "미국 ETF 준비" })).toBeInTheDocument();
   });
 
-  it("활성 계획이 없는 목표의 이력은 설명 없이 빈 목록을 표시한다", async () => {
+  it("활성 계획이 없는 목표에서도 빈 계획 이력을 확인한다", async () => {
     const planVersionDependencies: PlanVersionDependencies = {
       loadVersions: vi.fn().mockResolvedValue([]),
       loadDetail: vi.fn(),
     };
-    const explanationRequester: ExplanationRequester = vi.fn();
-    render(<PlannerApiScreen dependencies={dependencies()} planVersionDependencies={planVersionDependencies} explanationRequester={explanationRequester} />);
+    render(
+      <PlannerApiScreen
+        dependencies={dependencies()}
+        planVersionDependencies={planVersionDependencies}
+      />,
+    );
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "계획 이력 보기" }));
 
-    expect(await screen.findByText(/저장된 계획 버전이 없습니다/)).toBeInTheDocument();
-    expect(explanationRequester).not.toHaveBeenCalled();
-  });
-
-  it("완료 실패 후 현재 상태를 다시 확인하고 건너뛰기 성공을 표시한다", async () => {
-    const load = vi.fn().mockResolvedValue(PLANNER_API_FIXTURE); await openAction(dependencies({ load, complete: vi.fn().mockRejectedValue(new ApiError("기록 오류", 500, "SERVER")) }));
-    fireEvent.change(screen.getByLabelText("실행 외화 금액"), { target: { value: "1" } }); fireEvent.change(screen.getByLabelText("실행 환율"), { target: { value: "1" } }); fireEvent.click(screen.getByRole("button", { name: "이번 회차 기록" })); expect(await screen.findByRole("alert")).toHaveTextContent("기록 오류"); fireEvent.click(screen.getByRole("button", { name: "현재 상태 다시 확인" })); await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    const success = await openAction(dependencies()); const skipButtons = screen.getAllByRole("button", { name: "이번 회차 건너뛰기 미리보기" }); fireEvent.click(skipButtons[skipButtons.length - 1]!); await waitFor(() => expect(success.skip).toHaveBeenCalled());
+    expect(
+      await screen.findByText(/저장된 계획 버전이 없습니다/),
+    ).toBeInTheDocument();
+    expect(planVersionDependencies.loadDetail).not.toHaveBeenCalled();
   });
 });

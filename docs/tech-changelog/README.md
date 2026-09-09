@@ -60,3 +60,5 @@
 | [0030](./0030-session-expiry-and-401-recovery.md) | 세션 만료 판정과 401 자동 복구 | 2026-09-07 |
 | [0031](./0031-initial-setup-diagnosis-flow.md) | 초기 설정·위험성향 진단 UX와 결과 구조 구현 | 2026-09-07 |
 | [0032](./0032-planner-journey-api-integration.md) | Planner Journey 실제 API 경계와 Curve UI 통합 | 2026-09-07 |
+| [0066](./0066-planner-develop-integration-and-preview-state.md) | 최신 develop 통합과 Planner preview 상태 분리 | 2026-09-08 |
+| [0067](./0067-planner-ux-unification.md) | API·데모 Planner Journey UI 통합 | 2026-09-09 |

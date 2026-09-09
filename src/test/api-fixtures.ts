@@ -7,17 +7,29 @@ import type {
   NotificationDto,
   SettingsResponse,
   StressRunResponse,
-  XrayBundle,
 } from "../api/generated/divurve-api";
 import type { PlannerApiOverview } from "../api/planner";
+import type { XrayApiBundle } from "../api/xray";
 import type { ImportedAssetSummary } from "../types/assets";
 
 /** 온보딩 2단계가 표시하는 자산 요약. 금액은 환율에 따라 달라지므로 예시일 뿐이다. */
 export const IMPORTED_ASSET_SUMMARY_FIXTURE: ImportedAssetSummary = {
+  totalAssetKrw: 100_058_000,
   fxAssetKrw: 64_058_000,
   krwAssetKrw: 36_000_000,
   currencyCodes: ["USD", "JPY", "EUR"],
   asOf: "2026-09-07T09:30:00Z",
+  isSampleData: true,
+  hasAssets: true,
+  holdings: [
+    { id: "holding-1", ticker: "AAPL", currencyCode: "USD", quantity: 12 },
+  ],
+  deposits: [
+    { id: "deposit-1", currencyCode: "JPY", amount: 400_000 },
+  ],
+  krwAssets: [
+    { id: "krw-1", kind: "cash", label: "생활비 통장", amountKrw: 12_000_000 },
+  ],
 };
 
 export const FORECAST_API_FIXTURE: ForecastBundle = {
@@ -112,7 +124,8 @@ export const EMPTY_FORECAST_API_FIXTURE: ForecastBundle = {
   events: { events: [] },
 };
 
-export const XRAY_API_FIXTURE: XrayBundle = {
+export const XRAY_API_FIXTURE: XrayApiBundle = {
+  isSampleData: true,
   overview: {
     totalAssetKrw: 20_000_000,
     krwAssetKrw: 12_000_000,
@@ -194,7 +207,7 @@ export const XRAY_API_FIXTURE: XrayBundle = {
 };
 
 /** 위험성향 미측정 + 자산 없음 계정. 서버는 값이 없는 필드를 키째 생략한다. */
-export const NOT_MEASURED_XRAY_API_FIXTURE: XrayBundle = {
+export const NOT_MEASURED_XRAY_API_FIXTURE: XrayApiBundle = {
   ...XRAY_API_FIXTURE,
   overview: {
     ...XRAY_API_FIXTURE.overview,
@@ -343,6 +356,8 @@ export const PLAN_DISCLAIMER =
   "Divurve 는 환전을 실행하지 않으며 환율 방향이나 매매 시점을 추천하지 않습니다.";
 
 export const PLANNER_API_FIXTURE: PlannerApiOverview = {
+  isDemo: false,
+  isSampleData: true,
   items: [
     {
       goal: {
@@ -377,6 +392,7 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
           purpose: "investment",
           currencyCode: "USD",
           targetAmount: 3_000,
+          roundBudgetKrw: null,
           allocatedHoldingAmount: 1_260,
           remainingAmount: 1_740,
           targetDate: "2026-12-31",
@@ -391,13 +407,16 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
           nextActionSeq: 2,
           estimatedCost: { lowKrw: 380_834, baseKrw: 389_354, highKrw: 398_064 },
           budgetState: "COVERED_IN_RANGE",
+          cumulativeAcquisition: null,
         },
         steps: [
           {
             seq: 1,
             scheduledDate: "2026-09-01",
             amount: 145,
+            budgetKrw: null,
             estimatedCost: { lowKrw: 190_417, baseKrw: 194_677, highKrw: 199_032 },
+            acquisition: null,
             executedAmount: 145,
             executedRate: 1_395,
             executedDate: "2026-09-01",
@@ -408,8 +427,12 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
             seq: 2,
             scheduledDate: "2026-09-12",
             amount: 145,
+            budgetKrw: null,
             estimatedCost: { lowKrw: 190_417, baseKrw: 194_677, highKrw: 199_032 },
+            acquisition: null,
             executedAmount: 0,
+            executedRate: null,
+            executedDate: null,
             status: "due",
             nextAction: true,
           },

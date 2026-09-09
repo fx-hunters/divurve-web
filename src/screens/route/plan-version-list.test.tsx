@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { PlanResponse } from "../../api/generated/divurve-api";
 import type { PlanVersion } from "../../api/planner";
+import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import { PlanVersionList } from "./plan-version-list";
 import type {
   PlanVersionDetailState,
@@ -17,70 +17,26 @@ const VERSIONS: readonly PlanVersion[] = [
     planEndDate: "2026-12-31",
     createdAt: "2026-09-01T00:00:00Z",
   },
-  // 백엔드가 새 상태를 추가하면 라벨 없이도 원문이 보여야 한다
-  { planId: "plan-1", version: 1, status: "unknown-status" as never },
+  { planId: "plan-1", version: 1, status: "superseded" },
 ];
 
-/** 백엔드 `PlanResponse` 구조 그대로. 저장된 계획이라 warnings 는 빈 배열이다. */
-const PLAN_DETAIL: PlanResponse = {
-  planId: "plan-2",
-  goalId: "goal-usd",
-  version: 2,
-  goal: {
-    goalType: "deadline",
-    purpose: "investment",
-    currencyCode: "USD",
-    targetAmount: 3_000,
-    allocatedHoldingAmount: 1_260,
-    remainingAmount: 1_740,
-    targetDate: "2026-12-31",
-  },
+const PLAN_DETAIL = {
+  ...PLANNER_API_FIXTURE.items[0]!.activePlan!,
   summary: {
+    ...PLANNER_API_FIXTURE.items[0]!.activePlan!.summary,
     status: "active",
-    planEndDate: "2026-12-26",
-    totalRounds: 4,
-    completedRounds: 1,
-    scheduledRounds: 2,
-    skippedRounds: 1,
-    nextActionSeq: 2,
+    totalRounds: 2,
   },
   steps: [
     {
-      seq: 1,
-      scheduledDate: "2026-09-01",
-      amount: 145,
-      executedAmount: 145,
+      ...PLANNER_API_FIXTURE.items[0]!.activePlan!.steps[0]!,
       status: "completed",
-      nextAction: false,
     },
     {
-      seq: 2,
-      scheduledDate: "2026-09-12",
-      amount: 145,
-      executedAmount: 0,
+      ...PLANNER_API_FIXTURE.items[0]!.activePlan!.steps[1]!,
       status: "due",
-      nextAction: true,
-    },
-    {
-      seq: 3,
-      scheduledDate: "2026-09-19",
-      amount: 145,
-      executedAmount: 0,
-      status: "scheduled",
-      nextAction: false,
-    },
-    {
-      seq: 4,
-      scheduledDate: "2026-09-26",
-      amount: 145,
-      executedAmount: 0,
-      // 백엔드가 새 회차 상태를 추가해도 원문이 그대로 보여야 한다
-      status: "brand-new-status" as never,
-      nextAction: false,
     },
   ],
-  warnings: [],
-  disclaimer: "이 계획은 조건부 계산 결과입니다.",
 };
 
 function renderList(
@@ -135,8 +91,7 @@ describe("PlanVersionList", () => {
 
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("적용 중")).toBeInTheDocument();
-    // 알 수 없는 상태 값은 서버가 준 문자열 그대로 보여 준다
-    expect(screen.getByText("unknown-status")).toBeInTheDocument();
+    expect(screen.getByText("대체됨")).toBeInTheDocument();
     expect(screen.getByText("종료 2026-12-31")).toBeInTheDocument();
     expect(screen.getByText("생성 2026-09-01T00:00:00Z")).toBeInTheDocument();
 
@@ -176,14 +131,38 @@ describe("PlanVersionList", () => {
       { status: "success", versions: VERSIONS },
       { status: "success", planId: "plan-2", plan: PLAN_DETAIL },
     );
+    expect(screen.getAllByText("적용 중").length).toBeGreaterThan(0);
     expect(screen.getByText("전체 회차")).toBeInTheDocument();
+    expect(screen.getByText("완료 회차")).toBeInTheDocument();
+    expect(screen.getByText("건너뛴 회차")).toBeInTheDocument();
     expect(screen.getByText("1회차")).toBeInTheDocument();
     expect(screen.getByText("2026-09-01 · 145 USD")).toBeInTheDocument();
     expect(screen.getByText("완료")).toBeInTheDocument();
-    // 백엔드 PlanStepStatus 어휘가 라벨로 나온다 (예전엔 없던 scheduled·due)
     expect(screen.getByText("예정일 도래")).toBeInTheDocument();
-    expect(screen.getByText("예정")).toBeInTheDocument();
-    // 알 수 없는 회차 상태도 서버 값 그대로 표시한다
-    expect(screen.getByText("brand-new-status")).toBeInTheDocument();
+  });
+
+  it("서버가 새 상태 코드를 추가해도 원문을 숨기지 않는다", () => {
+    const versionStatus = "awaiting_review" as PlanVersion["status"];
+    renderList(
+      {
+        status: "success",
+        versions: [{ planId: "plan-future", version: 3, status: versionStatus }],
+      },
+      {
+        status: "success",
+        planId: "plan-future",
+        plan: {
+          ...PLAN_DETAIL,
+          summary: { ...PLAN_DETAIL.summary, status: "future_plan_status" },
+          steps: [
+            { ...PLAN_DETAIL.steps[0]!, status: "future_step_status" },
+          ],
+        },
+      },
+    );
+
+    expect(screen.getByText("awaiting_review")).toBeInTheDocument();
+    expect(screen.getByText("future_plan_status")).toBeInTheDocument();
+    expect(screen.getByText("future_step_status")).toBeInTheDocument();
   });
 });

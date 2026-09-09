@@ -1,77 +1,68 @@
 import { describe, expect, it } from "vitest";
-import type { PlanResponse } from "../../api/generated/divurve-api";
 import type { PlannerApiOverview } from "../../api/planner";
-import { PLAN_DISCLAIMER } from "../../test/api-fixtures";
-import { presentPlannerOverview } from "./planner-api-presenter";
-import { validateExecutedStepInput } from "./planner-api-types";
-
-/**
- * 백엔드 `PlanResponse`(플래너 명세 §11) 그대로의 계획. 저장된 계획이라
- * `planId`·`version` 이 있고 `warnings` 는 빈 배열이다.
- */
-function plan(): PlanResponse {
-  return {
-    planId: "plan",
-    goalId: "first",
-    version: 3,
-    calculationMeta: {
-      calculatedAt: "2026-09-08T04:34:58Z",
-      rateAsOf: "2026-09-08T00:00:00Z",
-      forecastAsOf: "2026-09-08T00:00:00Z",
-      policyVersion: "plan-2026.09.1-equal-split",
-      currencyCode: "USD",
-      quoteUnit: 1,
-      rates: { low: 1_313.22, base: 1_342.6, high: 1_372.63 },
-      spreadRatio: 0.009625,
-      feeKrw: 10_000,
-    },
-    goal: {
-      goalType: "deadline",
-      purpose: "travel",
-      currencyCode: "USD",
-      targetAmount: 100,
-      allocatedHoldingAmount: 25,
-      remainingAmount: 75,
-      targetDate: "2026-12-31",
-    },
-    summary: {
-      status: "active",
-      planEndDate: "2026-12-26",
-      totalRounds: 4,
-      completedRounds: 1,
-      scheduledRounds: 2,
-      skippedRounds: 1,
-      nextActionSeq: 3,
-      estimatedCost: { lowKrw: 98_491, baseKrw: 100_695, highKrw: 102_947 },
-      budgetState: "COVERED_IN_RANGE",
-    },
-    steps: [
-      { seq: 1, scheduledDate: "2026-01-01", amount: 10, executedAmount: 10, executedRate: 1_395, executedDate: "2026-01-01", status: "completed", nextAction: false },
-      { seq: 2, scheduledDate: "2026-02-01", amount: 20, executedAmount: 0, status: "skipped", nextAction: false },
-      { seq: 3, scheduledDate: "2026-03-01", amount: 30, executedAmount: 0, status: "due", nextAction: true },
-      { seq: 4, scheduledDate: "2026-04-01", amount: 40, executedAmount: 0, status: "scheduled", nextAction: false },
-    ],
-    warnings: [],
-    disclaimer: PLAN_DISCLAIMER,
-  };
-}
+import type {
+  PlannerScenarioPreviewResponse,
+  PlannerStepSkipResponse,
+} from "../../api/planner-contract";
+import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
+import {
+  presentPlannerOverview,
+  presentPlannerScenarioComparison,
+  presentPlannerSkipComparison,
+} from "./planner-api-presenter";
+import {
+  rejectUnsupportedPlannerOperation,
+  validateExecutedStepInput,
+  type PlannerViewModel,
+} from "./planner-api-types";
 
 function overview(): PlannerApiOverview {
+  const first = PLANNER_API_FIXTURE.items[0]!;
   return {
+    ...PLANNER_API_FIXTURE,
     items: [
       {
-        goal: {
-          id: "first", name: "첫 목표", kind: "deadline", purpose: "travel",
-          currencyCode: "USD", targetAmount: 100, targetDate: "2026-12-31",
-          isSpeculative: false, status: "active", heldAmount: 25,
+        ...first,
+        goal: { ...first.goal, id: "first", name: "첫 목표", targetAmount: 100, heldAmount: 25 },
+        activePlan: {
+          ...first.activePlan!,
+          planId: "plan",
+          goalId: "first",
+          version: 3,
+          goal: {
+            ...first.activePlan!.goal,
+            targetAmount: 100,
+            allocatedHoldingAmount: 25,
+            remainingAmount: 65,
+            targetDate: "2026-12-31",
+          },
+          summary: {
+            ...first.activePlan!.summary,
+            totalRounds: 4,
+            completedRounds: 1,
+            scheduledRounds: 2,
+            skippedRounds: 1,
+            nextActionSeq: 3,
+          },
+          steps: [
+            { ...first.activePlan!.steps[0]!, seq: 1, scheduledDate: "2026-09-01", executedAmount: 10, status: "completed", nextAction: false },
+            { ...first.activePlan!.steps[1]!, seq: 2, scheduledDate: "2026-09-10", status: "skipped", nextAction: false },
+            { ...first.activePlan!.steps[1]!, seq: 3, scheduledDate: "2026-10-10", amount: 30, status: "pending", nextAction: true },
+            { ...first.activePlan!.steps[1]!, seq: 4, scheduledDate: "2026-12-10", amount: 40, status: "pending", nextAction: false },
+          ],
         },
-        activePlan: plan(),
       },
       {
         goal: {
-          id: "second", name: "둘 목표", kind: "recurring", purpose: "investment",
-          currencyCode: "JPY", targetAmount: 10, isSpeculative: false,
-          status: "active", heldAmount: 40,
+          id: "second",
+          name: "둘 목표",
+          kind: "recurring",
+          purpose: "investment",
+          currencyCode: "JPY",
+          targetAmount: 10,
+          isSpeculative: false,
+          status: "active",
+          heldAmount: 40,
         },
         activePlan: null,
       },
@@ -79,181 +70,541 @@ function overview(): PlannerApiOverview {
   };
 }
 
-function withPlan(overrides: Partial<PlanResponse>): PlannerApiOverview {
-  const first = overview().items[0]!;
-  return { items: [{ ...first, activePlan: { ...first.activePlan!, ...overrides } }] };
-}
-
 describe("presentPlannerOverview", () => {
-  it("0개 목표에는 빈 서버 ViewModel을 만들고, 선택되지 않으면 첫 목표를 고른다", () => {
+  it("0개 목표에는 빈 ViewModel을 만들고 선택되지 않으면 첫 목표를 고른다", () => {
     expect(presentPlannerOverview({ items: [] })).toMatchObject({
-      goalItems: [], selectedGoal: null, plan: null, curve: null,
-      nextAction: null, dataSource: { kind: "server" },
-      supportedActions: { canCompleteStep: false, canSkipStep: false },
+      goalItems: [],
+      selectedGoal: null,
+      plan: null,
+      curve: null,
+      nextAction: null,
+      dataSource: { kind: "unknown", label: "서버 조회 데이터" },
+      supportedActions: {
+        canPreviewPlan: false,
+        canCreatePlan: false,
+        canCompleteStep: false,
+        canSkipStep: false,
+      },
     });
     expect(presentPlannerOverview(overview()).selectedGoal?.id).toBe("first");
   });
 
-  it("계획 요약은 서버 summary 값을 그대로 옮긴다", () => {
+  it("선택 목표의 최신 서버 계획 요약과 다음 행동을 표시한다", () => {
     const model = presentPlannerOverview(overview(), "first");
-    expect(model.goalItems).toEqual([
-      { id: "first", name: "첫 목표", currencyCode: "USD", isSelected: true },
-      { id: "second", name: "둘 목표", currencyCode: "JPY", isSelected: false },
-    ]);
-    expect(model.selectedGoal).toMatchObject({
-      id: "first", targetAmount: 100, heldAmount: 25,
-      targetDate: "2026-12-31", targetDateLabel: "2026-12-31",
-      progressPercent: 25, progressLabel: "외화 확보 진행",
+    expect(model.goalItems[0]).toMatchObject({
+      id: "first",
+      name: "첫 목표",
+      targetAmountLabel: "100 USD",
+      heldAmountLabel: "25 USD",
+      isSelected: true,
     });
-    expect(model.plan).toEqual({
-      planId: "plan",
+    expect(model.selectedGoal).toMatchObject({
+      id: "first",
+      progressPercent: 35,
+      progressLabel: "목표 배정 및 완료 기록 기준",
+      heldAmountLabel: "35 USD",
+    });
+    expect(model.plan).toMatchObject({
+      id: "plan",
       version: 3,
       versionLabel: "v3",
-      status: "active",
       statusLabel: "적용 중",
       totalRounds: 4,
       completedRounds: 1,
-      scheduledRounds: 2,
-      skippedRounds: 1,
+      planSource: "active",
       nextActionSeq: 3,
-      planEndDateLabel: "2026-12-26",
-      estimatedCostLabel: "98,491 ~ 102,947원 (기준 100,695원)",
       budgetStateLabel: "현재 환율 범위에서 예산으로 감당됩니다",
-      warnings: [],
-      disclaimer: PLAN_DISCLAIMER,
     });
-    // 없는 필드를 포매터에 넣어 NaN을 그리던 자리다(점검 리포트 H2).
-    expect(JSON.stringify(model)).not.toContain("NaN");
-    expect(JSON.stringify(model)).not.toContain("undefined");
     expect(model.nextAction).toMatchObject({ planId: "plan", sequence: 3, amount: 30 });
-    expect(model.unsupportedAreas).toContain("회차 건너뛰기 적용");
-  });
-
-  it("서버가 값을 주지 않은 요약 필드는 지어내지 않고 그 사실을 적는다", () => {
-    const model = presentPlannerOverview(
-      withPlan({
-        planId: undefined,
-        version: undefined,
-        summary: {
-          status: "draft",
-          totalRounds: 4,
-          completedRounds: 0,
-          scheduledRounds: 4,
-          skippedRounds: 0,
-        },
-        warnings: ["BUDGET_SHORTFALL", "UNKNOWN_CODE"] as never,
-      }),
-    );
-    expect(model.plan).toMatchObject({
-      planId: null,
-      version: null,
-      versionLabel: "저장 전",
-      statusLabel: "계산됨",
-      nextActionSeq: null,
-      planEndDateLabel: "미설정",
-      estimatedCostLabel: "서버 값 없음",
-      budgetStateLabel: "서버 값 없음",
-      // 모르는 경고 코드는 원문 그대로 노출한다
-      warnings: ["예산이 계획 비용에 미치지 못합니다", "UNKNOWN_CODE"],
-    });
-    // nextActionSeq가 없으면 다음 행동도 없다 — 프론트가 대신 고르지 않는다
-    expect(model.nextAction).toBeNull();
-    expect(model.supportedActions).toEqual({ canCompleteStep: false, canSkipStep: false });
-    expect(model.steps.map((step) => step.status)).toEqual([
-      "completed", "skipped", "upcoming", "upcoming",
-    ]);
-  });
-
-  it("저장 전 계획에는 회차 기록·건너뛰기를 열지 않는다", () => {
-    const model = presentPlannerOverview(withPlan({ planId: undefined }));
-    expect(model.plan?.nextActionSeq).toBe(3);
-    expect(model.nextAction).toBeNull();
-    expect(model.supportedActions.canSkipStep).toBe(false);
+    expect(model.dataSource).toEqual({ kind: "sample", label: "샘플 데이터" });
+    expect(JSON.stringify(model)).not.toContain("safeRatio");
+    expect(JSON.stringify(model)).not.toContain("achieveProb");
   });
 
   it("목표 전환과 활성 계획 없음 상태를 표현한다", () => {
     const model = presentPlannerOverview(overview(), "second");
     expect(model.goalItems[1]?.isSelected).toBe(true);
     expect(model.selectedGoal).toMatchObject({
-      id: "second", progressPercent: 100, targetDate: null, targetDateLabel: "미설정",
+      id: "second",
+      progressPercent: 100,
+      targetDate: null,
+      targetDateLabel: "미설정",
     });
     expect(model.plan).toBeNull();
     expect(model.steps).toEqual([]);
-    expect(model.curve).toBeNull();
     expect(model.nextAction).toBeNull();
+    expect(model.supportedActions.canPreviewPlan).toBe(true);
   });
 
-  it("알 수 없는 선택 ID는 첫 목표로 안전하게 되돌리고 회차가 없어도 목적지를 표시한다", () => {
-    const firstItem = overview().items[0]!;
+  it("실제 날짜 간격과 누적 금액으로 Curve 좌표와 상태를 만든다", () => {
+    const model = presentPlannerOverview(overview());
+    expect(model.steps.map((step) => step.status)).toEqual([
+      "completed",
+      "skipped",
+      "next",
+      "upcoming",
+    ]);
+    const [first, second, third, fourth] = model.curveNodes;
+    expect(first!.x).toBeLessThan(second!.x);
+    expect(second!.x).toBeLessThan(third!.x);
+    expect(third!.x).toBeLessThan(fourth!.x);
+    expect(second!.cumulativeAmount).toBe(first!.cumulativeAmount);
+    expect(third!.cumulativeAmount).toBe(first!.cumulativeAmount + 30);
+    expect(fourth!.cumulativeAmount).toBe(third!.cumulativeAmount + 40);
+    expect(model.curve).toMatchObject({
+      destination: {
+        status: "destination",
+        targetAmountLabel: "100 USD",
+      },
+    });
+  });
+
+  it("알 수 없는 선택은 첫 목표로 돌아가고 회차가 없어도 목적지를 표시한다", () => {
+    const first = overview().items[0]!;
     const noSteps: PlannerApiOverview = {
-      items: [{
-        ...firstItem,
-        goal: { ...firstItem.goal, targetDate: undefined },
-        activePlan: { ...firstItem.activePlan!, steps: [] },
-      }],
+      items: [
+        {
+          ...first,
+          goal: { ...first.goal, targetDate: undefined },
+          activePlan: {
+            ...first.activePlan!,
+            planId: null,
+            version: null,
+            summary: { ...first.activePlan!.summary, nextActionSeq: null },
+            steps: [],
+          },
+        },
+      ],
+      isSampleData: false,
     };
     const model = presentPlannerOverview(noSteps, "unknown");
-    expect(model.selectedGoal).toMatchObject({ id: "first", targetDateLabel: "미설정" });
-    expect(model.goalItems[0]?.isSelected).toBe(true);
-    expect(model.steps).toEqual([]);
-    expect(model.curve).toMatchObject({
-      path: "M 100 20",
-      destination: { statusLabel: "목표 도착", targetDateLabel: "미설정" },
+    expect(model.selectedGoal).toMatchObject({ id: "first", targetDateLabel: "2026-12-31" });
+    expect(model.plan).toMatchObject({
+      versionLabel: "미리보기",
+      planSource: "preview",
     });
+    expect(model.curve?.path).toBe("");
+    expect(model.curve?.destination).toMatchObject({
+      status: "destination",
+      targetAmountLabel: "100 USD",
+    });
+    expect(model.nextAction).toBeNull();
+    expect(model.dataSource).toEqual({ kind: "account", label: "내 계정 데이터" });
   });
 
-  it("회차 좌표와 상태는 서버 회차 순서·상태로만 만든다", () => {
-    const model = presentPlannerOverview(overview());
-    expect(model.steps.map((step) => step.status)).toEqual(["completed", "skipped", "next", "upcoming"]);
-    expect(model.curveNodes.map((node) => node.status)).toEqual(["completed", "skipped", "next", "upcoming"]);
-    expect(model.curveNodes.map((node) => node.x)).toEqual([20, 40, 60, 80]);
-    expect(model.curveNodes.map((node) => node.y)).toEqual([70, 30, 30, 30]);
-    expect(model.curveNodes.map((node) => node.roundLabel)).toEqual(["1회차", "2회차", "3회차", "4회차"]);
-    // 노드 id는 목표 id로 만든다 — 미리보기 응답에는 planId가 없다
-    expect(model.curveNodes.map((node) => node.id)).toEqual([
-      "first-1", "first-2", "first-3", "first-4",
-    ]);
-    expect(model.steps.map((step) => step.statusLabel)).toEqual(["완료", "건너뜀", "다음 회차", "예정"]);
-    expect(model.steps.map((step) => step.executedAmount)).toEqual([10, 0, 0, 0]);
-    expect(model.curve).toMatchObject({
-      path: "M 20 70 L 40 30 L 60 30 L 80 30 L 100 20",
-      destination: { status: "destination", targetAmountLabel: "100 USD", targetDateLabel: "2026-12-31" },
+  it("진행률은 잘못된 분모에서 0이고 항상 0부터 100 사이로 제한한다", () => {
+    const first = overview().items[0]!;
+    const withGoal = (goal: typeof first.goal): PlannerApiOverview => ({
+      items: [{ ...first, goal, activePlan: null }],
     });
-  });
-
-  it("진행률은 대상 금액이 없거나 0이면 0이며 항상 0부터 100 사이로 제한한다", () => {
-    const firstItem = overview().items[0]!;
-    const withGoal = (goal: typeof firstItem.goal): PlannerApiOverview => ({
-      items: [{ ...firstItem, goal }],
-    });
-    expect(presentPlannerOverview(withGoal({ ...firstItem.goal, targetAmount: 0, heldAmount: 20 })).selectedGoal?.progressPercent).toBe(0);
-    expect(presentPlannerOverview(withGoal({ ...firstItem.goal, heldAmount: -5 })).selectedGoal?.progressPercent).toBe(0);
-    expect(presentPlannerOverview(withGoal({ ...firstItem.goal, heldAmount: Number.NaN })).selectedGoal?.progressPercent).toBe(0);
-    expect(presentPlannerOverview(withGoal({ ...firstItem.goal, targetAmount: Number.POSITIVE_INFINITY })).selectedGoal?.progressPercent).toBe(0);
+    expect(presentPlannerOverview(withGoal({ ...first.goal, targetAmount: 0 })).selectedGoal?.progressPercent).toBe(0);
+    expect(presentPlannerOverview(withGoal({ ...first.goal, heldAmount: -5 })).selectedGoal?.progressPercent).toBe(0);
+    expect(presentPlannerOverview(withGoal({ ...first.goal, heldAmount: Number.NaN })).selectedGoal?.progressPercent).toBe(0);
+    expect(presentPlannerOverview(withGoal({ ...first.goal, targetAmount: Number.POSITIVE_INFINITY })).selectedGoal?.progressPercent).toBe(0);
     expect(presentPlannerOverview(overview(), "second").selectedGoal?.progressPercent).toBe(100);
   });
 
   it("실행 입력은 양의 유한수만 허용한다", () => {
-    expect(validateExecutedStepInput({ executedAmount: 1, executedRate: 1400 })).toEqual({ isValid: true, value: { executedAmount: 1, executedRate: 1400 } });
-    expect(validateExecutedStepInput({ executedAmount: Number.POSITIVE_INFINITY, executedRate: 1400 })).toMatchObject({ isValid: false });
+    expect(validateExecutedStepInput({ executedAmount: 1, executedRate: 1_400 })).toEqual({
+      isValid: true,
+      value: { executedAmount: 1, executedRate: 1_400 },
+    });
+    expect(validateExecutedStepInput({ executedAmount: Number.POSITIVE_INFINITY, executedRate: 1_400 })).toMatchObject({ isValid: false });
     expect(validateExecutedStepInput({ executedAmount: 1, executedRate: 0 })).toMatchObject({ isValid: false });
     expect(validateExecutedStepInput({ executedAmount: 1, executedRate: Number.NEGATIVE_INFINITY })).toMatchObject({ isValid: false });
   });
 
-  it("계획 상태·예산 상태 문구는 백엔드 어휘를 모두 덮는다", () => {
-    const statusLabels = (["draft", "active", "needs_review", "completed", "paused", "superseded"] as const).map(
-      (status) => presentPlannerOverview(withPlan({ summary: { ...plan().summary, status } })).plan?.statusLabel,
-    );
-    expect(statusLabels).toEqual(["계산됨", "적용 중", "재검토 필요", "완료", "일시 정지", "대체됨"]);
+  it("서버 계획 상태와 명시되지 않은 다음 회차를 결정적으로 표시한다", () => {
+    const first = overview().items[0]!;
+    const labels = [
+      ["completed", "완료"],
+      ["superseded", "이전 버전"],
+      ["paused", "일시 정지"],
+      ["needs_review", "재검토 필요"],
+    ] as const;
+    for (const [status, expected] of labels) {
+      const model = presentPlannerOverview({
+        items: [
+          {
+            ...first,
+            activePlan: {
+              ...first.activePlan!,
+              summary: { ...first.activePlan!.summary, status },
+            },
+          },
+        ],
+      });
+      expect(model.plan?.statusLabel).toBe(expected);
+    }
 
-    const budgetLabels = (["COVERED_IN_RANGE", "RANGE_SENSITIVE", "CONSTRAINT_ADJUSTMENT_REQUIRED", "BUDGET_NOT_PROVIDED"] as const).map(
-      (budgetState) => presentPlannerOverview(withPlan({ summary: { ...plan().summary, budgetState } })).plan?.budgetStateLabel,
-    );
-    expect(budgetLabels).toEqual([
-      "현재 환율 범위에서 예산으로 감당됩니다",
-      "환율 범위에 따라 예산 조정이 필요할 수 있습니다",
-      "금액·날짜·예산 중 하나를 조정해야 합니다",
-      "예산을 입력하지 않아 가능 여부를 판정하지 않았습니다",
+    const fallback = presentPlannerOverview({
+      items: [
+        {
+          ...first,
+          activePlan: {
+            ...first.activePlan!,
+            summary: {
+              ...first.activePlan!.summary,
+              nextActionSeq: null,
+              estimatedCost: null,
+              budgetState: null,
+            },
+            steps: first.activePlan!.steps.map((step, index) => ({
+              ...step,
+              nextAction: false,
+              budgetKrw: index === 2 ? null : step.budgetKrw,
+              estimatedCost: index === 2 ? null : step.estimatedCost,
+            })),
+          },
+        },
+      ],
+    });
+    expect(fallback.nextAction?.sequence).toBe(3);
+    expect(fallback.plan?.estimatedCostLabel).toBeNull();
+    expect(fallback.plan?.budgetStateLabel).toBeNull();
+    expect(fallback.steps[2]).toMatchObject({
+      status: "next",
+      budgetLabel: null,
+      estimatedCostLabel: null,
+    });
+  });
+
+  it("서버 scenario 응답을 변경 전후 행과 분기 Curve로만 변환한다", () => {
+    const model = presentPlannerOverview(overview());
+    const response: PlannerScenarioPreviewResponse = {
+      basePlanId: "plan",
+      baseVersion: 3,
+      draftPlanId: "draft",
+      draftVersion: 4,
+      changeReasonCode: "BUDGET_DECREASED",
+      priorityConstraint: "budget",
+      before: {
+        remainingAmount: 75,
+        targetDate: "2026-12-01",
+        totalRounds: 4,
+        openRounds: 2,
+        perRoundAmount: null,
+        roundBudgetKrw: null,
+        costRange: null,
+      },
+      after: {
+        remainingAmount: 75,
+        targetDate: "2026-12-15",
+        totalRounds: 5,
+        openRounds: 3,
+        perRoundAmount: 25,
+        roundBudgetKrw: 180_000,
+        costRange: null,
+      },
+      changedSteps: [
+        {
+          seq: 3,
+          changeType: "date_changed",
+          dateBefore: "2026-09-01",
+          dateAfter: "2026-09-02",
+          amountBefore: 10,
+          amountAfter: 10,
+        },
+        {
+          seq: 5,
+          changeType: "amount_changed",
+          dateBefore: "2026-09-10",
+          dateAfter: "2026-09-10",
+          amountBefore: 20,
+          amountAfter: 15,
+        },
+      ],
+      keptConstraints: [],
+      brokenConstraints: [],
+      budgetState: "within_budget",
+      adjustmentOptions: [],
+      warnings: ["조건 확인"],
+    };
+    const option = model.scenarioOptions!.find(
+      (candidate) => candidate.id === "reducedBudget",
+    )!;
+    const comparison = presentPlannerScenarioComparison(response, model, option);
+    expect(comparison.rows).toEqual([
+      { label: "남은 목표 금액", before: "75 USD", after: "75 USD" },
+      { label: "목표일", before: "2026-12-01", after: "2026-12-15" },
+      { label: "남은 회차", before: "2회", after: "3회" },
+      { label: "회차 금액", before: "제공되지 않음", after: "25 USD" },
+      { label: "회차 예산", before: "제공되지 않음", after: "180,000원" },
+      { label: "예상 원화 비용", before: "제공되지 않음", after: "제공되지 않음" },
     ]);
+    expect(comparison.alternativeCurve?.path).not.toBe(model.curve?.path);
+    expect(comparison.changedNodeIds).toHaveLength(2);
+    expect(comparison.warnings).toEqual(["조건 확인"]);
+
+    const noDestination: PlannerViewModel = {
+      ...model,
+      curve:
+        model.curve === null
+          ? null
+          : {
+              ...model.curve,
+              destination: null,
+              targetAmount: null,
+              targetDate: null,
+              targetLineY: null,
+            },
+    };
+    expect(
+      presentPlannerScenarioComparison(response, noDestination, option)
+        .alternativeCurve?.destination,
+    ).toBeNull();
+
+    const empty: PlannerViewModel = {
+      ...model,
+      selectedGoal: null,
+      curveNodes: [],
+      curve: null,
+    };
+    const emptyComparison = presentPlannerScenarioComparison(
+      response,
+      empty,
+      option,
+    );
+    expect(emptyComparison.rows[0]).toEqual({
+      label: "남은 목표 금액",
+      before: "75 외화",
+      after: "75 외화",
+    });
+    expect(emptyComparison.alternativeCurve).toBeNull();
+
+    const unchanged = presentPlannerScenarioComparison(
+      {
+        ...response,
+        changedSteps: [
+          {
+            seq: 3,
+            changeType: "amount_changed",
+            dateBefore: "2026-10-10",
+            dateAfter: "2026-10-10",
+            amountBefore: 30,
+            amountAfter: 30,
+          },
+        ],
+      },
+      model,
+      option,
+    );
+    expect(unchanged.baseCurve).toBe(model.curve);
+    expect(unchanged.alternativeCurve).toBeNull();
+
+    const staleView: PlannerViewModel = {
+      ...model,
+      curve: {
+        ...model.curve!,
+        currentDate: null,
+        targetDate: null,
+      },
+      curveNodes: [],
+      steps: [],
+    };
+    const safelyPartial = presentPlannerScenarioComparison(
+      response,
+      staleView,
+      option,
+    );
+    expect(safelyPartial.baseCurve).toBeNull();
+    expect(safelyPartial.alternativeCurve).not.toBeNull();
+
+    const withoutNodeIds = presentPlannerScenarioComparison(
+      response,
+      { ...model, curveNodes: [] },
+      option,
+    );
+    expect(withoutNodeIds.alternativeCurve?.nodes[0]?.id).toBe("scenario-1");
+  });
+
+  it("확장 상태와 누락된 선택 필드는 원문 또는 명시적 대체 문구로 표시한다", () => {
+    const first = overview().items[0]!;
+    const sourcePlan = first.activePlan!;
+    const fallbackOverview: PlannerApiOverview = {
+      items: [
+        {
+          ...first,
+          goal: { ...first.goal, targetDate: undefined },
+          activePlan: {
+            ...sourcePlan,
+            calculationMeta: null,
+            goal: {
+              ...sourcePlan.goal,
+              targetAmount: null,
+              targetDate: null,
+            },
+            summary: {
+              ...sourcePlan.summary,
+              status: "future_plan_status",
+              planEndDate: null,
+              budgetState: "FUTURE_BUDGET_STATE",
+            },
+            steps: [
+              {
+                ...sourcePlan.steps[0]!,
+                scheduledDate: "invalid-date",
+                budgetKrw: 180_000,
+                status: "pending",
+                nextAction: true,
+              },
+            ],
+            warnings: ["FUTURE_WARNING"],
+          },
+        },
+      ],
+      isSampleData: false,
+    };
+
+    const model = presentPlannerOverview(fallbackOverview);
+    expect(model.plan).toMatchObject({
+      statusLabel: "future_plan_status",
+      planEndDateLabel: "제공되지 않음",
+      budgetStateLabel: "FUTURE_BUDGET_STATE",
+      policyVersion: null,
+      calculatedAtLabel: null,
+      rateAsOfLabel: null,
+      warnings: ["FUTURE_WARNING"],
+    });
+    expect(model.curve).toBeNull();
+    expect(model.steps[0]).toMatchObject({
+      budgetLabel: "180,000원",
+      cumulativeAmount: 0,
+      cumulativeAmountLabel: "누적 금액 확인 불가",
+      actionLabel: "회차 정보 확인",
+    });
+  });
+
+  it("scenario 변경 필드가 일부 없거나 확장 코드여도 기존 회차 기준을 보존한다", () => {
+    const model = presentPlannerOverview(overview());
+    const option = model.scenarioOptions!.find(
+      (candidate) => candidate.id === "rapidRise",
+    )!;
+    const sourceResponse: PlannerScenarioPreviewResponse = {
+      basePlanId: "plan",
+      baseVersion: 3,
+      draftPlanId: "draft-future",
+      draftVersion: 4,
+      changeReasonCode: "FUTURE_REASON",
+      priorityConstraint: "budget",
+      before: {
+        remainingAmount: 75,
+        targetDate: "2026-12-31",
+        totalRounds: 4,
+        openRounds: 2,
+        perRoundAmount: 30,
+        roundBudgetKrw: 200_000,
+        costRange: null,
+      },
+      after: {
+        remainingAmount: 75,
+        targetDate: "2026-12-31",
+        totalRounds: 4,
+        openRounds: 2,
+        perRoundAmount: 30,
+        roundBudgetKrw: null,
+        costRange: null,
+      },
+      changedSteps: [
+        {
+          seq: 3,
+          changeType: "amount_changed",
+          dateBefore: "2026-10-10",
+          dateAfter: null,
+          amountBefore: 30,
+          amountAfter: 31,
+        },
+        {
+          seq: 4,
+          changeType: "date_changed",
+          dateBefore: "2026-12-10",
+          dateAfter: "2026-12-11",
+          amountBefore: 40,
+          amountAfter: null,
+        },
+      ],
+      keptConstraints: [],
+      brokenConstraints: [],
+      budgetState: "within_budget",
+      adjustmentOptions: [],
+      warnings: [],
+    };
+    const viewWithMissingRoundAmount: PlannerViewModel = {
+      ...model,
+      steps: model.steps.map((step) =>
+        step.sequence === 3 ? { ...step, amount: null } : step,
+      ),
+    };
+
+    const comparison = presentPlannerScenarioComparison(
+      sourceResponse,
+      viewWithMissingRoundAmount,
+      option,
+    );
+    expect(comparison.reason).toBe(
+      "서버가 전달한 변경 조건으로 남은 계획을 다시 계산했습니다.",
+    );
+    expect(comparison.rows).toContainEqual({
+      label: "회차 예산",
+      before: "200,000원",
+      after: "제공되지 않음",
+    });
+    expect(comparison.alternativeCurve).not.toBeNull();
+  });
+
+  it("건너뛰기 응답은 저장되지 않은 재분배 영향으로만 표시한다", () => {
+    const model = presentPlannerOverview(overview());
+    const option = model.scenarioOptions!.find(
+      (candidate) => candidate.id === "missedRound",
+    )!;
+    const response: PlannerStepSkipResponse = {
+      seq: 2,
+      applied: false,
+      amountBefore: 20,
+      amountAfter: 30,
+      remainingAmount: 60,
+      remainingRounds: 2,
+      perRoundCostKrw: 42_000,
+      exceedsBudget: true,
+      adjustmentOptions: ["EXTEND_TARGET_DATE", "REDUCE_TARGET_AMOUNT"],
+    };
+
+    expect(presentPlannerSkipComparison(response, model, option)).toMatchObject({
+      id: "missedRound",
+      draftPlanId: null,
+      canRequestDraft: true,
+      alternativeCurve: null,
+      changedNodeIds: [],
+      rows: [
+        { label: "회차 준비 금액", before: "20 USD", after: "30 USD" },
+        { label: "남은 목표 금액", before: "기존 값 제공되지 않음", after: "60 USD" },
+        { label: "재분배할 회차", before: "기존 값 제공되지 않음", after: "2회" },
+        { label: "회차 예상 원화", before: "기존 값 제공되지 않음", after: "42,000원" },
+      ],
+      warnings: [
+        "재분배 후 회차 금액이 설정한 예산 범위를 넘습니다.",
+        "서버가 2개의 추가 조정 선택지를 제공했습니다.",
+      ],
+    });
+
+    expect(
+      presentPlannerSkipComparison(
+        { ...response, perRoundCostKrw: null, exceedsBudget: false, adjustmentOptions: [] },
+        { ...model, selectedGoal: null },
+        option,
+      ),
+    ).toMatchObject({
+      rows: [
+        { before: "20 외화", after: "30 외화" },
+        { after: "60 외화" },
+        { after: "2회" },
+        { after: "계산 근거 제공되지 않음" },
+      ],
+      warnings: [],
+    });
+  });
+
+  it("지원하지 않는 공급처 동작은 서버 호출 없이 false를 반환한다", async () => {
+    await expect(rejectUnsupportedPlannerOperation()).resolves.toBe(false);
   });
 });

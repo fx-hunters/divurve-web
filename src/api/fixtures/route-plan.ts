@@ -13,10 +13,10 @@ export const DEMO_ROUTE_PLAN_RESPONSE = {
       source: "mock",
       source_label: "데모 데이터",
       as_of_label: "1차 프로토타입",
-      notice: "화면의 금액·비율·일정·상태는 mock 응답 값이며 실제 실행 계획이 아닙니다.",
+      notice: "화면의 금액·비율·일정·상태는 체험 응답 값이며 실제 실행 계획이 아닙니다.",
     },
     intro: {
-      eyebrow: "DIVISA + CURVE",
+      eyebrow: "DIVURVE",
       title: "어떤 외화 목표를 준비하고 있나요?",
       description: "목표 하나를 고르면 현재 위치부터 도착점까지 하나의 계획 Curve로 이어서 보여 드립니다.",
       new_plan_label: "새로운 계획 만들기",

@@ -1,8 +1,8 @@
 import type {
   ConcentrationStatus,
   StressRunResponse,
-  XrayBundle,
 } from "../../api/generated/divurve-api";
+import type { XrayApiBundle } from "../../api/xray";
 import type { ExplanationFacts } from "../../hooks/use-ai-explanation";
 import { toPercent } from "../../lib/percent";
 import type {
@@ -78,7 +78,7 @@ export function toShockLabel(equityShock: number, fxShock: number): string {
   return `주가 ${equity > 0 ? "+" : ""}${equity}%, 환율 ${fx > 0 ? "+" : ""}${fx}% 충격 가정`;
 }
 
-function toExposure(bundle: XrayBundle): readonly ExposureShareItem[] {
+function toExposure(bundle: XrayApiBundle): readonly ExposureShareItem[] {
   return bundle.overview.exposure.map((item) => ({
     currencyCode: item.currencyCode,
     krw: item.krw,
@@ -86,7 +86,7 @@ function toExposure(bundle: XrayBundle): readonly ExposureShareItem[] {
   }));
 }
 
-function toPnl(bundle: XrayBundle): PnLDecompositionData {
+function toPnl(bundle: XrayApiBundle): PnLDecompositionData {
   const { attribution } = bundle;
   return {
     costBasisKrw: attribution.costBasisKrw,
@@ -108,7 +108,7 @@ function toPnl(bundle: XrayBundle): PnLDecompositionData {
   };
 }
 
-function toScenarios(bundle: XrayBundle): readonly StressScenarioItem[] {
+function toScenarios(bundle: XrayApiBundle): readonly StressScenarioItem[] {
   return [...bundle.scenarios.scenarios]
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((scenario) => ({
@@ -121,7 +121,7 @@ function toScenarios(bundle: XrayBundle): readonly StressScenarioItem[] {
     }));
 }
 
-function toConcentration(bundle: XrayBundle): ConcentrationDiagnosis {
+function toConcentration(bundle: XrayApiBundle): ConcentrationDiagnosis {
   const { concentration, riskProfile, relation, basisNote } = bundle.fit;
   return {
     topCurrencyCode: concentration.topCurrencyCode,
@@ -143,9 +143,10 @@ function toConcentration(bundle: XrayBundle): ConcentrationDiagnosis {
   };
 }
 
-export function toXRayDashboardData(bundle: XrayBundle): XRayDashboardData {
+export function toXRayDashboardData(bundle: XrayApiBundle): XRayDashboardData {
   const { overview } = bundle;
   return {
+    isSampleData: bundle.isSampleData,
     totalAssetKrw: overview.totalAssetKrw,
     fxKrw: overview.fxAssetKrw,
     krwAmount: overview.krwAssetKrw,

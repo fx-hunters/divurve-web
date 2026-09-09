@@ -13,6 +13,7 @@ import {
   fetchPlannerOverview,
   skipPlanStep,
 } from "./planner";
+import { PLANNER_API_FIXTURE } from "../test/api-fixtures";
 
 vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
@@ -55,12 +56,16 @@ describe("screen API modules", () => {
   it("X-Ray 묶음 조회와 두 계산 요청을 전달한다", async () => {
     vi.mocked(request).mockImplementation(async (path) => ({ path }));
     vi.mocked(requestWithMeta).mockImplementation(async (path) => ({
-      data: { path },
-      meta: { asOf: "2026-09-06T22:32:19Z" },
+      data: { path, isSampleData: true },
+      meta: { asOf: "2026-09-06T22:32:19Z", isSampleData: false },
     }));
     const result = await fetchXrayBundle("USD");
-    expect(result.overview).toEqual({ path: "/api/v1/xray" });
+    expect(result.overview).toEqual({
+      path: "/api/v1/xray",
+      isSampleData: true,
+    });
     expect(result.asOf).toBe("2026-09-06T22:32:19Z");
+    expect(result.isSampleData).toBe(true);
     expect(result.attribution).toEqual({
       path: "/api/v1/xray/attribution?currency_code=USD",
     });
@@ -77,6 +82,17 @@ describe("screen API modules", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/fit/preview", {
       method: "POST",
       body: { currencyCode: "EUR", deltaShare: 0.1 },
+    });
+  });
+
+  it("X-Ray 본문에 샘플 여부가 없으면 meta 값을 사용한다", async () => {
+    vi.mocked(request).mockImplementation(async (path) => ({ path }));
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: {},
+      meta: { asOf: "2026-09-08T00:00:00Z", isSampleData: true },
+    });
+    await expect(fetchXrayBundle()).resolves.toMatchObject({
+      isSampleData: true,
     });
   });
 
@@ -116,32 +132,61 @@ describe("screen API modules", () => {
   });
 
   it("목표별 활성 계획을 조회하고 404는 계획 없음으로 처리한다", async () => {
-    vi.mocked(request).mockImplementation(async (path) => {
+    const first = PLANNER_API_FIXTURE.items[0]!;
+    const second = PLANNER_API_FIXTURE.items[1]!;
+    vi.mocked(requestWithMeta).mockImplementation(async (path) => {
       if (path === "/api/v1/goals") {
-        return { goals: [{ id: "goal one", name: "목표 1" }, { id: "g2", name: "목표 2" }] };
+        return {
+          data: {
+            goals: [
+              { ...first.goal, id: "goal one" },
+              second.goal,
+            ],
+          },
+          meta: { asOf: "", isDemo: false },
+        };
       }
-      if (path.includes("goal%20one")) return { id: "p1" };
+      return {
+        data: { isSampleData: true },
+        meta: { asOf: "", isDemo: false },
+      };
+    });
+    vi.mocked(request).mockImplementation(async (path) => {
+      if (path.includes("goal%20one")) return first.activePlan;
       throw new ApiError("없음", 404, "NOT_FOUND");
     });
     const result = await fetchPlannerOverview();
-    expect(result.items[0]?.activePlan).toEqual({ id: "p1" });
+    expect(result.items[0]?.activePlan).toEqual(first.activePlan);
     expect(result.items[1]?.activePlan).toBeNull();
 
-    vi.mocked(request).mockImplementation(async (path) => {
-      if (path === "/api/v1/goals") return { goals: [{ id: "g1" }] };
-      throw new Error("network");
+    vi.mocked(requestWithMeta).mockImplementation(async (path) => {
+      if (path === "/api/v1/goals") {
+        return { data: { goals: [first.goal] }, meta: { asOf: "" } };
+      }
+      return { data: {}, meta: { asOf: "" } };
     });
+    vi.mocked(request).mockRejectedValue(new Error("network"));
     await expect(fetchPlannerOverview()).rejects.toThrow("network");
   });
 
   it("회차 완료와 건너뛰기 요청을 전달한다", async () => {
     vi.mocked(request).mockResolvedValue({ status: "ok" });
-    await completePlanStep("plan id", 2, { executedAmount: 100, executedRate: 1400 });
+    await completePlanStep("plan id", 2, {
+      executedAmount: 100,
+      executedRate: 1400,
+      executedDate: "2026-09-08",
+      executionKey: "execution-key",
+    });
     expect(request).toHaveBeenCalledWith(
       "/api/v1/plans/plan%20id/steps/2/complete",
       {
         method: "POST",
-        body: { executedAmount: 100, executedRate: 1400 },
+        body: {
+          executedAmount: 100,
+          executedRate: 1400,
+          executedDate: "2026-09-08",
+          executionKey: "execution-key",
+        },
       },
     );
     await skipPlanStep("p", 3);

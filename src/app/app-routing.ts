@@ -12,6 +12,7 @@ import type { InitialSetupEntryMode } from "../types/diagnosis";
 import type { NavTabId } from "../types/navigation";
 
 export type AuthRouteMode = "login" | "signup";
+export type PlannerRouteSource = "api" | "demo";
 
 /** 화면별 정식 경로. 링크·리다이렉트는 모두 이 값을 참조한다. */
 export const APP_PATHS = {
@@ -69,12 +70,39 @@ export type AppRoute =
   | {
       readonly kind: "dashboard";
       readonly tab: NavTabId;
-      /** 마이페이지 탭 안에서 진단 결과를 펼친 상태만 별도 경로를 가진다. */
-      readonly view: "tab" | "diagnosisResult";
+      readonly view: "tab";
+    }
+  | {
+      readonly kind: "dashboard";
+      readonly tab: "mypage";
+      readonly view: "diagnosisResult";
+    }
+  | {
+      readonly kind: "dashboard";
+      readonly tab: "planner";
+      readonly view: "plannerDetail";
+      readonly source: PlannerRouteSource;
+      readonly goalId: string;
+      readonly planId: string;
     };
 
 export function dashboardRoute(tab: NavTabId): AppRoute {
   return { kind: "dashboard", tab, view: "tab" };
+}
+
+export function plannerDetailRoute(
+  source: PlannerRouteSource,
+  goalId: string,
+  planId: string,
+): Extract<AppRoute, { readonly view: "plannerDetail" }> {
+  return {
+    kind: "dashboard",
+    tab: "planner",
+    view: "plannerDetail",
+    source,
+    goalId,
+    planId,
+  };
 }
 
 export const LANDING_ROUTE: AppRoute = { kind: "landing" };
@@ -100,9 +128,30 @@ export function toPathname(route: AppRoute): string {
     case "diagnosisInput":
       return DIAGNOSIS_INPUT_PATHS[route.entryMode];
     case "dashboard":
-      return route.view === "diagnosisResult"
-        ? APP_PATHS.diagnosisResult
-        : TAB_PATHS[route.tab];
+      if (route.view === "diagnosisResult") return APP_PATHS.diagnosisResult;
+      if (route.view === "plannerDetail") {
+        const prefix = route.source === "demo" ? "/route/demo" : "/route";
+        return `${prefix}/goals/${encodeURIComponent(route.goalId)}/plans/${encodeURIComponent(route.planId)}`;
+      }
+      return TAB_PATHS[route.tab];
+  }
+}
+
+function plannerDetailFromPath(
+  path: string,
+): Extract<AppRoute, { readonly view: "plannerDetail" }> | null {
+  const match = path.match(
+    /^\/route\/(demo\/)?goals\/([^/]+)\/plans\/([^/]+)$/,
+  );
+  if (match === null) return null;
+  try {
+    return plannerDetailRoute(
+      match[1] === undefined ? "api" : "demo",
+      decodeURIComponent(match[2]!),
+      decodeURIComponent(match[3]!),
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -122,6 +171,13 @@ export function resolveAppRoute(
   if (path === APP_PATHS.landing) return LANDING_ROUTE;
   if (path === APP_PATHS.login) return { kind: "auth", mode: "login" };
   if (path === APP_PATHS.signup) return { kind: "auth", mode: "signup" };
+
+  const plannerDetail = plannerDetailFromPath(path);
+  if (plannerDetail !== null) {
+    return plannerDetail.source === "api" && !isMemberSession
+      ? dashboardRoute("planner")
+      : plannerDetail;
+  }
 
   const entryMode = DIAGNOSIS_ENTRY_BY_PATH[path];
   if (entryMode !== undefined) {
