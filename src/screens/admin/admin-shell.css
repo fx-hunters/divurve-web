@@ -6,7 +6,7 @@
  */
 
 .admin-shell {
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -452,7 +452,7 @@
 /* --- 로그인 --- */
 
 .admin-login {
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   display: flex;
   align-items: center;
   justify-content: center;

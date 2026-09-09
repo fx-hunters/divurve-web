@@ -1,0 +1,40 @@
+/*
+ * 콜드 스타트 안내 배너.
+ *
+ * 문서 흐름의 맨 앞에 놓여 화면 전체를 아래로 민다. 그만큼 화면 높이가
+ * 줄어드는 것은 `--cold-start-banner-height`(tokens.css)가 처리한다.
+ */
+.cold-start-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-border);
+  color: var(--warn);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.cold-start-banner-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  /* 아이콘 가운데를 첫 줄 글자 가운데에 맞춘다. */
+  margin-top: 0.0625rem;
+}
+
+.cold-start-banner-text {
+  margin: 0;
+}
+
+.cold-start-banner-title {
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .cold-start-banner {
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+  }
+}

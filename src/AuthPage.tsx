@@ -400,7 +400,7 @@ export function AuthPage({
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "var(--viewport-height)",
         backgroundColor: "var(--bg)",
         color: "var(--text)",
         display: "flex",

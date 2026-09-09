@@ -213,7 +213,7 @@ export function LandingPage({ onEnter, isDark, setIsDark, onLogin, onSignup }: L
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "var(--viewport-height)",
         backgroundColor: "var(--bg)",
         color: "var(--text)",
         fontFamily: "var(--font-sans)",
