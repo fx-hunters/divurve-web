@@ -16,6 +16,7 @@ import type {
   PlannerSourceItem,
   PlannerScenarioComparisonViewModel,
   PlannerScenarioOptionViewModel,
+  PlannerPlanSummaryViewModel,
   PlannerStepViewModel,
   PlannerViewModel,
 } from "./planner-api-types";
@@ -249,6 +250,42 @@ function selectItem(
   return items.find((item) => item.goal.id === selectedGoalId) ?? items[0]!;
 }
 
+/**
+ * 계획 응답 하나를 요약 ViewModel로 옮긴다.
+ *
+ * 저장된 활성 계획과 저장 전 미리보기가 같은 형태로 오므로 한 함수가 둘 다 맡는다.
+ * 저장되지 않은 계획은 `planId`가 null이라 `planSource`가 갈린다.
+ */
+export function presentPlannerPlanSummary(
+  plan: PlannerPlanResponse,
+): PlannerPlanSummaryViewModel {
+  return {
+    planSource: plan.planId === null ? "preview" : "active",
+    id: plan.planId,
+    version: plan.version,
+    versionLabel: plan.version === null ? "미리보기" : `v${plan.version}`,
+    status: plan.summary.status,
+    statusLabel: planStatusLabel(plan.summary.status),
+    planEndDateLabel: plan.summary.planEndDate ?? "제공되지 않음",
+    totalRounds: plan.summary.totalRounds,
+    completedRounds: plan.summary.completedRounds,
+    scheduledRounds: plan.summary.scheduledRounds,
+    skippedRounds: plan.summary.skippedRounds,
+    nextActionSeq: plan.summary.nextActionSeq,
+    estimatedCostLabel: formatCostRange(plan.summary.estimatedCost),
+    budgetStateLabel:
+      plan.summary.budgetState === null
+        ? null
+        : BUDGET_STATE_LABELS[plan.summary.budgetState] ??
+          plan.summary.budgetState,
+    policyVersion: plan.calculationMeta?.policyVersion ?? null,
+    calculatedAtLabel: plan.calculationMeta?.calculatedAt ?? null,
+    rateAsOfLabel: plan.calculationMeta?.rateAsOf ?? null,
+    disclaimer: plan.disclaimer,
+    warnings: plan.warnings.map((warning) => WARNING_LABELS[warning] ?? warning),
+  };
+}
+
 export function presentPlannerOverview(
   overview: PlannerApiOverview,
   selectedGoalId?: string | null,
@@ -324,35 +361,7 @@ export function presentPlannerOverview(
     plan:
       activePlan === undefined || activePlan === null
         ? null
-        : {
-            planSource: activePlan.planId === null ? "preview" : "active",
-            id: activePlan.planId,
-            version: activePlan.version,
-            versionLabel:
-              activePlan.version === null ? "미리보기" : `v${activePlan.version}`,
-            status: activePlan.summary.status,
-            statusLabel: planStatusLabel(activePlan.summary.status),
-            planEndDateLabel:
-              activePlan.summary.planEndDate ?? "제공되지 않음",
-            totalRounds: activePlan.summary.totalRounds,
-            completedRounds: activePlan.summary.completedRounds,
-            scheduledRounds: activePlan.summary.scheduledRounds,
-            skippedRounds: activePlan.summary.skippedRounds,
-            nextActionSeq: activePlan.summary.nextActionSeq,
-            estimatedCostLabel: formatCostRange(activePlan.summary.estimatedCost),
-            budgetStateLabel:
-              activePlan.summary.budgetState === null
-                ? null
-                : BUDGET_STATE_LABELS[activePlan.summary.budgetState] ??
-                  activePlan.summary.budgetState,
-            policyVersion: activePlan.calculationMeta?.policyVersion ?? null,
-            calculatedAtLabel: activePlan.calculationMeta?.calculatedAt ?? null,
-            rateAsOfLabel: activePlan.calculationMeta?.rateAsOf ?? null,
-            disclaimer: activePlan.disclaimer,
-            warnings: activePlan.warnings.map(
-              (warning) => WARNING_LABELS[warning] ?? warning,
-            ),
-          },
+        : presentPlannerPlanSummary(activePlan),
     curveNodes: curve?.nodes ?? [],
     curve,
     steps: selected === null ? [] : toSteps(selected, nextIndex, curve),

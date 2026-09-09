@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   INITIAL_PLANNER_GOAL_DRAFT,
   toPlannerGoalCreateRequest,
+  toPlannerPlanPreviewRequest,
   validatePlannerGoalDraft,
 } from "./planner-goal-input";
 
@@ -58,5 +59,59 @@ describe("planner goal input", () => {
       isValid: true,
       value: { purpose: "STOCK_ACCUMULATION", budgetPeriod: "monthly" },
     });
+  });
+});
+
+describe("toPlannerPlanPreviewRequest", () => {
+  const deadline = {
+    name: "미국 학비",
+    kind: "deadline",
+    purpose: "TUITION",
+    currencyCode: "USD",
+    targetAmount: 60_000,
+    targetDate: "2027-09-08",
+    recurInterval: "monthly",
+    budgetAmount: 500_000,
+    budgetPeriod: "monthly",
+  } as const;
+
+  it("마감형 조건을 계산 요청으로 옮긴다", () => {
+    expect(toPlannerPlanPreviewRequest(deadline)).toEqual({
+      goalType: "deadline",
+      purpose: "TUITION",
+      currencyCode: "USD",
+      // 목표별 배정 보유 외화를 받는 입력이 아직 없다(BE 계획 §2-1).
+      allocatedHoldingAmount: 0,
+      targetAmount: 60_000,
+      targetDate: "2027-09-08",
+      budgetAmount: 500_000,
+      budgetPeriod: "monthly",
+      preferredCadence: null,
+      recurringBudgetAmount: null,
+      recurInterval: null,
+      startDate: null,
+      reviewHorizonMonths: null,
+    });
+  });
+
+  it("예산을 넣지 않았으면 예산 없이 계산하게 둔다", () => {
+    const request = toPlannerPlanPreviewRequest({
+      ...deadline,
+      budgetAmount: 0,
+      budgetPeriod: null,
+    });
+
+    expect(request?.budgetAmount).toBeNull();
+    expect(request?.budgetPeriod).toBeNull();
+  });
+
+  it("반복형은 시작일·점검 기간이 없어 계산을 요청하지 않는다", () => {
+    expect(
+      toPlannerPlanPreviewRequest({
+        ...deadline,
+        kind: "recurring",
+        purpose: "STOCK_ACCUMULATION",
+      }),
+    ).toBeNull();
   });
 });
