@@ -627,3 +627,7 @@
   white-space: nowrap;
   border: 0;
 }
+
+.admin-metric-card__headline--muted {
+  color: var(--text-muted);
+}

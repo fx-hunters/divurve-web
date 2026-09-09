@@ -3,6 +3,7 @@ import type { AdminFxPairCoverage } from "../../../api/admin-fx-gaps";
 import type { AdminRefreshStatus } from "../../../api/admin";
 import {
   formatFailureRate,
+  isAllFallback,
   toGapDigest,
   toGapTone,
   toRefreshDigest,
@@ -123,5 +124,18 @@ describe("formatFailureRate", () => {
     expect(formatFailureRate(0, 0)).toBe("-");
     expect(formatFailureRate(null, 12)).toBe("-");
     expect(formatFailureRate(3, null)).toBe("-");
+  });
+});
+
+describe("isAllFallback", () => {
+  it("모든 호출이 템플릿으로 나갔는지 가른다", () => {
+    expect(isAllFallback(295, 295)).toBe(true);
+    expect(isAllFallback(3, 295)).toBe(false);
+  });
+
+  it("호출이 없거나 값을 모르면 판정하지 않는다", () => {
+    expect(isAllFallback(0, 0)).toBe(false);
+    expect(isAllFallback(null, 10)).toBe(false);
+    expect(isAllFallback(10, null)).toBe(false);
   });
 });
