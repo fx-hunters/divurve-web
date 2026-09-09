@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
 import { TrendChart } from "../../components/common/trend-chart";
-import { Spinner } from "../../components/common/spinner";
+import { Skeleton } from "../../components/common/skeleton";
 import type { HomeMarketPairCode } from "../../api/home";
 import {
   MARKET_PAIR_OPTIONS,
@@ -37,7 +37,7 @@ function MarketRate({
   if (isReloading) {
     return (
       <div className="market-summary-card__rate">
-        <Spinner size={20} label="시세를 불러오는 중" />
+        <Skeleton width="11rem" height="2.25rem" />
       </div>
     );
   }
@@ -131,6 +131,12 @@ export function MarketSummaryCard({
           onRetry={onRetry}
         />
 
+        {/* 범위가 없어도 자리는 남긴다 — 값이 들어올 때 아래가 밀리지 않는다. */}
+        {!hasBand && isReloading && (
+          <div>
+            <Skeleton width="13rem" height="1.5rem" />
+          </div>
+        )}
         {hasBand && (
           <div>
             <Badge variant="primary">
@@ -144,6 +150,13 @@ export function MarketSummaryCard({
           주므로 여기서 그림이 사라진다 — 평평한 선으로 "변동이 없다"는 인상을
           주지 않기 위해서다.
         */}
+        {view.trendPoints.length === 0 && isReloading && (
+          <Skeleton
+            shape="block"
+            height="100%"
+            className="market-summary-card__chart"
+          />
+        )}
         {view.trendPoints.length > 0 && (
           <TrendChart
             className="market-summary-card__chart"

@@ -1,3 +1,4 @@
+import { Skeleton } from "../../../components/common/skeleton";
 import type { ModelPerformanceScore } from "../../../types/forecast";
 import { CARD_PADDING, CARD_SURFACE, CARD_TITLE } from "./card-surface";
 
@@ -89,8 +90,16 @@ function ModelScoreRows({ score }: { readonly score: ModelPerformanceScore }) {
   );
 }
 
+/** 로딩 중 세워 둘 지표 행 수. 실제 지표는 세 개다. */
+const PLACEHOLDER_ROWS = [0, 1, 2];
+
 interface ModelScoreCardProps {
   readonly score: ModelPerformanceScore | null;
+  /*
+   * `score === null` 은 이미 '이 지평에는 성적표가 없다'는 뜻으로 쓰이고 있다.
+   * 그래서 로딩은 null 로 나타낼 수 없고 별도 플래그가 필요하다.
+   */
+  readonly isLoading?: boolean;
 }
 
 /**
@@ -99,7 +108,7 @@ interface ModelScoreCardProps {
  * 접어 두면 기본 상태에서 아무 값도 안 보여 카드가 있으나 마나 하므로 항상
  * 펼친 채로 둔다. 대신 지표마다 무엇을 잰 숫자인지 한 문장씩 붙인다.
  */
-export function ModelScoreCard({ score }: ModelScoreCardProps) {
+export function ModelScoreCard({ score, isLoading = false }: ModelScoreCardProps) {
   return (
     <div style={{ ...CARD_SURFACE, padding: CARD_PADDING }}>
       <h3 style={{ ...CARD_TITLE, marginBottom: "0.5rem" }}>모델 성적</h3>
@@ -123,13 +132,22 @@ export function ModelScoreCard({ score }: ModelScoreCardProps) {
           borderTop: "1px solid var(--border-subtle)",
         }}
       >
-        {score === null ? (
+        {isLoading &&
+          PLACEHOLDER_ROWS.map((row) => (
+            <div
+              key={row}
+              style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
+            >
+              <Skeleton width="7rem" />
+              <Skeleton width="90%" />
+            </div>
+          ))}
+        {!isLoading && score === null && (
           <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
             {EMPTY_TEXT}
           </p>
-        ) : (
-          <ModelScoreRows score={score} />
         )}
+        {!isLoading && score !== null && <ModelScoreRows score={score} />}
       </div>
     </div>
   );

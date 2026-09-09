@@ -35,7 +35,15 @@ export function useHomeMarket(
   initialPairCode: HomeMarketPairCode,
   loader?: HomeMarketLoader,
 ): UseHomeMarketResult {
-  const [pairCode, setPairCode] = useState(initialPairCode);
+  /*
+   * 사용자가 고른 통화쌍만 상태로 들고, 고르기 전에는 인자를 그대로 쓴다.
+   * 홈 요약보다 이 훅이 먼저 마운트될 수 있어서다(요약이 오기 전에는 기본
+   * 통화쌍이 넘어온다). useState 초기값으로 받아 두면 늦게 온 요약의 통화쌍이
+   * 반영되지 않는다.
+   */
+  const [pickedPairCode, setPickedPairCode] =
+    useState<HomeMarketPairCode | null>(null);
+  const pairCode = pickedPairCode ?? initialPairCode;
   const [requestKey, setRequestKey] = useState(0);
   const [state, setState] = useState<HomeMarketState>({ status: "summary" });
 
@@ -70,7 +78,7 @@ export function useHomeMarket(
   }, [pairCode, requestKey]);
 
   const selectPairCode = useCallback((next: HomeMarketPairCode) => {
-    setPairCode(next);
+    setPickedPairCode(next);
     setRequestKey((key) => key + 1);
   }, []);
 

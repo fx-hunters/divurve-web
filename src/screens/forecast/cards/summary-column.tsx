@@ -1,4 +1,5 @@
 import { Icon } from "../../../components/common/icon";
+import { Skeleton } from "../../../components/common/skeleton";
 import type { ForecastPeriod, PairForecastInfo } from "../../../types/forecast";
 import { toPeriodLabel } from "../forecast-presenter";
 import { CARD_SURFACE } from "./card-surface";
@@ -23,17 +24,24 @@ const SUMMARY_CARD_PADDING = "1.25rem 1.5rem";
 
 interface SummaryColumnProps {
   readonly period: ForecastPeriod;
-  readonly pairInfo: PairForecastInfo;
+  /** 아직 없으면 라벨과 버튼은 그대로 두고 값 자리만 자리표시자가 된다. */
+  readonly pairInfo: PairForecastInfo | null;
   readonly onNavigateToPlanner: () => void;
 }
 
-/** 팬 차트 오른쪽 요약 지표 3종. 값만 받아 그리는 표현 컴포넌트다(§7.2). */
+/**
+ * 팬 차트 오른쪽 요약 지표 3종. 값만 받아 그리는 표현 컴포넌트다(§7.2).
+ *
+ * `pairInfo` 가 없어도 카드 세 장과 라벨, "내 계획에 적용하기" 버튼은 그대로
+ * 선다. 로딩 중에 사라지는 것은 숫자뿐이다.
+ */
 export function SummaryColumn({
   period,
   pairInfo,
   onNavigateToPlanner,
 }: SummaryColumnProps) {
-  const { summary, uncertaintyNote } = pairInfo;
+  const summary = pairInfo?.summary ?? null;
+  const uncertaintyNote = pairInfo?.uncertaintyNote ?? null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -43,7 +51,11 @@ export function SummaryColumn({
           80% 범위 ({toPeriodLabel(period)})
         </div>
         <div style={{ ...METRIC_VALUE_STYLE, color: "var(--text)" }}>
-          {summary.lowerLabel} ~ {summary.upperLabel}
+          {summary === null ? (
+            <Skeleton width="11rem" />
+          ) : (
+            `${summary.lowerLabel} ~ ${summary.upperLabel}`
+          )}
         </div>
       </div>
 
@@ -53,10 +65,10 @@ export function SummaryColumn({
         <div
           style={{
             ...METRIC_VALUE_STYLE,
-            color: summary.isPercentileWarn ? "var(--warn)" : "var(--primary)",
+            color: summary?.isPercentileWarn ? "var(--warn)" : "var(--primary)",
           }}
         >
-          {summary.percentile}
+          {summary === null ? <Skeleton width="5rem" /> : summary.percentile}
         </div>
         <div
           style={{
@@ -66,7 +78,7 @@ export function SummaryColumn({
             fontWeight: 500,
           }}
         >
-          {uncertaintyNote}
+          {uncertaintyNote ?? <Skeleton width="80%" />}
         </div>
       </div>
 
@@ -97,7 +109,11 @@ export function SummaryColumn({
               marginBottom: "0.75rem",
             }}
           >
-            1% 움직일 때 ₩{summary.impact}
+            {summary === null ? (
+              <Skeleton width="9rem" />
+            ) : (
+              `1% 움직일 때 ₩${summary.impact}`
+            )}
           </div>
         </div>
 

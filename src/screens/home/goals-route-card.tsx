@@ -1,10 +1,15 @@
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
+import { Skeleton } from "../../components/common/skeleton";
 import type { GoalsRouteData } from "../../types/home";
 import "./goals-route-card.css";
 
+/** 로딩 중 세워 둘 자리표시자 행 수. */
+const PLACEHOLDER_GOALS = [0, 1, 2];
+
 interface GoalsRouteCardProps {
-  readonly data: GoalsRouteData;
+  /** 아직 서버를 기다리는 중이면 null. 제목과 '플래너 열기'는 그대로 둔다. */
+  readonly data: GoalsRouteData | null;
   readonly onNavigateToPlanner?: () => void;
 }
 
@@ -29,9 +34,32 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
         )
       }
       className="goals-route-card"
-      subtitle={data.goals.length > 1 ? "마감이 이른 순" : undefined}
+      subtitle={data !== null && data.goals.length > 1 ? "마감이 이른 순" : undefined}
     >
-      {data.goals.length === 0 && (
+      {data === null && (
+        <ul className="goals-route-card__list" aria-hidden="true">
+          {PLACEHOLDER_GOALS.map((row) => (
+            <li
+              key={row}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "0.5rem 0.75rem",
+                padding: "0.75rem 1rem",
+                backgroundColor: "var(--bg)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-md)",
+              }}
+            >
+              <Skeleton width="6rem" />
+              <Skeleton width="5rem" />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {data?.goals.length === 0 && (
         <p
           style={{
             margin: 0,
@@ -45,7 +73,7 @@ export function GoalsRouteCard({ data, onNavigateToPlanner }: GoalsRouteCardProp
         </p>
       )}
 
-      {data.goals.length > 0 && (
+      {data !== null && data.goals.length > 0 && (
         <ul
           // 스크롤되는 영역은 키보드로도 훑을 수 있어야 한다.
           tabIndex={0}

@@ -1,19 +1,24 @@
+import { Skeleton } from "../../components/common/skeleton";
 import "./xray-layout.css";
 
 /** 스트립 한 칸. 강조색은 판정에 따라 달라지므로 호출부가 정한다. */
 export interface XRaySummaryItem {
   readonly key: string;
   readonly label: string;
-  readonly value: string;
+  /** 아직 서버를 기다리는 중이면 null. 라벨은 그대로 두고 값만 비운다. */
+  readonly value: string | null;
   readonly tone?: "default" | "primary" | "danger";
-  /** 값 아래 한 줄. 모수나 단위를 덧붙일 때만 쓴다. */
-  readonly hint?: string;
+  /**
+   * 값 아래 한 줄. 모수나 단위를 덧붙일 때만 쓴다.
+   * `undefined` 는 부연이 없는 칸, `null` 은 부연이 있지만 아직 값이 없는 칸이다.
+   */
+  readonly hint?: string | null;
 }
 
 interface XRaySummaryStripProps {
   readonly items: readonly XRaySummaryItem[];
-  /** 기준 시각. 스트립 아래 오른쪽에 한 줄로 붙는다. */
-  readonly caption?: string;
+  /** 기준 시각. 스트립 아래 오른쪽에 한 줄로 붙는다. `null` 이면 자리만 잡는다. */
+  readonly caption?: string | null;
 }
 
 const TONE_CLASSES: Readonly<Record<"default" | "primary" | "danger", string>> = {
@@ -36,15 +41,21 @@ export function XRaySummaryStrip({ items, caption }: XRaySummaryStripProps) {
           <div key={item.key} className="xray-summary__tile">
             <span className="xray-summary__label">{item.label}</span>
             <span className={`xray-summary__value${TONE_CLASSES[item.tone ?? "default"]}`}>
-              {item.value}
+              {item.value ?? <Skeleton width="7rem" />}
             </span>
             {item.hint !== undefined && (
-              <span className="xray-summary__hint">{item.hint}</span>
+              <span className="xray-summary__hint">
+                {item.hint ?? <Skeleton width="5rem" />}
+              </span>
             )}
           </div>
         ))}
       </div>
-      {caption !== undefined && <p className="xray-summary__caption">{caption}</p>}
+      {caption !== undefined && (
+        <p className="xray-summary__caption">
+          {caption ?? <Skeleton width="10rem" />}
+        </p>
+      )}
     </div>
   );
 }

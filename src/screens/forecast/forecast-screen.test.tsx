@@ -456,9 +456,31 @@ describe("ForecastScreen", () => {
     });
   });
 
-  it("불러오는 중에는 로딩 안내를 보여준다", () => {
-    render(<ForecastScreen loader={vi.fn().mockReturnValue(new Promise(() => {}))} />);
-    expect(screen.getByText("환율 범위를 불러오는 중입니다")).toBeInTheDocument();
+  it("불러오는 중에도 컨트롤 바는 서 있고 값 자리만 비워 둔다", () => {
+    const { container } = render(
+      <ForecastScreen loader={vi.fn().mockReturnValue(new Promise(() => {}))} />,
+    );
+
+    // 통화쌍·기간은 정적 목록이라 서버를 기다릴 이유가 없다.
+    expect(screen.getByLabelText("통화쌍")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "향후 30일" })).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "전망 동인" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".divurve-skeleton").length).toBeGreaterThan(0);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "환율 범위를 불러오는 중입니다",
+    );
+  });
+
+  it("불러오는 중에 기간을 바꿔도 컨트롤이 사라지지 않는다", () => {
+    const loader = vi.fn().mockReturnValue(new Promise(() => {}));
+    render(<ForecastScreen loader={loader} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "향후 7일" }));
+
+    expect(screen.getByRole("button", { name: "향후 7일" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("실패하면 메시지와 재시도 버튼을 보여준다", async () => {

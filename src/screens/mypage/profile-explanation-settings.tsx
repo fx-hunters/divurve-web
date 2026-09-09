@@ -24,6 +24,9 @@ const LEVELS: readonly ExplanationLevel[] = [
   "analytical",
 ];
 
+/** 카드 제목. 로딩 중 자리표시자 카드도 같은 제목을 써야 하므로 내보낸다. */
+export const PREFERENCES_CARD_TITLE = "기본 설정";
+
 interface ProfileExplanationSettingsProps {
   readonly model: ProfilePreferencesViewModel;
   readonly onSave: (preferences: ProfileExplanationPreferences) => void;
@@ -38,7 +41,7 @@ export function ProfileExplanationSettings({
   const [isSaved, setIsSaved] = useState(false);
 
   return (
-    <Card title="기본 설정">
+    <Card title={PREFERENCES_CARD_TITLE}>
       <form
         className="mypage-preferences"
         onSubmit={(event) => {

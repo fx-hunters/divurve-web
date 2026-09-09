@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Icon } from "../../components/common/icon";
+import { Skeleton, SkeletonText } from "../../components/common/skeleton";
 import type {
   FitPreviewConcentrationPoint,
   FitPreviewRequest,
@@ -69,7 +70,11 @@ function ConcentrationPointRow({
 }
 
 interface XRayFitnessViewProps {
-  readonly data: XRayDashboardData;
+  /**
+   * 아직 서버를 기다리는 중이면 null. 카드·제목·슬라이더는 그대로 서고
+   * 값이 들어갈 자리만 자리표시자가 된다.
+   */
+  readonly data: XRayDashboardData | null;
   readonly previewState: FitPreviewState;
   readonly onPreviewAdjustment: (input: FitPreviewRequest) => void;
   readonly onNavigateToPlanner: () => void;
@@ -97,6 +102,8 @@ const CARD_TITLE_STYLE = {
 /** 분산 매수 후보로 보여줄 통화. 통화 색 배정과 같은 고정 목록이다. */
 const CANDIDATE_CURRENCIES = ["USD", "JPY", "EUR"] as const;
 
+type CandidateCurrency = (typeof CANDIDATE_CURRENCIES)[number];
+
 /** 값이 없으면 0 으로 꾸미지 않고 없다고 적는다. */
 function toPercentLabel(percent: number | undefined, suffix: string): string {
   return percent === undefined ? "—" : `${percent}${suffix}`;
@@ -109,42 +116,54 @@ function toPercentLabel(percent: number | undefined, suffix: string): string {
  * 바꾼다. 프론트에서 격차를 다시 계산하지 않는다(AGENTS.md §1).
  */
 function toFitnessSummaryItems(
-  data: XRayDashboardData,
+  data: XRayDashboardData | null,
 ): readonly XRaySummaryItem[] {
-  const { concentration } = data;
-  const isOver = isConcentrationAboveThreshold(concentration.status);
+  const concentration = data?.concentration ?? null;
+  const isOver =
+    concentration !== null &&
+    isConcentrationAboveThreshold(concentration.status);
   return [
     {
       key: "top-currency",
       label: "주력 통화",
-      value: concentration.topCurrencyCode ?? "—",
+      value: concentration === null ? null : (concentration.topCurrencyCode ?? "—"),
     },
     {
       key: "share",
       label: "집중도",
-      value: toPercentLabel(concentration.sharePct, "%"),
+      value:
+        concentration === null
+          ? null
+          : toPercentLabel(concentration.sharePct, "%"),
       tone: isOver ? "danger" : "primary",
       hint: "외화 자산 대비",
     },
     {
       key: "threshold",
       label: "기준선",
-      value: toPercentLabel(concentration.thresholdPct, "%"),
+      value:
+        concentration === null
+          ? null
+          : toPercentLabel(concentration.thresholdPct, "%"),
       // 등급 이름은 아래 진단 카드가 이미 적는다. 여기서는 기준선의 출처만 밝힌다.
       hint:
-        concentration.thresholdPct === undefined
-          ? "성향 진단 후 제공"
-          : "내 성향 기준",
+        concentration === null
+          ? null
+          : concentration.thresholdPct === undefined
+            ? "성향 진단 후 제공"
+            : "내 성향 기준",
     },
     {
       key: "gap",
       label: "기준선 격차",
       value:
-        concentration.gapPp === undefined
-          ? "—"
-          : `${concentration.gapPp > 0 ? "+" : ""}${toPercent(concentration.gapPp)}%p`,
+        concentration === null
+          ? null
+          : concentration.gapPp === undefined
+            ? "—"
+            : `${concentration.gapPp > 0 ? "+" : ""}${toPercent(concentration.gapPp)}%p`,
       tone: isOver ? "danger" : "default",
-      hint: concentration.statusLabel,
+      hint: concentration === null ? null : concentration.statusLabel,
     },
   ];
 }
@@ -157,16 +176,30 @@ export function XRayFitnessView({
   onNavigateToPlanner,
   explanationRequester,
 }: XRayFitnessViewProps) {
-  const { concentration } = data;
+  const concentration = data?.concentration ?? null;
   const otherCurrencies = CANDIDATE_CURRENCIES.filter(
-    (code) => code !== concentration.topCurrencyCode,
+    (code) => code !== concentration?.topCurrencyCode,
   );
+  /*
+   * 고른 통화를 그대로 쓰지 않고 후보 목록으로 한 번 거른다. 로딩 중에는
+   * 주력 통화를 몰라 후보에 그 통화가 섞여 있고, 값이 도착하면 목록에서
+   * 빠지기 때문이다. 저장한 선택이 더 이상 후보가 아니면 첫 후보로 돌아간다.
+   */
+  const [pickedCurrencyCode, setPickedCurrencyCode] =
+    useState<CandidateCurrency | null>(null);
   // 주력 통화는 최대 하나뿐이라 후보는 항상 둘 이상 남는다.
-  const [currencyCode, setCurrencyCode] = useState<string>(otherCurrencies[0]);
+  const currencyCode =
+    pickedCurrencyCode !== null && otherCurrencies.includes(pickedCurrencyCode)
+      ? pickedCurrencyCode
+      : otherCurrencies[0];
   const [deltaSharePct, setDeltaSharePct] = useState(10);
 
-  const isOver = isConcentrationAboveThreshold(concentration.status);
-  const isMeasured = isRiskProfileMeasured(concentration.riskProfileStatus);
+  const isOver =
+    concentration !== null &&
+    isConcentrationAboveThreshold(concentration.status);
+  const isMeasured =
+    concentration !== null &&
+    isRiskProfileMeasured(concentration.riskProfileStatus);
 
   return (
     <div className="xray-layout">
@@ -181,7 +214,12 @@ export function XRayFitnessView({
       <div className="xray-layout__pair" style={CARD_STYLE}>
         <h2 style={CARD_TITLE_STYLE}>집중도 진단</h2>
 
-        {concentration.sharePct === undefined ? (
+        {concentration === null ? (
+          <>
+            <Skeleton shape="block" height="20px" />
+            <SkeletonText lines={2} />
+          </>
+        ) : concentration.sharePct === undefined ? (
           <p style={{ fontSize: "0.9375rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
             집중도를 계산할 자산 정보가 아직 없습니다.
           </p>
@@ -238,7 +276,7 @@ export function XRayFitnessView({
           </>
         )}
 
-        {!isMeasured && (
+        {concentration !== null && !isMeasured && (
           <p
             style={{
               fontSize: "0.8125rem",
@@ -251,7 +289,7 @@ export function XRayFitnessView({
             진단할 수 있습니다.
           </p>
         )}
-        {isMeasured && concentration.gradeLabel !== undefined && (
+        {isMeasured && concentration?.gradeLabel !== undefined && (
           <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "1rem" }}>
             위험성향 {concentration.gradeLabel}
             {concentration.diagnosedOnLabel !== undefined &&
@@ -259,7 +297,7 @@ export function XRayFitnessView({
           </p>
         )}
         <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
-          {concentration.basisNote}
+          {concentration === null ? <Skeleton width="80%" /> : concentration.basisNote}
         </p>
       </div>
 
@@ -343,7 +381,7 @@ export function XRayFitnessView({
                 key={code}
                 type="button"
                 aria-pressed={currencyCode === code}
-                onClick={() => setCurrencyCode(code)}
+                onClick={() => setPickedCurrencyCode(code)}
                 style={{
                   padding: "0.375rem 0.875rem",
                   fontSize: "0.75rem",
@@ -464,7 +502,7 @@ export function XRayFitnessView({
         <XRayAiExplanation
           surface={XRAY_FITNESS_SURFACE}
           title="통화 적합도 AI 설명"
-          facts={toFitnessExplanationFacts(data)}
+          facts={data === null ? null : toFitnessExplanationFacts(data)}
           requester={explanationRequester}
         />
       </div>

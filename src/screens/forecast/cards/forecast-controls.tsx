@@ -5,6 +5,7 @@ import {
   type ForecastPeriod,
 } from "../../../types/forecast";
 import { currencyColor, toPair, toPairLabel, toPeriodLabel } from "../forecast-presenter";
+import { Skeleton } from "../../../components/common/skeleton";
 import { CARD_SURFACE } from "./card-surface";
 
 const PAIR_SELECT_ID = "forecast-pair-select";
@@ -25,7 +26,8 @@ const FIELD_LABEL_STYLE = {
 interface ForecastControlsProps {
   readonly pair: ForecastPair;
   readonly period: ForecastPeriod;
-  readonly asOfLabel: string;
+  /** 서버에서 오는 유일한 값. 아직 없으면 그 자리만 자리표시자가 된다. */
+  readonly asOfLabel: string | null;
   readonly onSelectPair: (pair: ForecastPair) => void;
   readonly onSelectPeriod: (period: ForecastPeriod) => void;
 }
@@ -37,6 +39,10 @@ interface ForecastControlsProps {
  * 커진다. 라벨은 칩 왼쪽에 붙이고, 보조 설명은 `aria-describedby` 대상만
  * 남겨 화면에서 감춘다(`.sr-only`) — 칩 문구가 이미 "향후 N일"이라 시각적
  * 으로는 중복이지만, 보조기술에는 그대로 읽힌다.
+ *
+ * 통화쌍 목록(FORECAST_PAIRS)과 기간 목록(FORECAST_HORIZON_DAYS)은 정적
+ * 상수이고 선택값은 화면의 로컬 상태다. 그래서 이 바는 서버 응답을 기다리지
+ * 않고 먼저 서며, 로딩 중에도 통화쌍·기간을 바꿀 수 있다.
  */
 export function ForecastControls({
   pair,
@@ -169,7 +175,8 @@ export function ForecastControls({
           whiteSpace: "nowrap",
         }}
       >
-        기준 시각: {asOfLabel}
+        기준 시각:{" "}
+        {asOfLabel ?? <Skeleton width="8.5rem" />}
       </div>
     </div>
   );

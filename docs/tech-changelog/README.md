@@ -62,3 +62,4 @@
 | [0032](./0032-planner-journey-api-integration.md) | Planner Journey 실제 API 경계와 Curve UI 통합 | 2026-09-07 |
 | [0066](./0066-planner-develop-integration-and-preview-state.md) | 최신 develop 통합과 Planner preview 상태 분리 | 2026-09-08 |
 | [0067](./0067-planner-ux-unification.md) | API·데모 Planner Journey UI 통합 | 2026-09-09 |
+| [0076](./0076-partial-loading-placeholders.md) | 전체 화면 로딩을 없애고 값 자리에만 자리표시자를 둔다 | 2026-09-09 |

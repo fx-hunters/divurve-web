@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  DataSourceBadge,
   getDataSourceCopy,
 } from "../../components/common/data-source-badge";
 import type {
@@ -11,6 +10,7 @@ import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { PlannerGoalForm } from "./planner-goal-form";
 import type { PlannerGoalInput } from "./planner-goal-input";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
+import { PlannerJourneyHeader } from "./planner-journey-header";
 import { PlannerJourneyMain } from "./planner-journey-main";
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerScenarioModal } from "./planner-journey-scenario";
@@ -123,14 +123,10 @@ export function PlannerJourneyScreen({
       data-testid="planner-journey-screen"
       data-source={view.dataSource.kind}
     >
-      <header className="planner-api__header">
-        <div>
-          <p className="planner-api-journey__eyebrow">DIVURVE</p>
-          <h1>내 외화 플래너</h1>
-          <p>{sourceCopy.description}</p>
-        </div>
-        <DataSourceBadge kind={view.dataSource.kind} />
-      </header>
+      <PlannerJourneyHeader
+        kind={view.dataSource.kind}
+        description={sourceCopy.description}
+      />
 
       <div className="planner-api-journey" data-stage={flow.stage}>
         {flow.stage === "goal" && isGoalFormOpen && (

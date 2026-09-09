@@ -39,13 +39,15 @@ describe("MyPageScreen", () => {
   it("실제 API 프로필과 서버 진단을 출처가 구분된 사용자 문구로 표시한다", async () => {
     render(<MyPageScreen dependencies={makeDependencies()} />);
 
+    // 서버를 기다리는 동안에도 바로가기 카드는 그대로 눌린다.
     expect(
-      screen.getByText("마이페이지를 불러오는 중입니다"),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: /자산 내역 편집/ }),
+    ).toBeEnabled();
     expect(
-      await screen.findByRole("region", { name: "마이페이지" }),
+      screen.getByText(/마이페이지를 불러오는 중입니다/),
     ).toBeInTheDocument();
-    expect(screen.getByText("플래너 사용자")).toBeInTheDocument();
+
+    expect(await screen.findByText("플래너 사용자")).toBeInTheDocument();
     expect(screen.getByText("planner@example.com")).toBeInTheDocument();
     expect(screen.getByText("내 계정")).toBeInTheDocument();
     expect(screen.getByText("균형항로형")).toBeInTheDocument();

@@ -42,15 +42,6 @@ export function XRayScreen({
     }
   };
 
-  if (state.status === "loading") {
-    return (
-      <ApiStateView
-        status="loading"
-        title="내 자산을 불러오는 중입니다"
-        message="통화 노출과 손익 분해를 함께 확인하고 있습니다."
-      />
-    );
-  }
   if (state.status === "error") {
     return (
       <ApiStateView
@@ -61,7 +52,12 @@ export function XRayScreen({
       />
     );
   }
-  if (data === null) {
+  /*
+   * 로딩과 '자산 없음'은 둘 다 data 가 null 이라 상태로 갈라야 한다. 응답을
+   * 받고도 비어 있을 때만 빈 화면을 내고, 기다리는 중에는 화면을 그대로 둔다.
+   */
+  const isLoading = state.status === "loading";
+  if (!isLoading && data === null) {
     return (
       <ApiStateView
         status="empty"
@@ -71,7 +67,8 @@ export function XRayScreen({
     );
   }
 
-  const dataSourceKind = toApiDataSourceKind(data.isSampleData);
+  /* 응답 전에는 출처를 모른다. 'unknown' 이 그 상태의 기본 문구를 준다. */
+  const dataSourceKind = toApiDataSourceKind(data?.isSampleData);
   const dataSourceCopy = getDataSourceCopy(dataSourceKind);
 
   return (
@@ -80,6 +77,16 @@ export function XRayScreen({
         <DataSourceBadge kind={dataSourceKind} />
         <span className="sr-only">{dataSourceCopy.description}</span>
       </div>
+      {/*
+        값 자리가 비어 있는 동안 상태를 한 번만 읽어 준다. 자리표시자 막대는
+        전부 aria-hidden 이라 여기 말고는 읽힐 것이 없다.
+      */}
+      {isLoading && (
+        <span className="sr-only" role="status">
+          내 자산을 불러오는 중입니다. 통화 노출과 손익 분해를 함께 확인하고
+          있습니다.
+        </span>
+      )}
       {/* 상단 서브 탭 네비게이션 */}
       <div
         style={{
