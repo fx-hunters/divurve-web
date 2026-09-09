@@ -54,7 +54,9 @@ export function PlannerGoalForm({
         <p className="planner-api-journey__eyebrow">새 목표</p>
         <h2 id="planner-goal-form-title">어떤 외화를 언제까지 준비할까요?</h2>
         <p className="planner-api-journey__lead">
-          {sourceLabel}에 목표 조건을 저장합니다. 계획은 미리보기를 확인한 뒤 별도로 만듭니다.
+          {sourceLabel === "데모"
+            ? "입력한 목표는 현재 데모 화면에서만 확인할 수 있습니다. 새 목표의 계획은 만들지 않으며, Curve와 기록은 준비된 두 예시 목표에서 체험할 수 있습니다."
+            : `${sourceLabel}에 목표 조건을 저장합니다. 계획은 미리보기를 확인한 뒤 별도로 만듭니다.`}
         </p>
       </div>
 

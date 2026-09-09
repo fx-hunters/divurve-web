@@ -54,6 +54,23 @@ const comparison: PlannerScenarioComparisonViewModel = {
 };
 
 describe("Planner Journey 표현 컴포넌트", () => {
+  it("1% 미만 진행률을 100배로 표시하지 않고 결측 확보액에는 막대를 숨긴다", () => {
+    const lowProgress: PlannerViewModel = {
+      ...view, selectedGoal: { ...view.selectedGoal!, heldAmount: 0.5, progressPercent: 0.5 },
+    };
+    const props = {
+      ariaLabel: "검수 플래너", feedback: { status: "idle" as const },
+      scenarioComparison: null, goalCreation, onOpenPlanDetail: vi.fn(), ...operations(),
+    };
+    const { rerender } = render(<PlannerJourneyScreen {...props} view={lowProgress} />);
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
+    rerender(<PlannerJourneyScreen {...props} view={{ ...lowProgress,
+      selectedGoal: { ...lowProgress.selectedGoal!, heldAmount: null, progressLabel: "확보액 확인 필요" },
+    }} />);
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByText("확보액 확인 필요")).toBeInTheDocument();
+  });
   it("목표 선택 뒤 현재 상태·Curve·다음 행동을 한 장면에서 제공한다", () => {
     const ops = operations();
     const onOpenPlanDetail = vi.fn();

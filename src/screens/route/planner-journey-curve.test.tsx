@@ -115,7 +115,7 @@ describe("PlannerCurveCanvas", () => {
     expect(screen.getByText("✓")).toBeInTheDocument();
     expect(screen.getByText("×")).toBeInTheDocument();
     expect(screen.getByText("목표 도착")).toBeInTheDocument();
-    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-15");
+    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-25");
     expect(document.querySelector("title")).toBeNull();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -245,10 +245,10 @@ describe("PlannerCurveCanvas", () => {
       />,
     );
 
-    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-34");
-    expect(screen.getByText("목표 도착")).toHaveAttribute("y", "-36");
+    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-76");
+    expect(screen.getByText("목표 도착")).toHaveAttribute("y", "64");
     expect(
-      container.querySelector('.planner-api-curve__node-date[y="40"]'),
+      container.querySelector('.planner-api-curve__node-date[y="96"]'),
     ).toHaveTextContent("2026. 4. 1.");
   });
 });

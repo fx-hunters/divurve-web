@@ -340,7 +340,7 @@
 .planner-api-curve__current-point text {
   fill: var(--text);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 24px;
   font-weight: 800;
   text-anchor: middle;
 }
@@ -390,7 +390,7 @@
 .planner-api-curve__svg-node text {
   fill: var(--text);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 24px;
   font-weight: 750;
   text-anchor: middle;
 }
@@ -407,8 +407,12 @@
 
 .planner-api-curve__svg-node .planner-api-curve__node-date {
   fill: var(--text-muted);
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 650;
+}
+
+.planner-api-curve__svg-node[data-kind="destination"] text {
+  text-anchor: end;
 }
 
 .planner-api-curve__svg-node .planner-api-curve__mark {
@@ -1839,7 +1843,7 @@
   .planner-api-curve__current-point text,
   .planner-api-curve__svg-node[data-selected="true"] text,
   .planner-api-curve__svg-node[data-changed="true"] text {
-    font-size: 34px;
+    font-size: 44px;
   }
 
   .planner-api-curve__svg-node .planner-api-curve__node-label,

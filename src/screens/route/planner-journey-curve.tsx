@@ -113,7 +113,7 @@ export function PlannerCurveCanvas({
           aria-hidden="true"
         >
           <circle r="8" />
-          <text y={isCurrentLabelCrowded ? -34 : -15}>현재 확보</text>
+          <text y={isCurrentLabelCrowded ? -76 : -25}>현재 확보</text>
         </g>
       )}
       {curve.nodes.map((node, index) => (
@@ -178,13 +178,15 @@ export function PlannerCurveCanvas({
             <circle r="8" />
             <text
               className="planner-api-curve__node-label"
-              y={isDestinationLabelCrowded ? -36 : -17}
+              x="-8"
+              y={isDestinationLabelCrowded ? 64 : 36}
             >
               {curve.destination.label}
             </text>
             <text
               className="planner-api-curve__node-date"
-              y={isDestinationLabelCrowded ? 40 : 28}
+              x="-8"
+              y={isDestinationLabelCrowded ? 96 : 64}
             >
               {curve.destination.targetDateLabel}
             </text>
