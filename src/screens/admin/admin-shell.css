@@ -44,6 +44,25 @@
   gap: 1.25rem;
 }
 
+/* 메뉴 묶음. 화면이 늘어 한 줄에 늘어놓기 어려워져 2단으로 바꿨다(#93). */
+.admin-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.5rem;
+}
+
+.admin-nav-group + .admin-nav-group {
+  border-left: 1px solid var(--border);
+  padding-left: 0.75rem;
+}
+
+.admin-nav-group__label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
 .admin-nav-item {
   padding: 0.4rem 0.75rem;
   border: 1px solid transparent;

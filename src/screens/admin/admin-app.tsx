@@ -12,14 +12,16 @@ import { AdminAiCallsScreen } from "./admin-ai-calls-screen";
 import { AdminAiExplainScreen } from "./admin-ai-explain-screen";
 import { AdminAiExtractScreen } from "./admin-ai-extract-screen";
 import { AdminCurrenciesScreen } from "./admin-currencies-screen";
+import { AdminDashboardScreen } from "./dashboard/admin-dashboard-screen";
 import {
   toAuthFailureMessage,
   type AdminAuthFailure,
 } from "./admin-errors";
+import { AdminFxGapHeatmap } from "./admin-fx-gap-heatmap";
 import { AdminFxRatesScreen } from "./admin-fx-rates-screen";
 import { AdminLoginScreen } from "./admin-login-screen";
 import {
-  ADMIN_NAV_ITEMS,
+  ADMIN_NAV_GROUPS,
   ADMIN_USERS_PATH,
   adminUserDetailPath,
   resolveAdminRoute,
@@ -90,18 +92,32 @@ export function AdminApp() {
       <header className="admin-shell__header">
         <span className="admin-shell__brand">Divurve 관리자 콘솔</span>
         <nav className="admin-shell__nav">
-          {ADMIN_NAV_ITEMS.map((item) => (
-            <button
-              key={item.path}
-              type="button"
-              className={`admin-nav-item ${
-                item.kinds.includes(route.kind) ? "admin-nav-item--active" : ""
-              }`.trim()}
-              aria-current={item.kinds.includes(route.kind) ? "page" : undefined}
-              onClick={() => navigate(item.path)}
+          {ADMIN_NAV_GROUPS.map((group) => (
+            <div
+              className="admin-nav-group"
+              key={group.label ?? group.items[0]?.path}
             >
-              {item.label}
-            </button>
+              {group.label !== undefined && (
+                <span className="admin-nav-group__label">{group.label}</span>
+              )}
+              {group.items.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  className={`admin-nav-item ${
+                    item.kinds.includes(route.kind)
+                      ? "admin-nav-item--active"
+                      : ""
+                  }`.trim()}
+                  aria-current={
+                    item.kinds.includes(route.kind) ? "page" : undefined
+                  }
+                  onClick={() => navigate(item.path)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <button type="button" className="admin-button" onClick={handleSignOut}>
@@ -115,6 +131,9 @@ export function AdminApp() {
           남기지 마세요.
         </p>
 
+        {route.kind === "dashboard" && (
+          <AdminDashboardScreen onAuthFailure={handleAuthFailure} />
+        )}
         {route.kind === "users" && (
           <AdminUsersScreen
             onAuthFailure={handleAuthFailure}
@@ -134,6 +153,9 @@ export function AdminApp() {
         )}
         {route.kind === "fxRates" && (
           <AdminFxRatesScreen onAuthFailure={handleAuthFailure} />
+        )}
+        {route.kind === "fxGaps" && (
+          <AdminFxGapHeatmap onAuthFailure={handleAuthFailure} />
         )}
         {route.kind === "aiExplain" && (
           <AdminAiExplainScreen onAuthFailure={handleAuthFailure} />
