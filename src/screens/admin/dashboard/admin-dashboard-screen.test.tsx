@@ -22,11 +22,13 @@ function callPage(totalElements: number) {
 }
 
 beforeEach(() => {
-  vi.mocked(fetchAdminAiCalls).mockImplementation((query) =>
-    Promise.resolve(
-      (query.outcome === "error" ? callPage(3) : callPage(12)) as never,
-    ),
-  );
+  vi.mocked(fetchAdminAiCalls).mockImplementation((query) => {
+    if (query.outcome === "error") return Promise.resolve(callPage(3) as never);
+    if (query.outcome === "fallback") {
+      return Promise.resolve(callPage(4) as never);
+    }
+    return Promise.resolve(callPage(12) as never);
+  });
   vi.mocked(fetchAdminRefreshStatus).mockResolvedValue({
     data: {
       fx: {
@@ -79,11 +81,12 @@ describe("AdminDashboardScreen", () => {
     expect(await screen.findByText("12건")).toBeInTheDocument();
     expect(screen.getByText("3건")).toBeInTheDocument();
     expect(screen.getByText("25.0%")).toBeInTheDocument();
+    expect(screen.getByText("4건")).toBeInTheDocument();
     expect(await screen.findByText("결측 2영업일")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 미완전")).toBeInTheDocument();
   });
 
-  it("총 호출과 실패를 각각 서버에서 센다", async () => {
+  it("총 호출·실패·템플릿 대체를 각각 서버에서 센다", async () => {
     render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
 
     await waitFor(() => {
@@ -94,6 +97,41 @@ describe("AdminDashboardScreen", () => {
       size: 1,
       outcome: "error",
     });
+    expect(fetchAdminAiCalls).toHaveBeenCalledWith({
+      page: 0,
+      size: 1,
+      outcome: "fallback",
+    });
+  });
+
+  it("전부 템플릿으로 나갔으면 실패 0건이어도 그 사실을 알린다", async () => {
+    vi.mocked(fetchAdminAiCalls).mockImplementation((query) => {
+      if (query.outcome === "error") {
+        return Promise.resolve(callPage(0) as never);
+      }
+      return Promise.resolve(callPage(295) as never);
+    });
+
+    render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
+
+    expect(
+      await screen.findByText(/모든 호출이 템플릿으로 나갔습니다/),
+    ).toBeInTheDocument();
+  });
+
+  it("서버가 아직 열지 않은 지표는 붉은 에러 대신 준비 중으로 둔다", async () => {
+    const { ApiError } = await import("../../../api/client");
+    vi.mocked(fetchAdminRefreshStatus).mockRejectedValue(
+      new ApiError("요청한 리소스를 찾을 수 없습니다.", 404, "NOT_FOUND"),
+    );
+
+    render(<AdminDashboardScreen onAuthFailure={vi.fn()} />);
+
+    expect(await screen.findByText("준비 중")).toBeInTheDocument();
+    expect(
+      screen.getByText("서버가 아직 제공하지 않습니다."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("카드 하나가 실패해도 나머지는 그대로 선다", async () => {

@@ -72,3 +72,17 @@ export function formatFailureRate(
   if (failed === null || total === null || total <= 0) return "-";
   return `${((failed / total) * 100).toFixed(1)}%`;
 }
+
+/**
+ * 모든 호출이 템플릿으로 나갔는지.
+ *
+ * 실 API 가 꺼진 기본 설정에서는 이것이 **정상**이다. 실패 0건만 보고 정상이라
+ * 읽는 것을 막기 위해 따로 알린다. 호출이 없으면 판정하지 않는다.
+ */
+export function isAllFallback(
+  fallback: number | null,
+  total: number | null,
+): boolean {
+  if (fallback === null || total === null || total <= 0) return false;
+  return fallback === total;
+}

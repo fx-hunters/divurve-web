@@ -546,3 +546,7 @@
 .admin-metric-card__headline--neutral {
   color: var(--text);
 }
+
+.admin-metric-card__headline--muted {
+  color: var(--text-muted);
+}
