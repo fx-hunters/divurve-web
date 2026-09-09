@@ -47,6 +47,14 @@ export interface ApiRequestInit extends Omit<RequestInit, "body"> {
    * 도메인 모델을 보내는 일반 요청은 기본값(변환)을 쓴다.
    */
   readonly isRawBody?: boolean;
+  /**
+   * `data` 키가 없는 성공 응답을 허용한다.
+   *
+   * 백엔드가 `ApiResponse.of(null)` 로 내는 삭제 계열 응답은 전역 `NON_NULL`
+   * 직렬화 때문에 `data` 키 자체가 사라진다. 기본 검사는 그것을 형식 오류로
+   * 보므로, 본문이 없는 것이 정상인 요청만 이 값을 켠다.
+   */
+  readonly isEmptyDataAllowed?: boolean;
 }
 
 export class ApiError extends Error {
@@ -225,6 +233,7 @@ async function sendRequest<T>(
     body,
     requiresAuth = true,
     isRawBody = false,
+    isEmptyDataAllowed = false,
     headers: suppliedHeaders,
     ...requestInit
   } = init;
@@ -280,11 +289,17 @@ async function sendRequest<T>(
   const payload = await parseResponseBody(response);
   if (!response.ok) throw toApiError(payload, response.status);
   if (!isRecord(payload) || !("data" in payload)) {
-    throw new ApiError(
-      "서버 응답 형식을 확인할 수 없습니다.",
-      response.status,
-      "INVALID_RESPONSE",
-    );
+    if (!isEmptyDataAllowed) {
+      throw new ApiError(
+        "서버 응답 형식을 확인할 수 없습니다.",
+        response.status,
+        "INVALID_RESPONSE",
+      );
+    }
+    return {
+      data: undefined as T,
+      meta: parseMeta(isRecord(payload) ? payload.meta : undefined),
+    };
   }
 
   return {

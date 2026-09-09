@@ -24,16 +24,6 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const { state, reload } = useHomeDashboard(loadSummary);
 
-  if (state.status === "loading") {
-    return (
-      <ApiStateView
-        status="loading"
-        title="홈 정보를 불러오는 중입니다"
-        message="서버의 최신 요약을 확인하고 있습니다."
-      />
-    );
-  }
-
   if (state.status === "error") {
     return (
       <ApiStateView
@@ -49,12 +39,20 @@ export function HomeScreen({
     return <HomeEmptyView onNavigateToPlanner={() => onNavigate("planner")} />;
   }
 
+  /*
+   * 로딩이라고 화면을 통째로 가리지 않는다. 카드 제목·이동 버튼·통화쌍
+   * 선택은 그대로 세우고, 서버 값이 들어갈 자리만 비워 둔다.
+   */
+  const result = state.status === "ready" ? state.result : null;
+
   return (
     <HomeDashboardView
-      data={toHomeDashboardData(state.result)}
+      data={result === null ? null : toHomeDashboardData(result)}
       marketSlot={
         <MarketSummarySection
-          summarySnapshot={toSummaryMarketSnapshot(state.result)}
+          summarySnapshot={
+            result === null ? null : toSummaryMarketSnapshot(result)
+          }
           loadMarket={loadMarket}
           explainRequester={explainRequester}
         />

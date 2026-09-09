@@ -1,9 +1,15 @@
 import { useForecast, type ForecastLoader } from "./use-forecast";
 import { FanChart } from "./fan-chart";
+import { ForecastControls } from "./cards/forecast-controls";
+import { DriversCard } from "./cards/drivers-card";
+import { EventsCard } from "./cards/events-card";
+import { ModelScoreCard } from "./cards/model-score-card";
+import { SummaryColumn } from "./cards/summary-column";
+import { CARD_SURFACE, CARD_TITLE } from "./cards/card-surface";
 import { AiExplanation } from "../../components/ai/ai-explanation";
 import { ApiStateView } from "../../components/common/api-state-view";
 import { Badge } from "../../components/common/badge";
-import { Icon } from "../../components/common/icon";
+import { Skeleton } from "../../components/common/skeleton";
 import { Spinner } from "../../components/common/spinner";
 import {
   useAiExplanation,
@@ -12,18 +18,14 @@ import {
 } from "../../hooks/use-ai-explanation";
 import type { NavTabId } from "../../types/navigation";
 import {
-  FORECAST_HORIZON_DAYS,
-  FORECAST_PAIRS,
   type FanChartDataPoint,
   type ForecastPair,
   type ForecastPeriod,
-  type ModelPerformanceScore,
   type PairForecastInfo,
 } from "../../types/forecast";
 import {
   currencyColor,
   toExplanationFacts,
-  toPair,
   toPairForecastInfo,
   toPairLabel,
   toFanChartData,
@@ -40,21 +42,6 @@ interface ForecastScreenProps {
 
 /** AI 자연어 설명이 붙는 지면. 백엔드가 문장 톤을 이 값으로 가른다. */
 const EXPLANATION_SURFACE = "forecast_summary";
-
-const PAIR_SELECT_ID = "forecast-pair-select";
-
-/** 기간 컨트롤 문구. "무엇에 대한 기간"인지 컨트롤 자체가 말하게 한다. */
-const PERIOD_GROUP_LABEL = "전망 기간";
-const PERIOD_HELP_TEXT =
-  "선택한 기간만큼 앞으로의 환율 범위를 팬 차트와 요약 카드에 표시합니다.";
-const PERIOD_HELP_ID = "forecast-period-help";
-
-/**
- * 성적표를 못 받은 지평의 안내. 성적표는 지평만큼의 과거 관측을 잘라 검증한
- * 결과라 긴 지평에서는 서버가 이 값만 주지 못할 수 있다(`api/forecast.ts`).
- */
-const MODEL_SCORE_EMPTY_TEXT =
-  "이 기간의 성적표는 아직 표시할 수 없습니다. 검증할 과거 관측이 쌓이면 나타납니다.";
 
 export function ForecastScreen({
   onNavigate,
@@ -73,15 +60,6 @@ export function ForecastScreen({
     requester: explanationRequester,
   });
 
-  if (state.status === "loading") {
-    return (
-      <ApiStateView
-        status="loading"
-        title="환율 범위를 불러오는 중입니다"
-        message="팬 차트와 근거 데이터를 함께 확인하고 있습니다."
-      />
-    );
-  }
   if (state.status === "error") {
     return (
       <ApiStateView
@@ -102,12 +80,18 @@ export function ForecastScreen({
     );
   }
 
+  /*
+   * 로딩이라고 화면을 통째로 가리지 않는다. 컨트롤 바는 서버 응답이 필요
+   * 없으므로 먼저 세우고, 값이 들어갈 자리만 비워 둔 채 뷰를 그대로 그린다.
+   */
+  const isLoaded = state.status === "success";
+
   return (
     <ForecastView
       pair={pair}
       period={period}
-      chartData={toFanChartData(state.data)}
-      pairInfo={toPairForecastInfo(state.data, pair)}
+      chartData={isLoaded ? toFanChartData(state.data) : null}
+      pairInfo={isLoaded ? toPairForecastInfo(state.data, pair) : null}
       explanationState={explanation.state}
       onReloadExplanation={explanation.reload}
       onSelectPair={setPair}
@@ -117,43 +101,12 @@ export function ForecastScreen({
   );
 }
 
-/** 성적표 행. 값만 받아 그리는 표현 컴포넌트다(§7.2). */
-function ModelScoreRows({ score }: { readonly score: ModelPerformanceScore }) {
-  return (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-        <span style={{ color: "var(--text-muted)" }}>평균 오차율</span>
-        <span style={{ color: "var(--text)", fontWeight: 700 }}>
-          {score.maePct}%
-        </span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
-        <span style={{ color: "var(--text-muted)" }}>포함률(80%)</span>
-        <span style={{ color: "var(--text)", fontWeight: 700 }}>
-          {score.inclusion80Pct}%
-        </span>
-      </div>
-      <div
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--normal)",
-          fontWeight: 700,
-          marginTop: "0.5rem",
-          borderTop: "1px solid var(--border-subtle)",
-          paddingTop: "0.5rem",
-        }}
-      >
-        랜덤워크 대비 +{score.randomWalkImprovementPct}% 우수
-      </div>
-    </>
-  );
-}
-
 interface ForecastViewProps {
   readonly pair: ForecastPair;
   readonly period: ForecastPeriod;
-  readonly chartData: readonly FanChartDataPoint[];
-  readonly pairInfo: PairForecastInfo;
+  /** 아직 서버를 기다리는 중이면 null. 값 자리만 자리표시자가 된다. */
+  readonly chartData: readonly FanChartDataPoint[] | null;
+  readonly pairInfo: PairForecastInfo | null;
   readonly explanationState: AiExplanationState;
   readonly onReloadExplanation: () => void;
   readonly onSelectPair: (pair: ForecastPair) => void;
@@ -186,348 +139,71 @@ function ForecastView({
     }
   };
 
-  const { isPercentileWarn } = pairInfo.summary;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* 상단 컨트롤 바 (통화 선택, 기간 토글, 다음 갱신 안내) */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "1rem",
-          alignItems: "center",
-          justifyContent: "space-between",
-          backgroundColor: "var(--surface)",
-          border: "1px solid var(--border)",
-          padding: "0.75rem 1rem",
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
-        {/* 통화쌍 드롭다운 */}
-        <label
-          htmlFor={PAIR_SELECT_ID}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            fontSize: "0.8125rem",
-            fontWeight: 700,
-            color: "var(--text-muted)",
-          }}
-        >
-          <span>통화쌍</span>
-          <span
-            aria-hidden="true"
-            style={{
-              width: "10px",
-              height: "10px",
-              borderRadius: "var(--radius-full)",
-              backgroundColor: accentColor,
-              display: "inline-block",
-            }}
-          />
-          <select
-            id={PAIR_SELECT_ID}
-            value={pair.code}
-            onChange={(event) => onSelectPair(toPair(event.target.value))}
-            style={{
-              padding: "0.5rem 0.75rem",
-              fontWeight: 700,
-              fontSize: "0.875rem",
-              borderRadius: "var(--radius-md)",
-              backgroundColor: "var(--surface)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {FORECAST_PAIRS.map((option) => (
-              <option key={option.code} value={option.code}>
-                {toPairLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/*
+        값 자리가 비어 있는 동안 상태를 한 번만 읽어 준다. 자리표시자 막대는
+        전부 aria-hidden 이라 여기 말고는 읽힐 것이 없다.
+      */}
+      {pairInfo === null && (
+        <span className="sr-only" role="status">
+          환율 범위를 불러오는 중입니다. 팬 차트와 근거 데이터를 함께 확인하고
+          있습니다.
+        </span>
+      )}
 
-        {/* 전망 기간 칩 — 무엇에 대한 기간인지 라벨과 보조 설명으로 밝힌다.
-            선택지가 여섯이라 좁은 폭에서는 줄바꿈으로 넘어간다(가로 스크롤을
-            쓰면 뒤쪽 선택지가 화면 밖에 숨는다). */}
-        <div
-          role="group"
-          aria-label={PERIOD_GROUP_LABEL}
-          aria-describedby={PERIOD_HELP_ID}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.375rem",
-            flex: "1 1 18rem",
-            minWidth: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-            }}
-          >
-            {PERIOD_GROUP_LABEL}
-          </span>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.375rem",
-              minWidth: 0,
-              maxWidth: "100%",
-            }}
-          >
-            {FORECAST_HORIZON_DAYS.map((option) => {
-              const isSelected = period === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => onSelectPeriod(option)}
-                  style={{
-                    flex: "0 0 auto",
-                    whiteSpace: "nowrap",
-                    padding: "0.5rem 0.75rem",
-                    fontWeight: 700,
-                    fontSize: "0.8125rem",
-                    borderRadius: "var(--radius-md)",
-                    border: isSelected
-                      ? "1px solid var(--border)"
-                      : "1px solid var(--border-subtle)",
-                    backgroundColor: isSelected ? "var(--border)" : "transparent",
-                    color: isSelected ? "var(--text)" : "var(--text-muted)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {toPeriodLabel(option)}
-                </button>
-              );
-            })}
-          </div>
-          <p
-            id={PERIOD_HELP_ID}
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-muted)",
-              margin: 0,
-            }}
-          >
-            {PERIOD_HELP_TEXT}
-          </p>
-        </div>
-
-        {/* 다음 갱신 안내 */}
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: "var(--text-muted)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          기준 시각: {pairInfo.asOfLabel}
-        </div>
-      </div>
+      <ForecastControls
+        pair={pair}
+        period={period}
+        asOfLabel={pairInfo?.asOfLabel ?? null}
+        onSelectPair={onSelectPair}
+        onSelectPeriod={onSelectPeriod}
+      />
 
       {/* 팬 차트 및 우측 요약 카드 그리드 */}
       <div className="forecast-main-grid">
-        {/* 좌측: 시뮬레이션 팬 차트 */}
         <div
           className="forecast-chart-card"
           style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
+            ...CARD_SURFACE,
             padding: "1.5rem",
-            boxShadow: "var(--shadow-sm)",
             minHeight: "380px",
             display: "flex",
             flexDirection: "column",
           }}
         >
-          <h2
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "1rem",
-            }}
-          >
+          <h2 style={{ ...CARD_TITLE, marginBottom: "1rem" }}>
             시뮬레이션 팬 차트 ({pairLabel})
           </h2>
           <div style={{ flex: 1, minHeight: "280px" }}>
-            <FanChart
-              data={chartData}
-              pairLabel={pairLabel}
-              accentColor={accentColor}
-            />
+            {chartData === null ? (
+              <Skeleton shape="block" height="280px" />
+            ) : (
+              <FanChart
+                data={chartData}
+                pairLabel={pairLabel}
+                accentColor={accentColor}
+              />
+            )}
           </div>
         </div>
 
-        {/* 우측: 요약 지표 카드 3종 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* 80% 범위 카드 */}
-          <div
-            style={{
-              backgroundColor: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.25rem 1.5rem",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "0.5rem",
-                textTransform: "uppercase",
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              80% 범위 ({periodLabel})
-            </div>
-            <div
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: 700,
-                color: "var(--text)",
-                fontVariantNumeric: "tabular-nums",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {pairInfo.summary.lowerLabel} ~ {pairInfo.summary.upperLabel}
-            </div>
-          </div>
-
-          {/* 변동성 백분위 카드 */}
-          <div
-            style={{
-              backgroundColor: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.25rem 1.5rem",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginBottom: "0.5rem",
-                textTransform: "uppercase",
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-              }}
-            >
-              변동성 백분위
-            </div>
-            <div
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: 700,
-                color: isPercentileWarn ? "var(--warn)" : "var(--primary)",
-                fontVariantNumeric: "tabular-nums",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {pairInfo.summary.percentile}
-            </div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                marginTop: "0.375rem",
-                fontWeight: 500,
-              }}
-            >
-              {pairInfo.uncertaintyNote}
-            </div>
-          </div>
-
-          {/* 내 자산에 미치는 영향 네온 카드 */}
-          <div
-            style={{
-              backgroundColor: "var(--surface)",
-              background: "linear-gradient(135deg, var(--surface) 0%, var(--primary-subtle) 100%)",
-              border: "1px solid var(--primary-border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.25rem 1.5rem",
-              boxShadow: "var(--shadow-sm)",
-              display: "flex",
-              flexDirection: "column",
-              height: "100%",
-              justifyContent: "space-between",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--primary)",
-                  marginBottom: "0.5rem",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
-                }}
-              >
-                내 자산에 미치는 영향
-              </div>
-              <div
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: 800,
-                  color: "var(--text)",
-                  fontVariantNumeric: "tabular-nums",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                1% 움직일 때 ₩{pairInfo.summary.impact}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleNavigateToPlanner}
-              style={{
-                fontSize: "0.875rem",
-                color: "var(--primary)",
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                marginTop: "0.5rem",
-              }}
-            >
-              <span>내 계획에 적용하기</span>
-              <Icon name="arrowRight" size={15} />
-            </button>
-          </div>
-        </div>
+        <SummaryColumn
+          period={period}
+          pairInfo={pairInfo}
+          onNavigateToPlanner={handleNavigateToPlanner}
+        />
       </div>
-
 
       {/* 팬 차트 하단 AI 자연어 설명 + 서버가 준 국면 배지 */}
       {explanationState.status !== "idle" && (
         <div
           style={{
+            ...CARD_SURFACE,
             display: "flex",
             flexDirection: "column",
             gap: "0.75rem",
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
             padding: "1.25rem 1.5rem",
-            boxShadow: "var(--shadow-sm)",
           }}
         >
           {regimeBadge !== null && (
@@ -555,203 +231,14 @@ function ForecastView({
         </div>
       )}
 
-      {/* 하단 3단 그리드: 전망 동인, 다가오는 일정, 모델 성적 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-          gap: "1.5rem",
-        }}
-      >
-        {/* 전망 동인 카드 */}
-        <div
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "1.25rem",
-            }}
-          >
-            전망 동인
-          </h3>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {pairInfo.drivers.length === 0 && (
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                이 통화쌍의 동인 데이터가 아직 제공되지 않습니다.
-              </p>
-            )}
-            {pairInfo.drivers.map((driver) => {
-              const barColor =
-                driver.type === "danger"
-                  ? "var(--danger)"
-                  : driver.type === "normal"
-                    ? "var(--normal)"
-                    : "var(--text-muted)";
-              return (
-                <div
-                  key={driver.name}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: "0.875rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  <span style={{ color: "var(--text)" }}>{driver.name}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <div
-                      style={{
-                        width: `min(${driver.barWidthPx}px, 100px)`,
-                        height: "8px",
-                        backgroundColor: barColor,
-                        borderRadius: "var(--radius-full)",
-                        boxShadow: `0 0 4px ${barColor}`,
-                        transition: "width 0.5s var(--ease-out-smooth), background-color 0.3s ease",
-                        transformOrigin: "left",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 다가오는 일정 카드 */}
-        <div
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 700,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "1.25rem",
-            }}
-          >
-            다가오는 일정
-          </h3>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {pairInfo.events.length === 0 && (
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                예정된 일정이 없습니다.
-              </p>
-            )}
-            {pairInfo.events.map((event) => (
-              <div
-                key={event.title}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "0.75rem 1rem",
-                  backgroundColor: "var(--bg)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-subtle)",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text)" }}>
-                    {event.title}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--text-muted)",
-                      marginTop: "0.125rem",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {event.dateLabel}
-                  </div>
-                </div>
-                <Badge variant={event.severity === "고변동성" ? "danger" : "warn"}>
-                  {event.severity}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 모델 성적 아코디언 카드 */}
-        <div
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <details style={{ width: "100%" }}>
-            <summary
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                cursor: "pointer",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                outline: "none",
-              }}
-            >
-              <span>모델 성적 (접힘)</span>
-              <Icon name="chevronDown" size={15} />
-            </summary>
-
-            <div
-              style={{
-                marginTop: "1rem",
-                paddingTop: "1rem",
-                borderTop: "1px solid var(--border-subtle)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                fontSize: "0.875rem",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {pairInfo.modelScore === null ? (
-                <p
-                  style={{
-                    fontSize: "0.8125rem",
-                    color: "var(--text-muted)",
-                    margin: 0,
-                  }}
-                >
-                  {MODEL_SCORE_EMPTY_TEXT}
-                </p>
-              ) : (
-                <ModelScoreRows score={pairInfo.modelScore} />
-              )}
-            </div>
-          </details>
-        </div>
+      {/* 하단 3단 그리드 — 카드 높이는 서로 끌려가지 않는다(layout.css). */}
+      <div className="forecast-bottom-grid">
+        <DriversCard drivers={pairInfo?.drivers ?? null} />
+        <EventsCard events={pairInfo?.events ?? null} />
+        <ModelScoreCard
+          score={pairInfo?.modelScore ?? null}
+          isLoading={pairInfo === null}
+        />
       </div>
     </div>
   );

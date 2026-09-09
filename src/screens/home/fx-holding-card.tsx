@@ -3,12 +3,22 @@ import {
   DonutChart,
   type DonutSegment,
 } from "../../components/common/donut-chart";
+import { Skeleton } from "../../components/common/skeleton";
 import type { FxStatusData } from "../../types/home";
 import type { ExposureShareItem } from "../../types/xray";
 import { toCurrencyColor } from "./home-market";
 
+/** 로딩 중 세워 둘 지표 행 라벨. 값이 오면 같은 자리에 그대로 들어간다. */
+const PLACEHOLDER_METRIC_LABELS = [
+  "외화 비중",
+  "주력 통화",
+  "어제 대비",
+  "1% 변동 시",
+];
+
 interface FxHoldingCardProps {
-  readonly data: FxStatusData;
+  /** 아직 서버를 기다리는 중이면 null. 제목과 '자산 등록 / 편집'은 그대로 둔다. */
+  readonly data: FxStatusData | null;
   readonly onNavigateToAssets?: () => void;
 }
 
@@ -117,8 +127,8 @@ function ExposureLegend({
 }
 
 export function FxHoldingCard({ data, onNavigateToAssets }: FxHoldingCardProps) {
-  const ratioPct = data.fxRatioPct;
-  const { exposure } = data;
+  const ratioPct = data?.fxRatioPct;
+  const exposure = data?.exposure ?? [];
   const hasExposure = exposure.length > 0;
 
   return (
@@ -142,7 +152,39 @@ export function FxHoldingCard({ data, onNavigateToAssets }: FxHoldingCardProps) 
       }
       className="fx-holding-card"
     >
-      {ratioPct === undefined ? (
+      {data === null ? (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "1.5rem",
+          }}
+        >
+          <Skeleton shape="circle" width="120px" />
+          <div
+            style={{
+              flex: 1,
+              minWidth: "200px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+            }}
+          >
+            {PLACEHOLDER_METRIC_LABELS.map((label) => (
+              <div
+                key={label}
+                style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}
+              >
+                <span style={{ color: "var(--text-muted)" }}>{label}</span>
+                <Skeleton width="5rem" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : ratioPct === undefined ? (
         <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-muted)" }}>
           등록된 자산이 없어 외화 비중을 계산할 수 없습니다.
         </p>

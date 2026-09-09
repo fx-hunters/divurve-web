@@ -1,9 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState, type ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import { loadRoutePlan } from "../../api/route";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
 import { RouteScreen } from "./route-screen";
+import type {
+  PlannerScreenSource,
+  PlannerScreenTarget,
+} from "./planner-route-target";
 import { PlannerDemoScreen } from "./planner-demo-screen";
 import type { PlannerPlanDetailDependencies } from "./planner-plan-detail-screen";
 import type { PlannerApiDependencies } from "./use-planner-api";
@@ -13,8 +18,40 @@ import {
   writePlannerDemoPreference,
 } from "./planner-mode-preference";
 
+/**
+ * 주소가 하는 일을 대신하는 테스트용 껍데기.
+ *
+ * 실제로는 갈래와 위치를 URL이 들고 있다. 여기서는 상태 하나로 흉내 내서, 화면이
+ * 이동을 요청하면 그대로 따라가게 한다.
+ */
+function RoutedRouteScreen({
+  onNavigatePlanner,
+  initialSource = "api",
+  initialTarget = { kind: "goalSelect" },
+  ...props
+}: Omit<ComponentProps<typeof RouteScreen>, "source" | "target"> & {
+  readonly initialSource?: PlannerScreenSource;
+  readonly initialTarget?: PlannerScreenTarget;
+}) {
+  const [location, setLocation] = useState({
+    source: initialSource,
+    target: initialTarget,
+  });
+  return (
+    <RouteScreen
+      {...props}
+      source={location.source}
+      target={location.target}
+      onNavigatePlanner={(source, target) => {
+        onNavigatePlanner?.(source, target);
+        setLocation({ source, target });
+      }}
+    />
+  );
+}
+
 async function enterDemoAction(goalName = "미국 ETF 정기 투자") {
-  render(<RouteScreen />);
+  render(<RoutedRouteScreen />);
   fireEvent.click(
     await screen.findByRole("button", { name: new RegExp(goalName) }),
   );
@@ -27,7 +64,7 @@ beforeEach(() => {
 
 describe("RouteScreen", () => {
   it("데모 목표 두 개를 공통 Journey에 표시하고 서버 출처와 구분한다", async () => {
-    render(<RouteScreen />);
+    render(<RoutedRouteScreen />);
 
     expect(
       await screen.findByRole("region", { name: "데모 플래너" }),
@@ -43,7 +80,7 @@ describe("RouteScreen", () => {
   });
 
   it("목표 선택 뒤 현재 상태, Curve, 다음 행동을 한 화면에 연결한다", async () => {
-    render(<RouteScreen />);
+    render(<RoutedRouteScreen />);
     fireEvent.click(
       await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }),
     );
@@ -99,12 +136,15 @@ describe("RouteScreen", () => {
       preview: vi.fn(),
       create: vi.fn(),
       createGoal: vi.fn(),
+      updateGoal: vi.fn(),
+      deleteGoal: vi.fn(),
+      previewDraft: vi.fn(),
       previewScenario: vi.fn(),
       apply: vi.fn(),
       createExecutionKey: vi.fn(() => "demo-must-not-call"),
       getToday: vi.fn(() => "2026-09-08"),
     };
-    render(<RouteScreen apiDependencies={apiDependencies} />);
+    render(<RoutedRouteScreen apiDependencies={apiDependencies} />);
     fireEvent.click(
       await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }),
     );
@@ -147,7 +187,7 @@ describe("RouteScreen", () => {
 
   it("같은 세션에서 선택한 데모 목표를 다시 열 때 복원한다", async () => {
     writePlannerGoalSelection("jpy-travel-deadline-demo");
-    render(<RouteScreen />);
+    render(<RoutedRouteScreen />);
 
     const selected = await screen.findByRole("button", { name: /일본 여행 준비/ });
     expect(selected).toHaveAttribute("aria-pressed", "true");
@@ -156,7 +196,7 @@ describe("RouteScreen", () => {
   });
 
   it("새 데모 목표는 서버 저장 없이 현재 화면에만 추가한다", async () => {
-    render(<RouteScreen />);
+    render(<RoutedRouteScreen />);
     await screen.findByRole("region", { name: "데모 플래너" });
     fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
     fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
@@ -187,21 +227,21 @@ describe("RouteScreen", () => {
   });
 
   it("계획 상세 버튼은 선택 목표와 계획 식별자로 전용 경로 이동을 요청한다", async () => {
-    const onOpenPlanDetail = vi.fn();
-    render(<RouteScreen onOpenPlanDetail={onOpenPlanDetail} />);
+    const onNavigatePlanner = vi.fn();
+    render(<RoutedRouteScreen onNavigatePlanner={onNavigatePlanner} />);
     fireEvent.click(await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }));
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     const trigger = screen.getByRole("button", { name: "전체 계획 상세 보기" });
     fireEvent.click(trigger);
-    expect(onOpenPlanDetail).toHaveBeenCalledWith(
-      "demo",
-      "usd-etf-recurring-demo",
-      "usd-etf-recurring-demo",
-    );
+    expect(onNavigatePlanner).toHaveBeenLastCalledWith("demo", {
+      kind: "planDetail",
+      goalId: "usd-etf-recurring-demo",
+      planId: "usd-etf-recurring-demo",
+    });
   });
 
-  it("API 상세 경로를 공통 상세 화면으로 열고 플래너 복귀를 위임한다", async () => {
-    const onBack = vi.fn();
+  it("API 상세 경로를 공통 상세 화면으로 열고 그 목표로 복귀한다", async () => {
+    const onNavigatePlanner = vi.fn();
     const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
     const detailDependencies: PlannerPlanDetailDependencies = {
       loadOverview: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
@@ -209,11 +249,15 @@ describe("RouteScreen", () => {
       loadVersions: vi.fn().mockResolvedValue([]),
     };
     render(
-      <RouteScreen
+      <RoutedRouteScreen
         mode="api"
-        detailRoute={{ source: "api", goalId: "goal-usd", planId: "plan-usd" }}
+        initialTarget={{
+          kind: "planDetail",
+          goalId: "goal-usd",
+          planId: "plan-usd",
+        }}
         detailDependencies={detailDependencies}
-        onBackFromDetail={onBack}
+        onNavigatePlanner={onNavigatePlanner}
       />,
     );
 
@@ -221,14 +265,19 @@ describe("RouteScreen", () => {
       await screen.findByRole("heading", { name: "미국 ETF 준비" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
-    expect(onBack).toHaveBeenCalledOnce();
+    expect(onNavigatePlanner).toHaveBeenCalledWith("api", {
+      kind: "goal",
+      goalId: "goal-usd",
+      stage: "main",
+    });
   });
 
   it("데모 상세 경로를 같은 상세 화면으로 열고 기본 복귀 동작도 안전하다", async () => {
     render(
-      <RouteScreen
-        detailRoute={{
-          source: "demo",
+      <RoutedRouteScreen
+        initialSource="demo"
+        initialTarget={{
+          kind: "planDetail",
           goalId: "usd-etf-recurring-demo",
           planId: "usd-etf-recurring-demo",
         }}
@@ -245,8 +294,9 @@ describe("RouteScreen", () => {
     render(
       <RouteScreen
         mode="api"
-        detailRoute={{
-          source: "demo",
+        source="demo"
+        target={{
+          kind: "planDetail",
           goalId: "usd-etf-recurring-demo",
           planId: "usd-etf-recurring-demo",
         }}
@@ -257,6 +307,22 @@ describe("RouteScreen", () => {
     expect(readPlannerDemoPreference()).toBe(true);
   });
 
+  it("이동 콜백이 없어도 화면은 안전하게 동작한다", async () => {
+    render(
+      <RouteScreen
+        source="demo"
+        target={{
+          kind: "goal",
+          goalId: "usd-etf-recurring-demo",
+          stage: "main",
+        }}
+      />,
+    );
+
+    await screen.findByRole("region", { name: "데모 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
+  });
+
   it("기본 상세 열기 콜백이 없어도 데모 여정은 안전하게 동작한다", async () => {
     await enterDemoAction();
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
@@ -265,18 +331,27 @@ describe("RouteScreen", () => {
   it("독립 데모 화면도 상세 이동 콜백 없이 안전하게 사용할 수 있다", async () => {
     const data = await loadRoutePlan();
     if (data === null) throw new Error("데모 플래너 데이터가 필요합니다.");
-    render(<PlannerDemoScreen data={data} />);
-    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    render(
+      <PlannerDemoScreen
+        data={data}
+        goalId={null}
+        navigation={{
+          stage: "main",
+          onOpenGoalSelect: vi.fn(),
+          onOpenGoalStage: vi.fn(),
+        }}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
   });
 
   it("loading, empty, API 오류와 재시도를 각각 표시한다", async () => {
     const pendingLoader = vi.fn(() => new Promise<null>(() => undefined));
-    const first = render(<RouteScreen loadPlan={pendingLoader} />);
+    const first = render(<RoutedRouteScreen loadPlan={pendingLoader} />);
     expect(screen.getByRole("status")).toHaveTextContent("목표와 계획을 확인하고 있습니다.");
     first.unmount();
 
-    const empty = render(<RouteScreen loadPlan={async () => null} />);
+    const empty = render(<RoutedRouteScreen loadPlan={async () => null} />);
     expect(await screen.findByText("표시할 목표 또는 계획 데이터가 없습니다.")).toBeInTheDocument();
     empty.unmount();
 
@@ -285,7 +360,7 @@ describe("RouteScreen", () => {
       .fn()
       .mockRejectedValueOnce(new ApiError("계획 조회 실패", 503))
       .mockResolvedValueOnce(data);
-    render(<RouteScreen loadPlan={loader} />);
+    render(<RoutedRouteScreen loadPlan={loader} />);
     expect(await screen.findByRole("alert")).toHaveTextContent("계획 조회 실패");
     fireEvent.click(screen.getByRole("button", { name: "다시 불러오기" }));
     expect(await screen.findByRole("region", { name: "데모 플래너" })).toBeInTheDocument();
@@ -293,7 +368,7 @@ describe("RouteScreen", () => {
   });
 
   it("API 모드에서는 서버 목표와 동일한 공통 Journey 트리만 표시한다", async () => {
-    const onOpenPlanDetail = vi.fn();
+    const onNavigatePlanner = vi.fn();
     const apiDependencies: PlannerApiDependencies = {
       load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
       complete: vi.fn(),
@@ -301,16 +376,19 @@ describe("RouteScreen", () => {
       preview: vi.fn(),
       create: vi.fn(),
       createGoal: vi.fn(),
+      updateGoal: vi.fn(),
+      deleteGoal: vi.fn(),
+      previewDraft: vi.fn(),
       previewScenario: vi.fn(),
       apply: vi.fn(),
       createExecutionKey: vi.fn(() => "api-key"),
       getToday: vi.fn(() => "2026-09-08"),
     };
     render(
-      <RouteScreen
+      <RoutedRouteScreen
         mode="api"
         apiDependencies={apiDependencies}
-        onOpenPlanDetail={onOpenPlanDetail}
+        onNavigatePlanner={onNavigatePlanner}
       />,
     );
 
@@ -322,7 +400,11 @@ describe("RouteScreen", () => {
     expect(screen.getByTestId("planner-journey-screen")).toBe(region);
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
-    expect(onOpenPlanDetail).toHaveBeenCalledWith("api", "goal-usd", "plan-usd");
+    expect(onNavigatePlanner).toHaveBeenLastCalledWith("api", {
+      kind: "planDetail",
+      goalId: "goal-usd",
+      planId: "plan-usd",
+    });
   });
 
   it("회원은 저장 없이 데모를 둘러본 뒤 계정 플래너로 돌아온다", async () => {
@@ -333,12 +415,15 @@ describe("RouteScreen", () => {
       preview: vi.fn(),
       create: vi.fn(),
       createGoal: vi.fn(),
+      updateGoal: vi.fn(),
+      deleteGoal: vi.fn(),
+      previewDraft: vi.fn(),
       previewScenario: vi.fn(),
       apply: vi.fn(),
       createExecutionKey: vi.fn(() => "api-key"),
       getToday: vi.fn(() => "2026-09-08"),
     };
-    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+    render(<RoutedRouteScreen mode="api" apiDependencies={apiDependencies} />);
 
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: "데모로 둘러보기" }));
@@ -364,13 +449,16 @@ describe("RouteScreen", () => {
       preview: vi.fn(),
       create: vi.fn(),
       createGoal: vi.fn(),
+      updateGoal: vi.fn(),
+      deleteGoal: vi.fn(),
+      previewDraft: vi.fn(),
       previewScenario: vi.fn(),
       apply: vi.fn(),
       createExecutionKey: vi.fn(() => "api-key"),
       getToday: vi.fn(() => "2026-09-08"),
     };
     const first = render(
-      <RouteScreen mode="api" apiDependencies={apiDependencies} />,
+      <RoutedRouteScreen mode="api" apiDependencies={apiDependencies} />,
     );
 
     await screen.findByRole("region", { name: "API 플래너" });
@@ -400,7 +488,7 @@ describe("RouteScreen", () => {
     expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
 
     first.unmount();
-    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+    render(<RoutedRouteScreen mode="api" apiDependencies={apiDependencies} />);
 
     expect(
       await screen.findByRole("region", { name: "데모 플래너" }),
@@ -444,7 +532,7 @@ describe("RouteScreen", () => {
     render(
       <RouteScreen
         mode="api"
-        detailRoute={{ source: "api", goalId: "goal-usd", planId: "plan-usd" }}
+        target={{ kind: "planDetail", goalId: "goal-usd", planId: "plan-usd" }}
         detailDependencies={detailDependencies}
       />,
     );

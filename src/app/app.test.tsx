@@ -153,12 +153,15 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
     ).toBeInTheDocument();
+    // 상세에서 나가면 목록이 아니라 그 목표의 메인 단계로 돌아간다.
     fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
-    expect(window.location.pathname).toBe("/route");
+    expect(window.location.pathname).toBe(
+      "/route/demo/goals/usd-etf-recurring-demo",
+    );
 
-    fireEvent.click(await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }));
-    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "전체 계획 상세 보기" }),
+    );
     expect(window.location.pathname).toBe(
       "/route/demo/goals/usd-etf-recurring-demo/plans/usd-etf-recurring-demo",
     );
@@ -371,7 +374,10 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "환전 플래너" })[0]);
 
-    expect(await screen.findByText(/플래너를 불러오/)).toBeInTheDocument();
+    // 탭을 누른 즉시 플래너 머리말이 선다 — 서버 응답을 기다리지 않는다.
+    expect(
+      screen.getByRole("heading", { name: "내 외화 플래너" }),
+    ).toBeInTheDocument();
   });
 
   it.each([

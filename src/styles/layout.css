@@ -65,6 +65,22 @@
   display: none !important;
 }
 
+/*
+ * 화면에서는 감추되 보조기술에는 남기는 텍스트. `display: none` 은 스크린리더도
+ * 건너뛰므로 aria-describedby 가 가리키는 설명에는 쓸 수 없다.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (min-width: 1024px) {
   .hidden-lg {
     display: none !important;
@@ -119,6 +135,17 @@
   .forecast-chart-card {
     grid-column: span 2;
   }
+}
+
+/*
+ * 전망 화면 하단 3단 그리드. `align-items: start` 가 핵심이다 — 기본값
+ * `stretch` 면 일정이 늘어난 만큼 옆의 동인·성적 카드까지 함께 길어진다.
+ */
+.forecast-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  align-items: start;
+  gap: 1.5rem;
 }
 
 /*

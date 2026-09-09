@@ -6,6 +6,7 @@ import {
   DIAGNOSIS_RESULT_ROUTE,
   LANDING_ROUTE,
   dashboardRoute,
+  plannerRoute,
 } from "./app-routing";
 import { useAppRoute } from "./use-app-route";
 
@@ -89,7 +90,9 @@ describe("useAppRoute", () => {
     window.history.replaceState(null, "", "/route/");
     const { result } = renderHook(() => useAppRoute());
 
-    expect(result.current.route).toEqual(dashboardRoute("planner"));
+    expect(result.current.route).toEqual(
+      plannerRoute("api", { kind: "goalSelect" }),
+    );
     expect(window.location.pathname).toBe(APP_PATHS.planner);
   });
 

@@ -11,7 +11,6 @@
  * #103 으로 갈랐다.
  */
 import type { AdminAuthFailure } from "../admin-errors";
-import { AiCallCard } from "./cards/ai-card";
 import { AiOutcomeCard } from "./cards/ai-outcome-card";
 import { AiTokenTrendCard } from "./cards/ai-token-trend-card";
 import { CurrencyCard } from "./cards/currency-card";
@@ -31,7 +30,6 @@ export function AdminDashboardScreen({
       <h1 className="admin-section__title">운영 현황</h1>
       <div className="admin-metric-grid">
         <SignupCard onAuthFailure={onAuthFailure} />
-        <AiCallCard onAuthFailure={onAuthFailure} />
         <AiOutcomeCard onAuthFailure={onAuthFailure} />
         <RefreshCard onAuthFailure={onAuthFailure} />
         <GapCard onAuthFailure={onAuthFailure} />

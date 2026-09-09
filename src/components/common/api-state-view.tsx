@@ -1,9 +1,13 @@
 import { Card } from "./card";
 import { Icon } from "./icon";
-import { Spinner } from "./spinner";
 
 interface ApiStateViewProps {
-  readonly status: "loading" | "error" | "empty";
+  /*
+   * 로딩은 여기서 다루지 않는다. 화면을 통째로 덮는 대신 각 화면이 골격과
+   * 컨트롤을 그대로 세우고 값 자리만 자리표시자로 채운다
+   * (components/common/skeleton.tsx).
+   */
+  readonly status: "error" | "empty";
   readonly title: string;
   readonly message: string;
   readonly onRetry?: () => void;
@@ -38,11 +42,7 @@ export function ApiStateView({
           aria-hidden="true"
           style={{ color: status === "error" ? "var(--danger)" : "var(--primary)" }}
         >
-          {status === "loading" ? (
-            <Spinner size={28} />
-          ) : (
-            <Icon name={iconName} size={28} />
-          )}
+          <Icon name={iconName} size={28} />
         </span>
         <div>
           <h2

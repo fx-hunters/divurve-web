@@ -18,8 +18,8 @@ function renderCard(overrides: Partial<Parameters<typeof MarketSummaryCard>[0]> 
     onRetry: vi.fn(),
     ...overrides,
   };
-  render(<MarketSummaryCard {...props} />);
-  return props;
+  const view = render(<MarketSummaryCard {...props} />);
+  return { ...props, container: view.container };
 }
 
 describe("MarketSummaryCard", () => {
@@ -54,15 +54,14 @@ describe("MarketSummaryCard", () => {
     expect(onSelectPairCode).toHaveBeenCalledWith("USDJPY");
   });
 
-  it("재조회 중에는 환율 대신 스피너를 보여준다", () => {
-    renderCard({
+  it("재조회 중에는 환율 자리만 비우고 통화쌍 선택은 남긴다", () => {
+    const { container } = renderCard({
       view: toMarketView({ pairCode: "USDJPY" }),
       isReloading: true,
     });
 
-    expect(
-      screen.getByRole("status", { name: "시세를 불러오는 중" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "통화쌍" })).toBeEnabled();
+    expect(container.querySelectorAll(".divurve-skeleton").length).toBeGreaterThan(0);
     expect(screen.queryByText(/80% 범위/)).not.toBeInTheDocument();
   });
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiStateView } from "../../components/common/api-state-view";
 import { DataSourceBadge } from "../../components/common/data-source-badge";
+import { Skeleton } from "../../components/common/skeleton";
 import {
   fetchPlanDetail,
   fetchPlannerOverview,
@@ -14,6 +15,15 @@ import { presentPlannerOverview } from "./planner-api-presenter";
 import type { PlannerViewModel } from "./planner-api-types";
 import { findDemoPlan, presentDemoPlanner } from "./planner-demo-adapter";
 import { readPlannerDemoProgress } from "./planner-demo-progress";
+
+/** 머리말 문구. 로딩 중 자리표시자 화면도 같은 문구를 쓴다. */
+const PAGE_EYEBROW = "전체 계획 상세";
+const PAGE_DESCRIPTION =
+  "회차별 날짜, 준비 금액, 누적 금액과 저장된 계획 이력을 확인합니다.";
+const BACK_LABEL = "← 내 계획";
+
+/** 요약 목록의 항목 이름. 값은 서버가 준다. */
+const SUMMARY_LABELS = ["현재 확보", "목표", "계획 종료일", "상태"];
 
 interface PlannerPlanDetailPageProps {
   readonly view: PlannerViewModel;
@@ -39,15 +49,15 @@ export function PlannerPlanDetailPage({
     <section className="planner-detail-page" aria-labelledby="planner-detail-page-title">
       <header className="planner-detail-page__header">
         <div>
-          <p className="planner-api-journey__eyebrow">전체 계획 상세</p>
+          <p className="planner-api-journey__eyebrow">{PAGE_EYEBROW}</p>
           <h1 id="planner-detail-page-title">{goal.name}</h1>
-          <p>회차별 날짜, 준비 금액, 누적 금액과 저장된 계획 이력을 확인합니다.</p>
+          <p>{PAGE_DESCRIPTION}</p>
         </div>
         <DataSourceBadge kind={view.dataSource.kind} />
       </header>
 
       <button type="button" className="planner-api-journey__secondary" onClick={onBack}>
-        ← 내 계획
+        {BACK_LABEL}
       </button>
 
       <dl className="planner-detail-page__summary">
@@ -243,8 +253,41 @@ export function PlannerApiPlanDetailScreen({
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
 
+  /*
+   * 로딩이라고 화면을 통째로 가리지 않는다. 머리말과 '플래너로 돌아가기'는
+   * 서버 값이 필요 없으므로 먼저 세운다 — 응답이 늦어도 빠져나갈 수 있다.
+   */
   if (state.status === "loading") {
-    return <ApiStateView status="loading" title="계획 상세를 불러오는 중입니다" message="회차와 버전 이력을 확인하고 있습니다." />;
+    return (
+      <section className="planner-detail-page">
+        <header className="planner-detail-page__header">
+          <div>
+            <p className="planner-api-journey__eyebrow">{PAGE_EYEBROW}</p>
+            <h1>
+              <Skeleton width="12rem" />
+            </h1>
+            <p>{PAGE_DESCRIPTION}</p>
+          </div>
+          <DataSourceBadge kind="unknown" />
+        </header>
+        <span className="sr-only" role="status">
+          계획 상세를 불러오는 중입니다. 회차와 버전 이력을 확인하고 있습니다.
+        </span>
+        <button type="button" className="planner-api-journey__secondary" onClick={onBack}>
+          {BACK_LABEL}
+        </button>
+        <dl className="planner-detail-page__summary">
+          {SUMMARY_LABELS.map((label) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>
+                <Skeleton width="5rem" />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    );
   }
   if (state.status === "error") {
     return <ApiStateView status="error" title="계획 상세를 열지 못했습니다" message={state.message} onRetry={reload} />;

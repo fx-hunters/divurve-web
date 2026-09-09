@@ -111,15 +111,38 @@ describe("HomeScreen", () => {
     expect(onNavigate).toHaveBeenCalledWith("planner");
   });
 
-  it("불러오는 중에는 로딩 안내를 보여준다", () => {
-    render(
+  it("불러오는 중에도 카드 제목과 이동 버튼은 그대로 눌린다", () => {
+    const { container } = render(
       <HomeScreen
         onNavigate={vi.fn()}
         loadSummary={vi.fn().mockReturnValue(new Promise(() => {}))}
         {...marketStubs()}
       />,
     );
-    expect(screen.getByText("홈 정보를 불러오는 중입니다")).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { name: "오늘의 시장" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "플래너 열기" })).toBeEnabled();
+    expect(screen.getByRole("combobox", { name: "통화쌍" })).toBeEnabled();
+    expect(container.querySelectorAll(".divurve-skeleton").length).toBeGreaterThan(0);
+    expect(screen.getByText(/홈 정보를 불러오는 중입니다/)).toBeInTheDocument();
+  });
+
+  it("불러오는 중에 통화쌍을 바꾸면 시세만 따로 받아 온다", async () => {
+    const loadMarket = vi.fn().mockResolvedValue(FORECAST_RESULT);
+    render(
+      <HomeScreen
+        onNavigate={vi.fn()}
+        loadSummary={vi.fn().mockReturnValue(new Promise(() => {}))}
+        loadMarket={loadMarket}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "통화쌍" }), {
+      target: { value: "USDJPY" },
+    });
+
+    expect(loadMarket).toHaveBeenCalledWith("USDJPY");
+    expect(await screen.findByText("147.52")).toBeInTheDocument();
   });
 
   it("실패하면 메시지와 재시도 버튼을 보여준다", async () => {

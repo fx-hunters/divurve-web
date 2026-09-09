@@ -10,6 +10,8 @@ import type {
   PlannerCostRange,
   PlannerPlanGoal,
   PlannerGoalCreateRequest,
+  PlannerGoalUpdateRequest,
+  PlannerPlanPreviewRequest,
   PlannerPlanRequest,
   PlannerPlanResponse,
   PlannerPlanStep,
@@ -280,6 +282,21 @@ export function previewGoalPlan(goal: GoalResponse): Promise<PlannerPlanResponse
   });
 }
 
+/**
+ * 저장되지 않은 목표 조건으로 계획을 계산한다.
+ *
+ * 같은 엔드포인트지만 `goalId` 없이 조건 전체를 싣는다. 백엔드는 이 경로를 위해
+ * `goal_id`를 선택으로 두었다 — 사용자가 조건을 확인하고 "이 조건으로 계획 만들기"를
+ * 누르기 전에 회차와 비용을 먼저 볼 수 있어야 하기 때문이다.
+ *
+ * 응답의 `planId`·`goalId`·`version`은 저장되지 않았으므로 모두 null이다.
+ */
+export function previewPlanDraft(
+  input: PlannerPlanPreviewRequest,
+): Promise<PlannerPlanResponse> {
+  return requestPlan("/api/v1/plans/preview", { method: "POST", body: input });
+}
+
 export function createGoalPlan(goal: GoalResponse): Promise<PlannerPlanResponse> {
   return requestPlan(
     `/api/v1/goals/${encodeURIComponent(goal.id)}/plans`,
@@ -320,6 +337,36 @@ export function createPlannerGoal(
   return request<GoalResponse>("/api/v1/goals", {
     method: "POST",
     body: input,
+  });
+}
+
+/** 목표 하나(`GET /api/v1/goals/{id}`). 목표별 URL로 바로 들어왔을 때 쓴다. */
+export function fetchPlannerGoal(goalId: string): Promise<GoalResponse> {
+  return request<GoalResponse>(`/api/v1/goals/${encodeURIComponent(goalId)}`);
+}
+
+/**
+ * 목표를 부분 수정한다(`PUT /api/v1/goals/{id}`).
+ *
+ * 담지 않은 키는 서버에서 "값 변경 없음"으로 읽는다. 바꾸지 않을 필드를 현재 값으로
+ * 다시 채워 보내지 않는다 — 그 사이 다른 경로에서 바뀐 값을 덮어쓰게 된다.
+ */
+export function updatePlannerGoal(
+  goalId: string,
+  input: PlannerGoalUpdateRequest,
+): Promise<GoalResponse> {
+  return request<GoalResponse>(`/api/v1/goals/${encodeURIComponent(goalId)}`, {
+    method: "PUT",
+    body: input,
+  });
+}
+
+/** 목표를 삭제한다(`DELETE /api/v1/goals/{id}`). 응답 본문이 없다. */
+export async function deletePlannerGoal(goalId: string): Promise<void> {
+  await request<unknown>(`/api/v1/goals/${encodeURIComponent(goalId)}`, {
+    method: "DELETE",
+    // 삭제 성공 응답은 `data`가 null이라 전역 NON_NULL 직렬화가 키를 지운다.
+    isEmptyDataAllowed: true,
   });
 }
 

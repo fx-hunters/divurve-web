@@ -18,6 +18,7 @@ vi.mock("./planner-journey-screen", () => ({
 }));
 
 let data: RoutePlanData;
+const navigation = { stage: "main" as const, onOpenGoalSelect: vi.fn(), onOpenGoalStage: vi.fn() };
 
 function mapNonEmpty<T>(
   items: readonly [T, ...T[]],
@@ -40,7 +41,7 @@ beforeEach(() => {
 
 describe("PlannerDemoScreen", () => {
   it("기록 중복 요청을 거절하고 완료한 회차만 저장한다", async () => {
-    render(<PlannerDemoScreen data={data} />);
+    render(<PlannerDemoScreen data={data} goalId={null} navigation={navigation} />);
     if (captured === null) throw new Error("여정 콜백이 필요합니다.");
 
     let first!: Promise<boolean>;
@@ -78,7 +79,7 @@ describe("PlannerDemoScreen", () => {
         },
       })),
     };
-    render(<PlannerDemoScreen data={completedData} />);
+    render(<PlannerDemoScreen data={completedData} goalId={null} navigation={navigation} />);
     if (captured === null) throw new Error("여정 콜백이 필요합니다.");
 
     await expect(captured.onRecordDemo()).resolves.toBe(false);

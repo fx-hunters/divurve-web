@@ -353,6 +353,39 @@ describe("request", () => {
     ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
   });
 
+  it("data 키가 없는 성공 응답은 허용한 요청에서만 통과시킨다", async () => {
+    // 백엔드가 ApiResponse.of(null)로 내는 삭제 응답은 전역 NON_NULL 직렬화가
+    // data 키를 지운다. 200이라 204 처리 경로로도 걸리지 않는다.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ meta: { asOf: "2026-09-09" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      requestWithMeta<void>(
+        "/delete",
+        { requiresAuth: false, isEmptyDataAllowed: true },
+        env,
+      ),
+    ).resolves.toEqual({ data: undefined, meta: { asOf: "2026-09-09" } });
+    await expect(
+      request("/delete", { requiresAuth: false }, env),
+    ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  it("본문이 통째로 비어도 허용한 요청은 빈 메타로 받는다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(null));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      requestWithMeta<void>(
+        "/delete",
+        { requiresAuth: false, isEmptyDataAllowed: true },
+        env,
+      ),
+    ).resolves.toEqual({ data: undefined, meta: { asOf: "" } });
+  });
+
   it("204 응답과 메타가 없는 정상 응답을 처리한다", async () => {
     const fetchMock = vi
       .fn()

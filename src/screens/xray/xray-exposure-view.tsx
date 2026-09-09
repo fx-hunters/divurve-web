@@ -1,6 +1,7 @@
 import { DonutChart } from "../../components/common/donut-chart";
 import { Badge } from "../../components/common/badge";
 import { Icon } from "../../components/common/icon";
+import { Skeleton } from "../../components/common/skeleton";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import { XRayAiExplanation, XRAY_EXPOSURE_SURFACE } from "./xray-ai-explanation";
 import { XRaySummaryStrip, type XRaySummaryItem } from "./xray-summary-strip";
@@ -31,8 +32,15 @@ export type StressRunState =
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "done" };
 
+/** 로딩 중 세워 둘 자리표시자 행 수. */
+const PLACEHOLDER_ROWS = [0, 1, 2];
+
 interface XRayExposureViewProps {
-  readonly data: XRayDashboardData;
+  /**
+   * 아직 서버를 기다리는 중이면 null. 카드·제목·표 머리글은 그대로 서고
+   * 값이 들어갈 자리만 자리표시자가 된다.
+   */
+  readonly data: XRayDashboardData | null;
   readonly selectedScenarioCode: string;
   readonly runState: { readonly status: string; readonly message?: string };
   readonly runResult: StressRunResult | null;
@@ -79,28 +87,33 @@ const SECTION_BASIS_STYLE = {
  * 넷 다 KRW 라 한 줄에 모아 두면 서로 비교된다. 외화 비중은 총 자산 대비
  * 비율이므로 별도 칸을 만들지 않고 외화 자산 칸의 부연으로 붙인다.
  */
-function toSummaryItems(data: XRayDashboardData): readonly XRaySummaryItem[] {
+function toSummaryItems(
+  data: XRayDashboardData | null,
+): readonly XRaySummaryItem[] {
   return [
     {
       key: "total",
       label: "총 자산",
-      value: `₩ ${data.totalAssetKrw.toLocaleString()}`,
+      value: data === null ? null : `₩ ${data.totalAssetKrw.toLocaleString()}`,
     },
     {
       key: "fx",
       label: "외화 자산",
-      value: `₩ ${data.fxKrw.toLocaleString()}`,
-      hint: `총 자산의 ${data.fxRatioPct}%`,
+      value: data === null ? null : `₩ ${data.fxKrw.toLocaleString()}`,
+      hint: data === null ? null : `총 자산의 ${data.fxRatioPct}%`,
     },
     {
       key: "krw",
       label: "원화 자산",
-      value: `₩ ${data.krwAmount.toLocaleString()}`,
+      value: data === null ? null : `₩ ${data.krwAmount.toLocaleString()}`,
     },
     {
       key: "sensitivity",
       label: "환율 1% 상승 시",
-      value: `+₩ ${data.fxSensitivity1pctKrw.toLocaleString()}`,
+      value:
+        data === null
+          ? null
+          : `+₩ ${data.fxSensitivity1pctKrw.toLocaleString()}`,
       hint: "외화 자산 평가액 변화",
     },
   ];
@@ -119,7 +132,7 @@ export function XRayExposureView({
       <div className="xray-layout__full">
         <XRaySummaryStrip
           items={toSummaryItems(data)}
-          caption={`기준 시각: ${data.asOfLabel}`}
+          caption={data === null ? null : `기준 시각: ${data.asOfLabel}`}
         />
       </div>
 
@@ -136,11 +149,15 @@ export function XRayExposureView({
             <span style={SECTION_BASIS_STYLE}>총 자산 대비</span>
           </div>
           <div className="xray-composition__donut">
-            <DonutChart
-              percent={data.fxRatioPct}
-              size={144}
-              label={`외화 비중 ${data.fxRatioPct}%`}
-            />
+            {data === null ? (
+              <Skeleton shape="circle" width="144px" />
+            ) : (
+              <DonutChart
+                percent={data.fxRatioPct}
+                size={144}
+                label={`외화 비중 ${data.fxRatioPct}%`}
+              />
+            )}
           </div>
         </div>
 
@@ -158,15 +175,19 @@ export function XRayExposureView({
               <h3 style={SECTION_TITLE_STYLE}>통화별 노출</h3>
               <span style={SECTION_BASIS_STYLE}>외화 자산 대비</span>
             </div>
-            <Badge
-              variant={
-                isConcentrationAboveThreshold(data.concentration.status)
-                  ? "danger"
-                  : "default"
-              }
-            >
-              {data.concentration.statusLabel}
-            </Badge>
+            {data === null ? (
+              <Skeleton width="4.5rem" />
+            ) : (
+              <Badge
+                variant={
+                  isConcentrationAboveThreshold(data.concentration.status)
+                    ? "danger"
+                    : "default"
+                }
+              >
+                {data.concentration.statusLabel}
+              </Badge>
+            )}
           </div>
 
           {/* 다중 통화 게이지 바 (기준선 마커는 서버가 줄 때만 표시) */}
@@ -182,7 +203,7 @@ export function XRayExposureView({
               marginBottom: "1rem",
             }}
           >
-            {data.concentration.thresholdPct !== undefined && (
+            {data?.concentration.thresholdPct !== undefined && (
               <div
                 data-testid="concentration-threshold-marker"
                 style={{
@@ -197,7 +218,7 @@ export function XRayExposureView({
                 }}
               />
             )}
-            {data.exposure.map((item) => (
+            {data?.exposure.map((item) => (
               <div
                 key={item.currencyCode}
                 style={{
@@ -222,7 +243,7 @@ export function XRayExposureView({
             }}
           >
             <div style={{ display: "flex", gap: "0.875rem", flexWrap: "wrap" }}>
-              {data.exposure.map((item) => (
+              {data?.exposure.map((item) => (
                 <span
                   key={item.currencyCode}
                   style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
@@ -239,7 +260,7 @@ export function XRayExposureView({
                 </span>
               ))}
             </div>
-            {data.concentration.thresholdPct !== undefined && (
+            {data?.concentration.thresholdPct !== undefined && (
               <span style={{ color: "var(--danger)" }}>
                 기준선 {data.concentration.thresholdPct}%
               </span>
@@ -281,11 +302,29 @@ export function XRayExposureView({
               <tr style={{ borderTop: "1px solid var(--border-subtle)" }}>
                 <td style={{ padding: "0.875rem 0", color: "var(--text-muted)" }}>매입 원가</td>
                 <td style={{ padding: "0.875rem 0", textAlign: "right" }}>
-                  {data.pnl.costBasisKrw.toLocaleString()}
+                  {data === null ? (
+                    <Skeleton width="6rem" />
+                  ) : (
+                    data.pnl.costBasisKrw.toLocaleString()
+                  )}
                 </td>
                 <td style={{ padding: "0.875rem 0", textAlign: "right", color: "var(--text-muted)" }}>-</td>
               </tr>
-              {data.pnl.rows.map((row) => {
+              {data === null &&
+                PLACEHOLDER_ROWS.map((row) => (
+                  <tr key={row} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                    <td style={{ padding: "0.875rem 0" }}>
+                      <Skeleton width="7rem" />
+                    </td>
+                    <td style={{ padding: "0.875rem 0", textAlign: "right" }}>
+                      <Skeleton width="5rem" />
+                    </td>
+                    <td style={{ padding: "0.875rem 0", textAlign: "right" }}>
+                      <Skeleton width="3rem" />
+                    </td>
+                  </tr>
+                ))}
+              {data?.pnl.rows.map((row) => {
                 const tone = row.krw > 0 ? "var(--normal)" : row.krw < 0 ? "var(--danger)" : "var(--text-muted)";
                 return (
                   <tr key={row.key} style={{ borderTop: "1px solid var(--border-subtle)" }}>
@@ -314,10 +353,14 @@ export function XRayExposureView({
               >
                 <td style={{ padding: "0.875rem 0.5rem" }}>현재 평가액</td>
                 <td style={{ padding: "0.875rem 0.5rem", textAlign: "right", color: "var(--primary)" }}>
-                  {data.pnl.totalValuationKrw.toLocaleString()}
+                  {data === null ? (
+                    <Skeleton width="6rem" />
+                  ) : (
+                    data.pnl.totalValuationKrw.toLocaleString()
+                  )}
                 </td>
                 <td style={{ padding: "0.875rem 0.5rem", textAlign: "right", color: "var(--primary)" }}>
-                  {data.pnl.totalReturnPct}%
+                  {data === null ? <Skeleton width="3rem" /> : `${data.pnl.totalReturnPct}%`}
                 </td>
               </tr>
             </tbody>
@@ -348,12 +391,29 @@ export function XRayExposureView({
           <Icon name="chevronDown" size={15} />
         </summary>
         <div className="xray-holdings">
-          {data.pnl.holdings.length === 0 && (
+          {data?.pnl.holdings.length === 0 && (
             <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
               등록된 종목이 없습니다.
             </p>
           )}
-          {data.pnl.holdings.map((holding) => (
+          {data === null &&
+            PLACEHOLDER_ROWS.map((row) => (
+              <div
+                key={row}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: "0.875rem",
+                  padding: "0.625rem 0",
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <Skeleton width="4rem" />
+                <Skeleton width="6rem" />
+              </div>
+            ))}
+          {data?.pnl.holdings.map((holding) => (
             <div
               key={holding.ticker}
               style={{
@@ -388,7 +448,22 @@ export function XRayExposureView({
         <h2 style={{ ...CARD_TITLE_STYLE, marginBottom: "1rem" }}>스트레스 시나리오</h2>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-          {data.scenarios.map((scenario) => {
+          {data === null &&
+            PLACEHOLDER_ROWS.map((row) => (
+              <span
+                key={row}
+                style={{
+                  padding: "0.375rem 0.875rem",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg)",
+                  display: "inline-flex",
+                }}
+              >
+                <Skeleton width="4.5rem" />
+              </span>
+            ))}
+          {data?.scenarios.map((scenario) => {
             const isSelected = scenario.code === selectedScenarioCode;
             return (
               <button
@@ -482,7 +557,7 @@ export function XRayExposureView({
         <XRayAiExplanation
           surface={XRAY_EXPOSURE_SURFACE}
           title="통화 노출 AI 설명"
-          facts={toExposureExplanationFacts(data)}
+          facts={data === null ? null : toExposureExplanationFacts(data)}
           requester={explanationRequester}
         />
       </div>

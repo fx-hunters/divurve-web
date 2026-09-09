@@ -1881,3 +1881,120 @@
     animation-delay: 0ms;
   }
 }
+
+/* 배경 정보 띠 — 계획과 같은 환율 전제를 화면 위쪽에 고정으로 남긴다. */
+.planner-api__context {
+  display: grid;
+  gap: 0.5rem;
+  padding: clamp(0.75rem, 1.5vw, 1rem) clamp(0.875rem, 2vw, 1.25rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.planner-api__context-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem clamp(1rem, 3vw, 2.5rem);
+  margin: 0;
+}
+
+.planner-api__context-facts div {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.planner-api__context-facts dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.planner-api__context-facts dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.planner-api__context-as-of {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* 저장 전 계획 미리보기 — 목표를 만들기 전에 회차와 비용을 먼저 보여준다. */
+.planner-goal-form__preview {
+  display: grid;
+  gap: 0.625rem;
+  padding: clamp(0.875rem, 2vw, 1.25rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.planner-goal-form__preview dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem clamp(1rem, 3vw, 2.5rem);
+  margin: 0;
+}
+
+.planner-goal-form__preview dl div {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.planner-goal-form__preview dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.planner-goal-form__preview dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.planner-goal-form__preview ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.125rem;
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+
+/* 되돌릴 수 없는 동작. 저장 영역과 눈에 띄게 갈라 둔다. */
+.planner-goal-form__danger {
+  display: grid;
+  gap: 0.625rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.planner-goal-form__danger p {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+.planner-goal-form__delete {
+  justify-self: start;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planner-goal-form__delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

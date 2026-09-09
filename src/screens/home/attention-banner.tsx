@@ -16,6 +16,7 @@
  */
 import { Card } from "../../components/common/card";
 import { Badge } from "../../components/common/badge";
+import { Skeleton } from "../../components/common/skeleton";
 import type { AttentionData } from "../../types/home";
 import "./attention-banner.css";
 
@@ -23,8 +24,12 @@ const TITLE = "경제 일정";
 const EMPTY_LABEL = "예정된 일정이 없습니다.";
 const RANGE_LINK_LABEL = "환율 범위 확인하기 →";
 
+/** 로딩 중 세워 둘 자리표시자 칩 수. */
+const PLACEHOLDER_EVENTS = [0, 1, 2];
+
 interface AttentionBannerProps {
-  readonly data: AttentionData;
+  /** 아직 서버를 기다리는 중이면 null. 제목과 이동 버튼은 그대로 둔다. */
+  readonly data: AttentionData | null;
   readonly onNavigateToRange?: () => void;
 }
 
@@ -45,7 +50,16 @@ export function AttentionBanner({ data, onNavigateToRange }: AttentionBannerProp
         )
       }
     >
-      {data.events.length === 0 ? (
+      {data === null ? (
+        <ul className="attention-strip__events" aria-hidden="true">
+          {PLACEHOLDER_EVENTS.map((row) => (
+            <li className="attention-strip__event" key={row}>
+              <Skeleton width="5rem" />
+              <Skeleton width="7rem" />
+            </li>
+          ))}
+        </ul>
+      ) : data.events.length === 0 ? (
         <p className="attention-strip__empty">{EMPTY_LABEL}</p>
       ) : (
         <ul className="attention-strip__events" aria-label="다가오는 경제 일정">

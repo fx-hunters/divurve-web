@@ -11,6 +11,14 @@ import { PlannerApiScreen } from "./planner-api-screen";
 import { PlannerDemoScreen } from "./planner-demo-screen";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import {
+  PLANNER_GOAL_SELECT,
+  plannerTargetGoalId,
+  type PlannerScreenSource,
+  type PlannerScreenStage,
+  type PlannerScreenTarget,
+} from "./planner-route-target";
+import type { PlannerJourneyNavigation } from "./use-planner-journey-flow";
+import {
   PlannerApiPlanDetailScreen,
   PlannerDemoPlanDetailScreen,
   type PlannerPlanDetailDependencies,
@@ -21,7 +29,7 @@ import {
   writePlannerDemoPreference,
 } from "./planner-mode-preference";
 
-/** 데모 fixture 화면과 Swagger API 화면 중 무엇을 렌더할지 정한다. */
+/** 계정 종류. 데모 계정은 서버 플래너에 들어갈 수 없다. */
 export type RouteScreenMode = "demo" | "api";
 
 interface RouteScreenProps {
@@ -30,17 +38,14 @@ interface RouteScreenProps {
   readonly loadPlan?: RoutePlanLoader;
   readonly apiDependencies?: PlannerApiDependencies;
   readonly detailDependencies?: PlannerPlanDetailDependencies;
-  readonly detailRoute?: {
-    readonly source: RouteScreenMode;
-    readonly goalId: string;
-    readonly planId: string;
-  };
-  readonly onOpenPlanDetail?: (
-    source: RouteScreenMode,
-    goalId: string,
-    planId: string,
+  /** 주소가 가리키는 갈래. 데모 계정에서는 무시된다. */
+  readonly source?: PlannerScreenSource;
+  /** 주소가 가리키는 위치. 없으면 목표 선택이다. */
+  readonly target?: PlannerScreenTarget;
+  readonly onNavigatePlanner?: (
+    source: PlannerScreenSource,
+    target: PlannerScreenTarget,
   ) => void;
-  readonly onBackFromDetail?: () => void;
 }
 
 export function RouteScreen({
@@ -48,62 +53,71 @@ export function RouteScreen({
   loadPlan = loadRoutePlan,
   apiDependencies,
   detailDependencies,
-  detailRoute,
-  onOpenPlanDetail = () => undefined,
-  onBackFromDetail = () => undefined,
+  source: routeSource = "api",
+  target = PLANNER_GOAL_SELECT,
+  onNavigatePlanner = () => undefined,
 }: RouteScreenProps) {
-  const isDemoDetailRoute = detailRoute?.source === "demo";
   const [isTemporaryDemo, setTemporaryDemo] = useState(
-    () => isDemoDetailRoute || readPlannerDemoPreference(),
+    () => routeSource === "demo" || readPlannerDemoPreference(),
   );
-  const isDemoVisible =
-    mode === "demo" || isTemporaryDemo || isDemoDetailRoute;
+  // URL과 로그인 조회가 바뀌어도 명시적으로 선택한 데모는 종료 전까지 유지한다.
+  const source: PlannerScreenSource =
+    mode === "demo" || isTemporaryDemo || routeSource === "demo" ? "demo" : "api";
+  const effectiveTarget = source === "demo" && routeSource === "api"
+    ? PLANNER_GOAL_SELECT : target;
+  const goalId = plannerTargetGoalId(effectiveTarget);
+  const navigation: PlannerJourneyNavigation = {
+    stage: effectiveTarget.kind === "goal" ? effectiveTarget.stage : "goal",
+    onOpenGoalSelect: () => onNavigatePlanner(source, PLANNER_GOAL_SELECT),
+    onOpenGoalStage: (nextGoalId: string, stage: PlannerScreenStage) =>
+      onNavigatePlanner(source, { kind: "goal", goalId: nextGoalId, stage }),
+  };
 
   useEffect(() => {
-    if (mode === "api" && isDemoDetailRoute) {
+    if (mode === "api" && routeSource === "demo") {
       writePlannerDemoPreference();
       setTemporaryDemo(true);
     }
-  }, [isDemoDetailRoute, mode]);
+  }, [mode, routeSource]);
 
   const handleExploreDemo = () => {
     writePlannerDemoPreference();
     setTemporaryDemo(true);
+    onNavigatePlanner("demo", PLANNER_GOAL_SELECT);
   };
-
   const handleExitDemo = () => {
     clearPlannerDemoPreference();
     setTemporaryDemo(false);
+    onNavigatePlanner("api", PLANNER_GOAL_SELECT);
   };
 
-  if (!isDemoVisible && detailRoute?.source === "api") {
-    return (
+  if (effectiveTarget.kind === "planDetail") {
+    return source === "api" ? (
       <PlannerApiPlanDetailScreen
-        goalId={detailRoute.goalId}
-        planId={detailRoute.planId}
+        goalId={effectiveTarget.goalId}
+        planId={effectiveTarget.planId}
         dependencies={detailDependencies}
-        onBack={onBackFromDetail}
+        onBack={() => navigation.onOpenGoalStage(effectiveTarget.goalId, "main")}
       />
-    );
-  }
-
-  if (isDemoVisible && isDemoDetailRoute) {
-    return (
+    ) : (
       <RouteDemoScreen
         loadPlan={loadPlan}
-        detailRoute={detailRoute}
-        onBackFromDetail={onBackFromDetail}
+        goalId={goalId}
+        navigation={navigation}
+        detailTarget={effectiveTarget}
       />
     );
   }
 
-  if (!isDemoVisible) {
+  if (source === "api") {
     return (
       <PlannerApiScreen
+        goalId={goalId}
+        navigation={navigation}
         dependencies={apiDependencies}
         onExploreDemo={handleExploreDemo}
-        onOpenPlanDetail={(goalId, planId) =>
-          onOpenPlanDetail("api", goalId, planId)
+        onOpenPlanDetail={(nextGoalId, planId) =>
+          onNavigatePlanner("api", { kind: "planDetail", goalId: nextGoalId, planId })
         }
       />
     );
@@ -112,10 +126,11 @@ export function RouteScreen({
   return (
     <RouteDemoScreen
       loadPlan={loadPlan}
+      goalId={goalId}
+      navigation={navigation}
       onExitDemo={mode === "api" ? handleExitDemo : undefined}
-      onBackFromDetail={onBackFromDetail}
-      onOpenPlanDetail={(goalId, planId) =>
-        onOpenPlanDetail("demo", goalId, planId)
+      onOpenPlanDetail={(nextGoalId, planId) =>
+        onNavigatePlanner("demo", { kind: "planDetail", goalId: nextGoalId, planId })
       }
     />
   );
@@ -123,32 +138,39 @@ export function RouteScreen({
 
 function RouteDemoScreen({
   loadPlan = loadRoutePlan,
+  goalId,
+  navigation,
   onExitDemo,
-  detailRoute,
+  detailTarget,
   onOpenPlanDetail,
-  onBackFromDetail,
 }: Pick<RouteScreenProps, "loadPlan"> & {
+  readonly goalId: string | null;
+  readonly navigation: PlannerJourneyNavigation;
   readonly onExitDemo?: () => void;
-  readonly detailRoute?: RouteScreenProps["detailRoute"];
+  readonly detailTarget?: Extract<
+    PlannerScreenTarget,
+    { readonly kind: "planDetail" }
+  >;
   readonly onOpenPlanDetail?: (goalId: string, planId: string) => void;
-  readonly onBackFromDetail: () => void;
 }) {
   const { state, reload } = useRoutePlan(loadPlan);
 
   if (state.status === "success") {
-    if (detailRoute !== undefined) {
+    if (detailTarget !== undefined) {
       return (
         <PlannerDemoPlanDetailScreen
           data={state.data}
-          goalId={detailRoute.goalId}
-          planId={detailRoute.planId}
-          onBack={onBackFromDetail}
+          goalId={detailTarget.goalId}
+          planId={detailTarget.planId}
+          onBack={() => navigation.onOpenGoalStage(detailTarget.goalId, "main")}
         />
       );
     }
     return (
       <PlannerDemoScreen
         data={state.data}
+        goalId={goalId}
+        navigation={navigation}
         onExitDemo={onExitDemo}
         onOpenPlanDetail={onOpenPlanDetail}
       />

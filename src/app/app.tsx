@@ -14,6 +14,7 @@ import { RouteScreen } from "../screens/route/route-screen";
 import { XRayScreen } from "../screens/xray/xray-screen";
 import { InitialSetupScreen } from "../screens/initial-setup/initial-setup-screen";
 import { ApiStateView } from "../components/common/api-state-view";
+import { AppShellSkeleton } from "./app-shell-skeleton";
 import { DetailedDiagnosisInvite } from "../components/diagnosis/detailed-diagnosis-invite";
 import { NAV_ITEMS, type NavTabId } from "../types/navigation";
 import type { AuthSuccessResult } from "../types/auth";
@@ -25,7 +26,7 @@ import {
 } from "../api/diagnosis-progress-store";
 import {
   dashboardRoute,
-  plannerDetailRoute,
+  plannerRoute,
   resolvePostAuthRoute,
   DIAGNOSIS_RESULT_ROUTE,
   LANDING_ROUTE,
@@ -238,11 +239,13 @@ export function App({ ensureSession }: AppProps = {}) {
 
   if (sessionState.status === "bootstrapping") {
     return (
-      <ApiStateView
-        status="loading"
-        title="체험 데이터를 준비하고 있습니다"
-        message="서버에서 계정 세션을 확인하고 있습니다."
-      />
+      <>
+        <span className="sr-only" role="status">
+          체험 데이터를 준비하고 있습니다. 서버에서 계정 세션을 확인하고
+          있습니다.
+        </span>
+        <AppShellSkeleton />
+      </>
     );
   }
 
@@ -259,7 +262,7 @@ export function App({ ensureSession }: AppProps = {}) {
 
   const activeTab = route.tab;
   const showDiagnosisResult = route.view === "diagnosisResult";
-  const plannerDetail = route.view === "plannerDetail" ? route : null;
+  const plannerView = route.view === "planner" ? route : null;
   const isDemoAccount = sessionState.accountKind === "demo";
   const currentTabItem = NAV_ITEMS.find((item) => item.id === activeTab);
   const activeTabTitle = currentTabItem!.label;
@@ -293,19 +296,11 @@ export function App({ ensureSession }: AppProps = {}) {
               <RouteScreen
                 mode={isDemoAccount ? "demo" : "api"}
                 onNavigate={handleNavigate}
-                detailRoute={
-                  plannerDetail === null
-                    ? undefined
-                    : {
-                        source: plannerDetail.source,
-                        goalId: plannerDetail.goalId,
-                        planId: plannerDetail.planId,
-                      }
+                source={plannerView?.source ?? "api"}
+                target={plannerView?.target}
+                onNavigatePlanner={(source, target) =>
+                  navigate(plannerRoute(source, target))
                 }
-                onOpenPlanDetail={(source, goalId, planId) =>
-                  navigate(plannerDetailRoute(source, goalId, planId))
-                }
-                onBackFromDetail={() => navigate(dashboardRoute("planner"))}
               />
             )}
             {activeTab === "assets" && (

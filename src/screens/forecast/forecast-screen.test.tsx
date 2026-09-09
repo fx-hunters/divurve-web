@@ -190,11 +190,13 @@ describe("ForecastScreen", () => {
 
     const group = await screen.findByRole("group", { name: "전망 기간" });
     expect(group).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "선택한 기간만큼 앞으로의 환율 범위를 팬 차트와 요약 카드에 표시합니다.",
-      ),
-    ).toBeInTheDocument();
+    // 보조 설명은 컨트롤 바 높이를 키우지 않게 화면에서만 감추고, 그룹의
+    // aria-describedby 로는 그대로 읽힌다.
+    const help = screen.getByText(
+      "선택한 기간만큼 앞으로의 환율 범위를 팬 차트와 요약 카드에 표시합니다.",
+    );
+    expect(help).toHaveClass("sr-only");
+    expect(group).toHaveAttribute("aria-describedby", help.id);
     expect(screen.getByRole("button", { name: "향후 30일" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -211,6 +213,68 @@ describe("ForecastScreen", () => {
       flexWrap: "wrap",
       maxWidth: "100%",
     });
+  });
+
+  it("모델 성적은 접지 않고, 각 지표가 무엇을 잰 값인지 함께 보인다", async () => {
+    const { container } = render(
+      <ForecastScreen
+        loader={loaderByPair()}
+        explanationRequester={explanationRequester()}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "모델 성적" }),
+    ).toBeInTheDocument();
+    // 접힘 컨트롤이 없어 값이 처음부터 보인다.
+    expect(container.querySelector("details")).toBeNull();
+    expect(screen.getByText("3.1%")).toBeInTheDocument();
+    expect(screen.getByText("82%")).toBeInTheDocument();
+    expect(screen.getByText("+14%")).toBeInTheDocument();
+
+    expect(
+      screen.getByText(
+        "지난 구간을 되짚어, 같은 방식으로 낸 모델 값과 실제로 나온 환율을 맞춰 본 결과입니다.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("단순 기준선 대비")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "실제 환율이 80% 범위 안에 들어온 비율입니다. 80%에 가까울수록 범위 폭이 알맞았다는 뜻입니다.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("기준선 대비 개선이 없으면 성적표가 `+` 를 붙이지 않는다", async () => {
+    render(
+      <ForecastScreen
+        explanationRequester={explanationRequester()}
+        loader={vi.fn().mockResolvedValue({
+          ...FORECAST_API_FIXTURE,
+          performance: { ...FORECAST_API_FIXTURE.performance, rwImprovement: 0 },
+        })}
+      />,
+    );
+
+    expect(await screen.findByText("0%")).toBeInTheDocument();
+    expect(screen.queryByText("+0%")).not.toBeInTheDocument();
+  });
+
+  it("일정 카드는 건수를 알리고 목록만 스크롤시켜 카드 높이를 묶어 둔다", async () => {
+    render(
+      <ForecastScreen
+        loader={loaderByPair()}
+        explanationRequester={explanationRequester()}
+      />,
+    );
+
+    const heading = await screen.findByRole("heading", { name: "다가오는 일정" });
+    expect(screen.getByText("1건")).toBeInTheDocument();
+
+    // 제목 줄 다음 형제가 목록이다. 카드가 아니라 이 목록만 잘리고 스크롤된다.
+    const list = heading.parentElement?.nextElementSibling;
+    expect(list).toHaveStyle({ maxHeight: "14.5rem", overflowY: "auto" });
+    expect(list).toContainElement(screen.getByText("미국 물가 발표"));
   });
 
   it("통화쌍 3종을 전환하면 팬 차트·동인·성적표가 모두 갱신된다", async () => {
@@ -392,9 +456,31 @@ describe("ForecastScreen", () => {
     });
   });
 
-  it("불러오는 중에는 로딩 안내를 보여준다", () => {
-    render(<ForecastScreen loader={vi.fn().mockReturnValue(new Promise(() => {}))} />);
-    expect(screen.getByText("환율 범위를 불러오는 중입니다")).toBeInTheDocument();
+  it("불러오는 중에도 컨트롤 바는 서 있고 값 자리만 비워 둔다", () => {
+    const { container } = render(
+      <ForecastScreen loader={vi.fn().mockReturnValue(new Promise(() => {}))} />,
+    );
+
+    // 통화쌍·기간은 정적 목록이라 서버를 기다릴 이유가 없다.
+    expect(screen.getByLabelText("통화쌍")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "향후 30일" })).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "전망 동인" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".divurve-skeleton").length).toBeGreaterThan(0);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "환율 범위를 불러오는 중입니다",
+    );
+  });
+
+  it("불러오는 중에 기간을 바꿔도 컨트롤이 사라지지 않는다", () => {
+    const loader = vi.fn().mockReturnValue(new Promise(() => {}));
+    render(<ForecastScreen loader={loader} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "향후 7일" }));
+
+    expect(screen.getByRole("button", { name: "향후 7일" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("실패하면 메시지와 재시도 버튼을 보여준다", async () => {

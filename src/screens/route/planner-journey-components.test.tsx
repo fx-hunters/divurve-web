@@ -1,4 +1,4 @@
-import { createRef } from "react";
+import { createRef, useState, type ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PLANNER_API_FIXTURE } from "../../test/api-fixtures";
@@ -10,6 +10,24 @@ import type {
 import { PlannerJourneyPlanSetup } from "./planner-journey-plan-setup";
 import { PlannerScenarioModal } from "./planner-journey-scenario";
 import { PlannerJourneyScreen } from "./planner-journey-screen";
+import type { JourneyStage } from "./use-planner-journey-flow";
+
+/** 주소가 들고 있는 단계를 상태 하나로 흉내 내는 테스트용 껍데기. */
+function RoutedPlannerJourneyScreen(
+  props: Omit<ComponentProps<typeof PlannerJourneyScreen>, "navigation">,
+) {
+  const [stage, setStage] = useState<JourneyStage>("goal");
+  return (
+    <PlannerJourneyScreen
+      {...props}
+      navigation={{
+        stage,
+        onOpenGoalSelect: () => setStage("goal"),
+        onOpenGoalStage: (_goalId, nextStage) => setStage(nextStage),
+      }}
+    />
+  );
+}
 import { PlannerJourneyMain } from "./planner-journey-main";
 import type { PlannerJourneyOperations } from "./use-planner-journey-flow";
 
@@ -62,10 +80,10 @@ describe("Planner Journey 표현 컴포넌트", () => {
       ariaLabel: "검수 플래너", feedback: { status: "idle" as const },
       scenarioComparison: null, goalCreation, onOpenPlanDetail: vi.fn(), ...operations(),
     };
-    const { rerender } = render(<PlannerJourneyScreen {...props} view={lowProgress} />);
+    const { rerender } = render(<RoutedPlannerJourneyScreen {...props} view={lowProgress} />);
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1");
-    rerender(<PlannerJourneyScreen {...props} view={{ ...lowProgress,
+    rerender(<RoutedPlannerJourneyScreen {...props} view={{ ...lowProgress,
       selectedGoal: { ...lowProgress.selectedGoal!, heldAmount: null, progressLabel: "확보액 확인 필요" },
     }} />);
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
@@ -75,7 +93,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
     const ops = operations();
     const onOpenPlanDetail = vi.fn();
     render(
-      <PlannerJourneyScreen
+      <RoutedPlannerJourneyScreen
         ariaLabel="검수 플래너"
         view={view}
         feedback={{ status: "idle" }}
@@ -114,7 +132,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
       nextAction: null,
     };
     const { container } = render(
-      <PlannerJourneyScreen
+      <RoutedPlannerJourneyScreen
         ariaLabel="빈 플래너"
         view={emptyView}
         feedback={{ status: "idle" }}
@@ -137,7 +155,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
     const ops = operations();
     const onCreate = vi.fn().mockResolvedValue(null);
     render(
-      <PlannerJourneyScreen
+      <RoutedPlannerJourneyScreen
         ariaLabel="목표 생성 실패 플래너"
         view={view}
         feedback={{ status: "error", message: "목표를 저장하지 못했습니다." }}
@@ -171,7 +189,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
   it("저장 식별자가 없는 미리보기는 상세 경로를 열지 않는다", () => {
     const onOpenPlanDetail = vi.fn();
     render(
-      <PlannerJourneyScreen
+      <RoutedPlannerJourneyScreen
         ariaLabel="미리보기 플래너"
         view={{
           ...view,

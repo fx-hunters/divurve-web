@@ -63,5 +63,8 @@
 | [0066](./0066-planner-develop-integration-and-preview-state.md) | 최신 develop 통합과 Planner preview 상태 분리 | 2026-09-08 |
 | [0067](./0067-planner-ux-unification.md) | API·데모 Planner Journey UI 통합 | 2026-09-09 |
 | [0071](./0071-planner-state-consistency.md) | Planner 현재 확보액과 데모 진행 상태 일관성 복구 | 2026-09-09 |
-| [0076](./0076-planner-followup-review.md) | Planner 후속 검수의 금액·세션·데모 경계 보완 | 2026-09-09 |
+| [0076](./0076-planner-contract-fill.md) | Planner 계약 보완과 목표별 주소 | 2026-09-09 |
+| [0077](./0077-partial-loading-placeholders.md) | 전체 화면 로딩을 없애고 값 자리에만 자리표시자를 둔다 | 2026-09-09 |
 | [0078](./0078-api-configuration-error-boundary.md) | 로컬 API 설정 오류와 연결 실패 구분 | 2026-09-09 |
+| [0079](./0079-planner-followup-review.md) | Planner 후속 검수의 금액·세션·데모 경계 보완 | 2026-09-09 |
+| [0080](./0080-planner-release-integration.md) | 최신 Planner 계약·주소와 상태 일관성 수정 통합 | 2026-09-09 |

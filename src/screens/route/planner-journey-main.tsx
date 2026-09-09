@@ -20,6 +20,8 @@ interface PlannerJourneyMainProps {
   readonly onExploreScenario: () => void;
   readonly onOpenDetail: () => void;
   readonly onOpenHistory?: () => void;
+  /** 목표 조건 수정. 지원하지 않는 화면은 넘기지 않는다. */
+  readonly onOpenEdit?: () => void;
   readonly onBackToGoals: () => void;
   readonly onPlanChangeAnimationEnd: () => void;
 }
@@ -49,6 +51,7 @@ export function PlannerJourneyMain({
   onExploreScenario,
   onOpenDetail,
   onOpenHistory,
+  onOpenEdit,
   onBackToGoals,
   onPlanChangeAnimationEnd,
 }: PlannerJourneyMainProps) {
@@ -103,6 +106,11 @@ export function PlannerJourneyMain({
             {onOpenHistory !== undefined && (
               <button type="button" className="planner-api-journey__secondary" onClick={onOpenHistory}>
                 계획 이력 보기
+              </button>
+            )}
+            {onOpenEdit !== undefined && (
+              <button type="button" className="planner-api-journey__secondary" onClick={onOpenEdit}>
+                목표 조건 수정
               </button>
             )}
           </div>
@@ -177,6 +185,11 @@ export function PlannerJourneyMain({
         <button type="button" className="planner-api-journey__secondary" onClick={onBackToGoals}>
           ← 목표 목록
         </button>
+        {onOpenEdit !== undefined && (
+          <button type="button" className="planner-api-journey__secondary" onClick={onOpenEdit}>
+            목표 조건 수정
+          </button>
+        )}
         {view.plan !== null && onOpenHistory !== undefined && (
           <button type="button" className="planner-api-journey__secondary" onClick={onOpenHistory}>
             계획 이력 보기

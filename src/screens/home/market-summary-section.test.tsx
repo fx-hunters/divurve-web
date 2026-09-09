@@ -97,7 +97,6 @@ describe("MarketSummarySection", () => {
     });
 
     expect(loadMarket).toHaveBeenCalledWith("USDJPY");
-    expect(screen.getByRole("status", { name: "시세를 불러오는 중" })).toBeInTheDocument();
     // 이전 통화쌍의 수치를 그대로 두지 않는다.
     expect(screen.queryByText("1,382.40")).not.toBeInTheDocument();
 

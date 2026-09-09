@@ -6,6 +6,7 @@ import {
   type PlannerGoalDraft,
   type PlannerGoalInput,
 } from "./planner-goal-input";
+import type { PlannerPlanSummaryViewModel } from "./planner-api-types";
 
 interface PlannerGoalFormProps {
   readonly sourceLabel: string;
@@ -14,6 +15,10 @@ interface PlannerGoalFormProps {
   readonly today: string;
   readonly onSubmit: (input: PlannerGoalInput) => Promise<boolean>;
   readonly onCancel: () => void;
+  /** 저장 전에 조건만으로 계획을 계산한다. 마감형에서만 쓸 수 있다. */
+  readonly onPreview?: (input: PlannerGoalInput) => Promise<boolean>;
+  /** 계산된 미리보기. 아직 저장되지 않은 계획이다. */
+  readonly preview?: PlannerPlanSummaryViewModel | null;
 }
 
 export function PlannerGoalForm({
@@ -23,6 +28,8 @@ export function PlannerGoalForm({
   today,
   onSubmit,
   onCancel,
+  onPreview,
+  preview = null,
 }: PlannerGoalFormProps) {
   const [draft, setDraft] = useState<PlannerGoalDraft>(INITIAL_PLANNER_GOAL_DRAFT);
   const [error, setError] = useState("");
@@ -32,9 +39,8 @@ export function PlannerGoalForm({
     value: PlannerGoalDraft[Key],
   ) => setDraft((current) => ({ ...current, [key]: value }));
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (isPending) return;
+  /** 저장과 미리보기가 같은 조건을 쓰도록 검증을 한곳에 둔다. */
+  const validated = (): PlannerGoalInput | null => {
     const validation = validatePlannerGoalDraft(
       draft,
       today,
@@ -42,10 +48,26 @@ export function PlannerGoalForm({
     );
     if (!validation.isValid) {
       setError(validation.message);
-      return;
+      return null;
     }
     setError("");
-    await onSubmit(validation.value);
+    return validation.value;
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isPending) return;
+    const input = validated();
+    if (input !== null) await onSubmit(input);
+  };
+
+  // 제출과 달리 여기엔 진행 중 가드가 없다 — 버튼이 비활성이라 도달할 수 없고,
+  // Enter 제출 같은 다른 경로도 없다.
+  const handlePreview = async (
+    preview: NonNullable<PlannerGoalFormProps["onPreview"]>,
+  ) => {
+    const input = validated();
+    if (input !== null) await preview(input);
   };
 
   return (
@@ -133,8 +155,32 @@ export function PlannerGoalForm({
           </p>
         )}
         {error && <p className="planner-goal-form__error" role="alert">{error}</p>}
+        {preview !== null && (
+          <section className="planner-goal-form__preview" aria-label="저장 전 계획 미리보기">
+            <p className="planner-api-journey__eyebrow">저장 전 미리보기</p>
+            <dl>
+              <div><dt>계획 종료일</dt><dd>{preview.planEndDateLabel}</dd></div>
+              <div><dt>전체 회차</dt><dd>{preview.totalRounds}회</dd></div>
+              <div><dt>비용 범위</dt><dd>{preview.estimatedCostLabel ?? "서버 응답에 없음"}</dd></div>
+              {preview.budgetStateLabel !== null && (
+                <div><dt>예산 상태</dt><dd>{preview.budgetStateLabel}</dd></div>
+              )}
+            </dl>
+            {preview.warnings.length > 0 && (
+              <ul aria-label="미리보기 경고">
+                {preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            )}
+            <p className="planner-api__notice">{preview.disclaimer}</p>
+          </section>
+        )}
         <div className="planner-api-journey__buttons">
           <button type="button" className="planner-api-journey__secondary" disabled={isPending} onClick={onCancel}>취소</button>
+          {onPreview !== undefined && draft.kind === "deadline" && (
+            <button type="button" className="planner-api-journey__secondary" disabled={isPending} onClick={() => void handlePreview(onPreview)}>
+              {isPending ? "계산하는 중…" : "저장 전에 계획 보기"}
+            </button>
+          )}
           <button type="submit" className="planner-api-journey__primary" disabled={isPending}>{isPending ? "목표를 저장하는 중…" : sourceLabel === "데모" ? "데모 목표 추가" : "새 목표 만들기"}</button>
         </div>
       </form>
