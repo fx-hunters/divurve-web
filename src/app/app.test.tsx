@@ -44,7 +44,10 @@ vi.mock("../api/auth", () => ({
   }),
 }));
 
-vi.mock("../api/session", () => ({ readApiSession: vi.fn().mockReturnValue(null) }));
+vi.mock("../api/session", () => ({
+  readApiSession: vi.fn().mockReturnValue(null),
+  readStoredApiSession: vi.fn().mockReturnValue(null),
+}));
 
 vi.mock("../api/mypage", () => ({
   fetchMyPageBundle: vi.fn(),
@@ -151,7 +154,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
     ).toBeInTheDocument();
     // 상세에서 나가면 목록이 아니라 그 목표의 메인 단계로 돌아간다.
-    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
     expect(window.location.pathname).toBe(
       "/route/demo/goals/usd-etf-recurring-demo",
     );

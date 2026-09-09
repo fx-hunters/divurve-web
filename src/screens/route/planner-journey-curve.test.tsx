@@ -87,7 +87,8 @@ const curve: PlannerCurveViewModel = {
   xEndLabel: "2026. 4. 1.",
   dataNotice: null,
   currencyCode: "USD",
-  allocatedAmount: 0,
+  baselineAmount: 0,
+  currentAmount: 0,
   targetAmount: 40,
   targetDate: "2026-04-01",
   currentDate: "2025-12-01",
@@ -114,6 +115,7 @@ describe("PlannerCurveCanvas", () => {
     expect(screen.getByText("✓")).toBeInTheDocument();
     expect(screen.getByText("×")).toBeInTheDocument();
     expect(screen.getByText("목표 도착")).toBeInTheDocument();
+    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-25");
     expect(document.querySelector("title")).toBeNull();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -183,5 +185,70 @@ describe("PlannerCurveCanvas", () => {
       "환율 차트가 아닌 계획 회차의 진행 경로입니다.",
     );
     expect(container.querySelector("path")).toBeNull();
+  });
+
+  it("회차가 많으면 주요 지점만 라벨을 표시하고 모든 지점은 접근 가능하게 유지한다", () => {
+    const nodes = Array.from({ length: 52 }, (_, index) => ({
+      ...curve.nodes[2]!,
+      id: `many-${index + 1}`,
+      sequence: index + 1,
+      x: 100 + index * 16,
+      y: 300 - index * 4,
+      status: index === 25 ? ("next" as const) : ("upcoming" as const),
+      statusLabel: index === 25 ? "다음 행동" : "예정",
+      roundLabel: `${index + 1}회차`,
+    }));
+    const { container } = render(
+      <PlannerCurveCanvas
+        curve={{ ...curve, nodes }}
+        selectedSequence={11}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("button")).toHaveLength(52);
+    expect(container.querySelectorAll(".planner-api-curve__node-label").length).toBeLessThan(12);
+    expect(screen.getByText("11회차")).toBeInTheDocument();
+    expect(screen.getByText("26회차")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /52회차.*예정/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("중간 길이 Curve는 네 회차마다 보조 라벨을 표시한다", () => {
+    const nodes = Array.from({ length: 12 }, (_, index) => ({
+      ...curve.nodes[2]!,
+      id: `medium-${index + 1}`,
+      sequence: index + 1,
+      status: "upcoming" as const,
+      roundLabel: `${index + 1}회차`,
+    }));
+    render(<PlannerCurveCanvas curve={{ ...curve, nodes }} />);
+
+    expect(screen.getByText("1회차")).toBeInTheDocument();
+    expect(screen.getByText("4회차")).toBeInTheDocument();
+    expect(screen.getByText("8회차")).toBeInTheDocument();
+    expect(screen.getByText("12회차")).toBeInTheDocument();
+    expect(screen.queryByText("2회차")).toBeNull();
+  });
+
+  it("현재와 목표 지점 가까이에 회차가 있으면 라벨 위치를 벌린다", () => {
+    const { container } = render(
+      <PlannerCurveCanvas
+        curve={{
+          ...curve,
+          nodes: [
+            { ...curve.nodes[0]!, x: 100, y: 350 },
+            { ...curve.nodes[2]!, x: 950, y: 45 },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("현재 확보")).toHaveAttribute("y", "-76");
+    expect(screen.getByText("목표 도착")).toHaveAttribute("y", "64");
+    expect(
+      container.querySelector('.planner-api-curve__node-date[y="96"]'),
+    ).toHaveTextContent("2026. 4. 1.");
   });
 });

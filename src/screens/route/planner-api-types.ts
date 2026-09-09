@@ -111,7 +111,10 @@ export interface PlannerCurveViewModel {
   readonly xEndLabel: string | null;
   readonly dataNotice: string | null;
   readonly currencyCode: string;
-  readonly allocatedAmount: number;
+  /** 완료 회차를 반영하기 전, 확인 가능한 곡선 시작 금액. */
+  readonly baselineAmount: number;
+  /** 완료 회차가 이미 반영된 현재 목표 확보액. */
+  readonly currentAmount: number;
   readonly targetAmount: number | null;
   readonly targetDate: string | null;
   readonly currentDate: string | null;
@@ -130,6 +133,7 @@ export interface PlannerStepViewModel {
   readonly budgetLabel: string | null;
   readonly estimatedCostLabel: string | null;
   readonly executedAmount: number | null;
+  readonly executedDate?: string | null;
   readonly cumulativeAmount: number;
   readonly cumulativeAmountLabel: string;
   readonly actionLabel: string;

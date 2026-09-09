@@ -32,7 +32,7 @@ function overview(): PlannerApiOverview {
           goal: {
             ...first.activePlan!.goal,
             targetAmount: 100,
-            allocatedHoldingAmount: 25,
+            allocatedHoldingAmount: 35,
             remainingAmount: 65,
             targetDate: "2026-12-31",
           },
@@ -71,6 +71,43 @@ function overview(): PlannerApiOverview {
 }
 
 describe("presentPlannerOverview", () => {
+  it.each(["active", "superseded"])("%s 조회와 apply 후 복사된 완료 회차는 현재 확보액에 중복 반영하지 않는다", (status) => {
+    const source = overview().items[0]!;
+    const plan = source.activePlan!;
+    const model = presentPlannerOverview({ items: [{ ...source, activePlan: {
+      ...plan, planId: "applied-or-historical", version: 4,
+      calculationMeta: { ...plan.calculationMeta!, calculatedAt: "2026-09-01T00:00:00Z" },
+      goal: { ...plan.goal, allocatedHoldingAmount: 2000, targetAmount: 3000, remainingAmount: 1000 },
+      summary: { ...plan.summary, status, nextActionSeq: 1 },
+      steps: [
+        { ...plan.steps[0]!, seq: 1, executedAmount: 700, executedDate: "2026-09-02", nextAction: true },
+        { ...plan.steps[0]!, seq: 2, executedAmount: 300, executedDate: "2026-09-03", nextAction: false },
+        { ...plan.steps[2]!, seq: 3, amount: 100, executedAmount: 0 },
+      ],
+    } }] });
+    expect(model.selectedGoal).toMatchObject({ heldAmount: 2000, remainingAmountLabel: "1,000 USD" });
+    expect(model.curve).toMatchObject({ baselineAmount: 1000, currentAmount: 2000, currentDate: "2026-09-03" });
+    expect(model.curveNodes.map((node) => node.cumulativeAmount)).toEqual([1700, 2000, 2100]);
+    expect(model.nextAction?.sequence).toBe(3);
+  });
+
+  it("새 preview는 입력 배정액에서 시작하고 모순된 완료 기록은 과거 Curve로 복원하지 않는다", () => {
+    const source = overview().items[0]!;
+    const plan = source.activePlan!;
+    for (const executedAmount of [700, Number.NaN, -1]) {
+      const view = presentPlannerOverview({ items: [{ ...source, activePlan: {
+        ...plan, planId: null, goal: { ...plan.goal, allocatedHoldingAmount: 1000 },
+        steps: [{ ...plan.steps[0]!, executedAmount }, plan.steps[2]!],
+      } }] });
+      expect(view.selectedGoal?.heldAmount).toBe(1000);
+      expect(view.curve?.nodes.some((node) => node.status === "completed")).toBe(false);
+      expect(view.curve?.dataNotice).toContain("관계");
+    }
+    const contradictory = presentPlannerOverview({ items: [{ ...source, activePlan: {
+      ...plan, steps: [{ ...plan.steps[2]!, executedAmount: 10 }],
+    } }] });
+    expect(contradictory.curve?.dataNotice).toContain("관계");
+  });
   it("0개 목표에는 빈 ViewModel을 만들고 선택되지 않으면 첫 목표를 고른다", () => {
     expect(presentPlannerOverview({ items: [] })).toMatchObject({
       goalItems: [],
@@ -95,13 +132,13 @@ describe("presentPlannerOverview", () => {
       id: "first",
       name: "첫 목표",
       targetAmountLabel: "100 USD",
-      heldAmountLabel: "25 USD",
+      heldAmountLabel: "35 USD",
       isSelected: true,
     });
     expect(model.selectedGoal).toMatchObject({
       id: "first",
       progressPercent: 35,
-      progressLabel: "목표 배정 및 완료 기록 기준",
+      progressLabel: "현재 목표 확보액 기준",
       heldAmountLabel: "35 USD",
     });
     expect(model.plan).toMatchObject({
@@ -121,6 +158,120 @@ describe("presentPlannerOverview", () => {
     expect(JSON.stringify(model)).not.toContain("achieveProb");
   });
 
+  it.each([
+    {
+      label: "완료 0회",
+      allocatedHoldingAmount: 100,
+      completedAmounts: [] as readonly number[],
+      expectedCurrent: 100,
+      expectedCumulative: [140],
+    },
+    {
+      label: "완료 1회",
+      allocatedHoldingAmount: 115,
+      completedAmounts: [15] as readonly number[],
+      expectedCurrent: 115,
+      expectedCumulative: [115, 155],
+    },
+    {
+      label: "완료 여러 회",
+      allocatedHoldingAmount: 140,
+      completedAmounts: [15, 25] as readonly number[],
+      expectedCurrent: 140,
+      expectedCumulative: [115, 140, 180],
+    },
+  ])(
+    "저장 Plan의 현재 확보액을 다시 합산하지 않는다: $label",
+    ({ allocatedHoldingAmount, completedAmounts, expectedCurrent, expectedCumulative }) => {
+      const source = overview().items[0]!;
+      const plan = source.activePlan!;
+      const template = plan.steps[0]!;
+      const completedSteps = completedAmounts.map((executedAmount, index) => ({
+        ...template,
+        seq: index + 1,
+        scheduledDate: `2026-09-${String(index + 1).padStart(2, "0")}`,
+        executedAmount,
+        executedDate: `2026-09-${String(index + 1).padStart(2, "0")}`,
+        status: "completed",
+        nextAction: false,
+      }));
+      const futureStep = {
+        ...template,
+        seq: completedSteps.length + 1,
+        scheduledDate: "2026-10-01",
+        amount: 40,
+        executedAmount: 0,
+        executedDate: null,
+        status: "due",
+        nextAction: true,
+      };
+      const model = presentPlannerOverview({
+        items: [
+          {
+            ...source,
+            activePlan: {
+              ...plan,
+              goal: {
+                ...plan.goal,
+                allocatedHoldingAmount,
+                remainingAmount: 300 - allocatedHoldingAmount,
+                targetAmount: 300,
+              },
+              summary: {
+                ...plan.summary,
+                completedRounds: completedSteps.length,
+                scheduledRounds: 1,
+                totalRounds: completedSteps.length + 1,
+                nextActionSeq: futureStep.seq,
+              },
+              steps: [...completedSteps, futureStep],
+            },
+          },
+        ],
+      });
+
+      expect(model.selectedGoal?.heldAmount).toBe(expectedCurrent);
+      expect(model.curve?.currentPoint?.amount).toBe(expectedCurrent);
+      expect(model.curveNodes.map((node) => node.cumulativeAmount)).toEqual(
+        expectedCumulative,
+      );
+    },
+  );
+
+  it("현재 확보액보다 완료 합계가 크면 과거 누적을 임의 보정하지 않는다", () => {
+    const source = overview().items[0]!;
+    const activePlan = source.activePlan!;
+    const model = presentPlannerOverview({
+      items: [
+        {
+          ...source,
+          activePlan: {
+            ...activePlan,
+            goal: {
+              ...activePlan.goal,
+              allocatedHoldingAmount: 5,
+            },
+            steps: [
+              {
+                ...activePlan.steps[0]!,
+                executedAmount: 10,
+                status: "completed",
+              },
+              activePlan.steps[2]!,
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(model.selectedGoal?.heldAmount).toBe(5);
+    expect(model.curve?.nodes.some((node) => node.status === "completed")).toBe(
+      false,
+    );
+    expect(model.curve?.dataNotice).toContain("과거 완료 구간은 표시하지 않았습니다");
+    expect(model.steps[0]?.cumulativeAmountLabel).toBe("누적 금액 확인 불가");
+  });
+
   it("목표 전환과 활성 계획 없음 상태를 표현한다", () => {
     const model = presentPlannerOverview(overview(), "second");
     expect(model.goalItems[1]?.isSelected).toBe(true);
@@ -134,6 +285,32 @@ describe("presentPlannerOverview", () => {
     expect(model.steps).toEqual([]);
     expect(model.nextAction).toBeNull();
     expect(model.supportedActions.canPreviewPlan).toBe(true);
+  });
+
+  it("저장 Plan의 현재 확보액을 확인할 수 없으면 0으로 위장하지 않는다", () => {
+    const first = overview().items[0]!;
+    const model = presentPlannerOverview({
+      items: [
+        {
+          ...first,
+          activePlan: {
+            ...first.activePlan!,
+            goal: {
+              ...first.activePlan!.goal,
+              allocatedHoldingAmount: Number.NaN,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(model.selectedGoal).toMatchObject({
+      heldAmount: null,
+      heldAmountLabel: "제공되지 않음",
+      progressPercent: 0,
+    });
+    expect(model.curve).toBeNull();
+    expect(model.selectedGoal?.remainingAmountLabel).toBe("제공되지 않음");
   });
 
   it("실제 날짜 간격과 누적 금액으로 Curve 좌표와 상태를 만든다", () => {
@@ -336,6 +513,49 @@ describe("presentPlannerOverview", () => {
     expect(comparison.changedNodeIds).toHaveLength(2);
     expect(comparison.warnings).toEqual(["조건 확인"]);
 
+    // 실제 backend는 draft를 1부터 다시 매기고 apply에서 완료 이력을 복사한다.
+    // 닫힌 회차와 번호가 겹치는 응답으로 미래 Curve를 추측하지 않는다.
+    for (const sequence of [1, 2]) {
+      const unmapped = presentPlannerScenarioComparison({
+        ...response,
+        changedSteps: [{
+          seq: sequence, changeType: "MODIFIED", dateBefore: "2026-09-01",
+          dateAfter: "2026-10-15", amountBefore: 10, amountAfter: 25,
+        }],
+      }, model, option);
+      expect(unmapped.baseCurve).toBe(model.curve);
+      expect(unmapped.alternativeCurve).toBeNull();
+      expect(unmapped.changedNodeIds).toEqual([]);
+      expect(unmapped.rows).toEqual(comparison.rows);
+      expect(unmapped.warnings).toContainEqual(expect.stringContaining("회차 연결을 확인할 수 없어"));
+    }
+
+    const removed = presentPlannerScenarioComparison({
+      ...response,
+      changedSteps: [{
+        seq: 3, changeType: "REMOVED", dateBefore: "2026-10-10",
+        dateAfter: null, amountBefore: 30, amountAfter: null,
+      }],
+    }, model, option);
+    expect(removed.alternativeCurve?.nodes.some((node) => node.sequence === 3)).toBe(false);
+    expect(removed.alternativeCurve?.nodes.find((node) => node.sequence === 1))
+      .toMatchObject({ status: "completed", cumulativeAmount: 35 });
+    expect(removed.alternativeCurve?.nodes.find((node) => node.sequence === 4)?.cumulativeAmount).toBe(75);
+
+    const completedStepWithoutExecutionDate: PlannerViewModel = {
+      ...model,
+      steps: model.steps.map((step) =>
+        step.status === "completed" ? { ...step, executedDate: null } : step,
+      ),
+    };
+    expect(
+      presentPlannerScenarioComparison(
+        response,
+        completedStepWithoutExecutionDate,
+        option,
+      ).baseCurve?.nodes.find((node) => node.sequence === 1)?.date,
+    ).toBe("2026-09-01");
+
     const noDestination: PlannerViewModel = {
       ...model,
       curve:
@@ -418,7 +638,7 @@ describe("presentPlannerOverview", () => {
     expect(withoutNodeIds.alternativeCurve?.nodes[0]?.id).toBe("scenario-1");
   });
 
-  it("확장 상태와 누락된 선택 필드는 원문 또는 명시적 대체 문구로 표시한다", () => {
+  it("확장 상태와 내부 코드는 사용자 문구로 안전하게 대체한다", () => {
     const first = overview().items[0]!;
     const sourcePlan = first.activePlan!;
     const fallbackOverview: PlannerApiOverview = {
@@ -458,13 +678,13 @@ describe("presentPlannerOverview", () => {
 
     const model = presentPlannerOverview(fallbackOverview);
     expect(model.plan).toMatchObject({
-      statusLabel: "future_plan_status",
+      statusLabel: "상태 확인 필요",
       planEndDateLabel: "제공되지 않음",
-      budgetStateLabel: "FUTURE_BUDGET_STATE",
+      budgetStateLabel: "예산 상태 세부 정보는 제공되지 않았습니다",
       policyVersion: null,
       calculatedAtLabel: null,
       rateAsOfLabel: null,
-      warnings: ["FUTURE_WARNING"],
+      warnings: ["추가 확인이 필요한 계획 조건이 있습니다"],
     });
     expect(model.curve).toBeNull();
     expect(model.steps[0]).toMatchObject({
@@ -550,6 +770,57 @@ describe("presentPlannerOverview", () => {
       after: "제공되지 않음",
     });
     expect(comparison.alternativeCurve).not.toBeNull();
+
+    const unsafeResponse: PlannerScenarioPreviewResponse = {
+      ...sourceResponse,
+      before: {
+        ...sourceResponse.before,
+        remainingAmount: Number.NaN,
+        targetDate: undefined as unknown as string,
+        openRounds: Number.NaN,
+        roundBudgetKrw: Number.NaN,
+        costRange: {
+          lowKrw: Number.NaN,
+          baseKrw: Number.NaN,
+          highKrw: Number.NaN,
+        },
+      },
+      warnings: ["BUDGET_SHORTFALL", "FUTURE_WARNING"],
+    };
+    const safeComparison = presentPlannerScenarioComparison(
+      unsafeResponse,
+      viewWithMissingRoundAmount,
+      option,
+    );
+    expect(safeComparison.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "남은 목표 금액",
+          before: "제공되지 않음",
+        }),
+        expect.objectContaining({
+          label: "목표일",
+          before: "제공되지 않음",
+        }),
+        expect.objectContaining({
+          label: "남은 회차",
+          before: "제공되지 않음",
+        }),
+        expect.objectContaining({
+          label: "회차 예산",
+          before: "제공되지 않음",
+        }),
+        expect.objectContaining({
+          label: "예상 원화 비용",
+          before: "제공되지 않음",
+        }),
+      ]),
+    );
+    expect(safeComparison.warnings).toEqual([
+      "예산이 계획 비용에 미치지 못합니다",
+      "추가 확인이 필요한 변경 조건이 있습니다",
+    ]);
+    expect(JSON.stringify(safeComparison)).not.toContain("BUDGET_SHORTFALL");
   });
 
   it("건너뛰기 응답은 저장되지 않은 재분배 영향으로만 표시한다", () => {
@@ -602,6 +873,12 @@ describe("presentPlannerOverview", () => {
       ],
       warnings: [],
     });
+
+    expect(
+      presentPlannerSkipComparison({ ...response, seq: 0 }, model, option).reason,
+    ).toBe(
+      "선택한 회차를 건너뛴 조건으로 서버가 남은 금액의 재분배 영향을 계산했습니다.",
+    );
   });
 
   it("지원하지 않는 공급처 동작은 서버 호출 없이 false를 반환한다", async () => {

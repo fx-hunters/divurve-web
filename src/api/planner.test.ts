@@ -48,6 +48,41 @@ beforeEach(() => {
 });
 
 describe("planner API", () => {
+  it.each([401, 403])("보조 X-Ray의 인증 오류 %s는 전파한다", async (status) => {
+    vi.mocked(requestWithMeta).mockResolvedValue({ data: { goals: [] }, meta: { asOf: "" } });
+    const error = new ApiError("authentication required", status);
+    vi.mocked(fetchXrayOverview).mockRejectedValue(error);
+    await expect(fetchPlannerOverview()).rejects.toBe(error);
+  });
+
+  it("목표의 명시적 출처 meta를 X-Ray 보조값보다 우선한다", async () => {
+    vi.mocked(requestWithMeta).mockResolvedValue({ data: { goals: [] }, meta: { asOf: "", isSampleData: false } });
+    await expect(fetchPlannerOverview()).resolves.toMatchObject({ isSampleData: false });
+  });
+
+  it("누락·음수 확보액을 정상 0원 응답으로 보정하지 않는다", () => {
+    for (const allocatedHoldingAmount of [undefined, -1, Number.NaN]) {
+      expect(() => parsePlannerPlanResponse({ ...activePlan,
+        goal: { ...activePlan.goal, allocatedHoldingAmount },
+      })).toThrow(/allocatedHoldingAmount/);
+    }
+    expect(() => parsePlannerPlanResponse({ ...activePlan,
+      steps: [{ ...activePlan.steps[0], executedAmount: -1 }],
+    })).toThrow(/executedAmount/);
+  });
+  it("출처 확인용 X-Ray가 실패해도 목표와 활성 계획은 유지한다", async () => {
+    vi.mocked(requestWithMeta).mockResolvedValue({
+      data: { goals: [firstItem.goal] }, meta: { asOf: "", isDemo: false },
+    });
+    vi.mocked(request).mockResolvedValue(activePlan);
+    vi.mocked(fetchXrayOverview).mockRejectedValue(new ApiError("X-Ray unavailable", 503));
+    await expect(fetchPlannerOverview()).resolves.toMatchObject({
+      items: [{ goal: firstItem.goal, activePlan }],
+      isDemo: false,
+      isSampleData: undefined,
+      dataSourceNotice: expect.stringContaining("출처"),
+    });
+  });
   it("목록·샘플 여부를 조회하고 각 목표의 활성 계획을 URL 인코딩해 조회한다", async () => {
     const encodedGoal = { ...firstItem.goal, id: "a/b" };
     vi.mocked(requestWithMeta).mockResolvedValue({

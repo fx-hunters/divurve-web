@@ -261,7 +261,7 @@ export function PlannerScenarioModal({
                 disabled={isPending}
                 onClick={onClear}
               >
-                변화 다시 보기
+                다른 상황 비교
               </button>
               <button
                 type="button"

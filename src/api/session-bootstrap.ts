@@ -1,28 +1,27 @@
 import { refreshSession, startDemoSession } from "./auth";
 import { registerSessionRefresher } from "./client";
-import { clearApiSession, readApiSession, type ApiSession } from "./session";
+import { readApiSession, readStoredApiSession, type ApiSession } from "./session";
 
 let inflight: Promise<ApiSession> | null = null;
-let refreshInflight: Promise<string | null> | null = null;
+let refreshInflight: Promise<ApiSession> | null = null;
 
 /**
  * 만료된 세션을 되살린다.
  *
- * 리프레시가 실패하면 남은 세션을 버려서, 다음 `ensureApiSession()` 호출이
- * 데모 세션을 새로 발급받을 수 있게 한다. 동시에 여러 요청이 401을 맞아도
- * 갱신 요청은 한 번만 나간다.
+ * 부트스트랩과 401 복구가 같은 갱신 요청을 공유한다. 갱신 실패를 로그아웃으로
+ * 취급하지 않는다. 저장된 만료 세션은 재시도에 사용하고 명시적 로그아웃 시 지운다.
  */
-function refreshAccessToken(): Promise<string | null> {
-  refreshInflight ??= refreshSession()
-    .then((session) => session.accessToken)
-    .catch(() => {
-      clearApiSession();
-      return null;
-    })
-    .finally(() => {
-      refreshInflight = null;
-    });
+function refreshApiSession(): Promise<ApiSession> {
+  refreshInflight ??= refreshSession().finally(() => {
+    refreshInflight = null;
+  });
   return refreshInflight;
+}
+
+function refreshAccessToken(): Promise<string | null> {
+  return refreshApiSession()
+    .then((session) => session.accessToken)
+    .catch(() => null);
 }
 
 /**
@@ -38,8 +37,8 @@ export function installSessionRefresh(): void {
 /**
  * API 세션을 보장한다.
  *
- * 쓸 수 있는 세션이 있으면 그대로 쓰고, 없으면 BE의 데모 계정 세션을 발급받는다.
- * 저장된 세션이 만료됐으면 `readApiSession()`이 null을 주므로 자연히 재발급된다.
+ * 쓸 수 있는 세션이 있으면 그대로 쓰고, 만료 세션은 먼저 갱신한다.
+ * 저장된 세션 자체가 없는 경우에만 BE 데모 계정 세션을 발급받는다.
  * 데모 계정 여부는 BE가 `TokenResponse.isDemo`로 알려주므로 프론트가 판단하지 않는다.
  *
  * 여러 호출자가 동시에 불러도 발급 요청은 한 번만 나간다. 실패하면 진행 중인
@@ -53,7 +52,9 @@ export function ensureApiSession(): Promise<ApiSession> {
     return Promise.resolve(existing);
   }
 
-  inflight ??= startDemoSession().finally(() => {
+  inflight ??= (readStoredApiSession() === null
+    ? startDemoSession()
+    : refreshApiSession()).finally(() => {
     inflight = null;
   });
 

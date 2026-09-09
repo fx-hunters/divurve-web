@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { RoutePlanData } from "../../types/route";
 import {
-  findDemoPlan,
   presentDemoPlanner,
   presentDemoScenarioComparison,
 } from "./planner-demo-adapter";
@@ -21,6 +20,12 @@ import {
   readPlannerUiSelection,
   writePlannerGoalSelection,
 } from "./planner-ui-selection";
+import {
+  applyPlannerDemoScenario,
+  readPlannerDemoProgress,
+  recordPlannerDemoSequence,
+  writePlannerDemoProgress,
+} from "./planner-demo-progress";
 
 interface PlannerDemoScreenProps {
   readonly data: RoutePlanData;
@@ -49,10 +54,8 @@ export function PlannerDemoScreen({
       : initialPlan.id;
   });
   const selectedGoalId = goalId ?? highlightedGoalId;
-  const [appliedScenarioId, setAppliedScenarioId] = useState<string>(
-    initialPlan.baseScenarioId,
-  );
-  const [hasRecordedRound, setRecordedRound] = useState(false);
+  const [demoProgress, setDemoProgress] = useState(readPlannerDemoProgress);
+  const isRecordPending = useRef(false);
   const [comparison, setComparison] =
     useState<PlannerScenarioComparisonViewModel | null>(null);
   const [feedback, setFeedback] = useState<PlannerJourneyFeedback>({
@@ -62,17 +65,13 @@ export function PlannerDemoScreen({
   const view = presentDemoPlanner(
     data,
     selectedGoalId,
-    appliedScenarioId,
-    hasRecordedRound,
+    demoProgress,
     localGoals,
   );
 
   const handleSelectGoal = (nextGoalId: string) => {
-    const plan = findDemoPlan(data, nextGoalId);
     setHighlightedGoalId(nextGoalId);
     writePlannerGoalSelection(nextGoalId);
-    setAppliedScenarioId(plan.baseScenarioId);
-    setRecordedRound(false);
     setComparison(null);
     setFeedback(
       nextGoalId.startsWith("demo-")
@@ -85,12 +84,23 @@ export function PlannerDemoScreen({
     );
   };
   const handleRecord = async () => {
-    setRecordedRound(true);
+    if (isRecordPending.current) return false;
+    const sequence = view.nextAction?.sequence;
+    if (sequence === undefined) return false;
+    isRecordPending.current = true;
+    const nextProgress = recordPlannerDemoSequence(
+      demoProgress,
+      selectedGoalId,
+      sequence,
+    );
+    setDemoProgress(nextProgress);
+    writePlannerDemoProgress(nextProgress);
     setFeedback({
       status: "success",
-      message:
-        "이번 회차를 데모 화면에서만 기록했습니다. 서버에는 저장하지 않았습니다.",
+      message: `${sequence}회차를 데모 화면에서만 기록했습니다. 서버에는 저장하지 않았습니다.`,
     });
+    await Promise.resolve();
+    isRecordPending.current = false;
     return true;
   };
   const handleSkip = async () => {
@@ -98,6 +108,7 @@ export function PlannerDemoScreen({
       data,
       selectedGoalId,
       "missedRound",
+      demoProgress,
     );
     setComparison(result);
     setFeedback({
@@ -114,6 +125,7 @@ export function PlannerDemoScreen({
       data,
       selectedGoalId,
       option.id,
+      demoProgress,
     )!;
     setComparison(result);
     setFeedback({
@@ -124,7 +136,14 @@ export function PlannerDemoScreen({
     return true;
   };
   const handleApply = async () => {
-    setAppliedScenarioId(comparison!.id);
+    if (comparison === null) return false;
+    const nextProgress = applyPlannerDemoScenario(
+      demoProgress,
+      selectedGoalId,
+      comparison.id,
+    );
+    setDemoProgress(nextProgress);
+    writePlannerDemoProgress(nextProgress);
     setComparison(null);
     setFeedback({
       status: "success",

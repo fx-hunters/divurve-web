@@ -3,7 +3,8 @@ import { normalizePlannerDate, presentPlannerCurve } from "./planner-curve-prese
 
 const input = {
   currencyCode: "USD",
-  allocatedAmount: 100,
+  baselineAmount: 100,
+  currentAmount: 115,
   currentDate: "2026-09-08T09:00:00Z",
   targetAmount: 300,
   targetDate: "2026-10-08",
@@ -86,7 +87,8 @@ describe("planner curve presenter", () => {
     expect(normalizePlannerDate(null)).toBeNull();
     const curve = presentPlannerCurve({
       ...input,
-      allocatedAmount: Number.NaN,
+      baselineAmount: 0,
+      currentAmount: 0,
       currentDate: "2026-09-20",
       targetAmount: Number.POSITIVE_INFINITY,
       targetDate: "invalid",
@@ -107,10 +109,15 @@ describe("planner curve presenter", () => {
   });
 
   it("사용 가능한 날짜가 하나도 없으면 Curve를 만들지 않는다", () => {
+    for (const invalid of [Number.NaN, -1]) {
+      expect(presentPlannerCurve({ ...input, baselineAmount: invalid })).toBeNull();
+      expect(presentPlannerCurve({ ...input, currentAmount: invalid })).toBeNull();
+    }
     expect(
       presentPlannerCurve({
         currencyCode: "EUR",
-        allocatedAmount: 0,
+        baselineAmount: 0,
+        currentAmount: 0,
         currentDate: null,
         targetAmount: null,
         targetDate: null,
@@ -144,7 +151,8 @@ describe("planner curve presenter", () => {
   it("현재일과 완료 회차가 없어도 미래 일정만으로 현재 지점을 만들지 않는다", () => {
     const curve = presentPlannerCurve({
       currencyCode: "USD",
-      allocatedAmount: 100,
+      baselineAmount: 100,
+      currentAmount: 100,
       currentDate: null,
       targetAmount: null,
       targetDate: null,

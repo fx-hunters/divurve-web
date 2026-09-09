@@ -506,4 +506,20 @@ describe("콜드 스타트 알림", () => {
     await request("/fast", { requiresAuth: false }, env);
     expect(getColdStartNotice()).toBe(false);
   });
+
+  it("API 주소 누락은 요청 전에 설정 오류로 알리고 절전 안내를 켜지 않는다", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("VITE_API_URL", "");
+
+    await expect(
+      request("/api/v1/auth/demo", { method: "POST", requiresAuth: false }),
+    ).rejects.toMatchObject({
+      code: "API_CONFIGURATION_ERROR",
+      status: 0,
+      message: expect.stringContaining("VITE_API_URL"),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getColdStartNotice()).toBe(false);
+  });
 });

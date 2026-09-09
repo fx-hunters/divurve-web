@@ -73,8 +73,10 @@ export class ApiError extends Error {
 export function resolveApiBaseUrl(env: ApiEnv = import.meta.env): string {
   const url = env.VITE_API_URL;
   if (!url) {
-    throw new Error(
-      "VITE_API_URL 환경변수가 설정되지 않았습니다. .env.example을 복사해 .env를 만드세요.",
+    throw new ApiError(
+      "서버 연결 설정이 없습니다. 실행 환경의 VITE_API_URL 설정을 확인해 주세요.",
+      0,
+      "API_CONFIGURATION_ERROR",
     );
   }
   return url.replace(/\/+$/, "");
@@ -225,6 +227,8 @@ async function sendRequest<T>(
   env: ApiEnv | undefined,
   canRefresh: boolean,
 ): Promise<ApiResult<T>> {
+  // 주소 설정 오류는 실제 연결 실패가 아니다. 인증 갱신과 지연 안내보다 먼저 확인한다.
+  const url = apiUrl(path, env);
   const {
     body,
     requiresAuth = true,
@@ -254,7 +258,7 @@ async function sendRequest<T>(
   // 화면 최상단 배너가 뜨도록 알린다(cold-start-notice.ts).
   const coldStartTimer = setTimeout(noticeColdStart, COLD_START_THRESHOLD_MS);
   try {
-    response = await fetch(apiUrl(path, env), {
+    response = await fetch(url, {
       ...requestInit,
       headers,
       body:

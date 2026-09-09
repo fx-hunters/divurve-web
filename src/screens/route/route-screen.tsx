@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   loadRoutePlan,
   type RoutePlanLoader,
@@ -22,6 +23,11 @@ import {
   PlannerDemoPlanDetailScreen,
   type PlannerPlanDetailDependencies,
 } from "./planner-plan-detail-screen";
+import {
+  clearPlannerDemoPreference,
+  readPlannerDemoPreference,
+  writePlannerDemoPreference,
+} from "./planner-mode-preference";
 
 /** 계정 종류. 데모 계정은 서버 플래너에 들어갈 수 없다. */
 export type RouteScreenMode = "demo" | "api";
@@ -51,29 +57,54 @@ export function RouteScreen({
   target = PLANNER_GOAL_SELECT,
   onNavigatePlanner = () => undefined,
 }: RouteScreenProps) {
-  // 데모 계정에는 서버 플래너가 없다. 주소가 무엇을 가리키든 데모로 읽는다.
-  const source: PlannerScreenSource = mode === "demo" ? "demo" : routeSource;
-  const goalId = plannerTargetGoalId(target);
+  const [isTemporaryDemo, setTemporaryDemo] = useState(
+    () => routeSource === "demo" || readPlannerDemoPreference(),
+  );
+  // URL과 로그인 조회가 바뀌어도 명시적으로 선택한 데모는 종료 전까지 유지한다.
+  const source: PlannerScreenSource =
+    mode === "demo" || isTemporaryDemo || routeSource === "demo" ? "demo" : "api";
+  const effectiveTarget = source === "demo" && routeSource === "api"
+    ? PLANNER_GOAL_SELECT : target;
+  const goalId = plannerTargetGoalId(effectiveTarget);
   const navigation: PlannerJourneyNavigation = {
-    stage: target.kind === "goal" ? target.stage : "goal",
+    stage: effectiveTarget.kind === "goal" ? effectiveTarget.stage : "goal",
     onOpenGoalSelect: () => onNavigatePlanner(source, PLANNER_GOAL_SELECT),
     onOpenGoalStage: (nextGoalId: string, stage: PlannerScreenStage) =>
       onNavigatePlanner(source, { kind: "goal", goalId: nextGoalId, stage }),
   };
-  if (target.kind === "planDetail") {
+
+  useEffect(() => {
+    if (mode === "api" && routeSource === "demo") {
+      writePlannerDemoPreference();
+      setTemporaryDemo(true);
+    }
+  }, [mode, routeSource]);
+
+  const handleExploreDemo = () => {
+    writePlannerDemoPreference();
+    setTemporaryDemo(true);
+    onNavigatePlanner("demo", PLANNER_GOAL_SELECT);
+  };
+  const handleExitDemo = () => {
+    clearPlannerDemoPreference();
+    setTemporaryDemo(false);
+    onNavigatePlanner("api", PLANNER_GOAL_SELECT);
+  };
+
+  if (effectiveTarget.kind === "planDetail") {
     return source === "api" ? (
       <PlannerApiPlanDetailScreen
-        goalId={target.goalId}
-        planId={target.planId}
+        goalId={effectiveTarget.goalId}
+        planId={effectiveTarget.planId}
         dependencies={detailDependencies}
-        onBack={() => navigation.onOpenGoalStage(target.goalId, "main")}
+        onBack={() => navigation.onOpenGoalStage(effectiveTarget.goalId, "main")}
       />
     ) : (
       <RouteDemoScreen
         loadPlan={loadPlan}
         goalId={goalId}
         navigation={navigation}
-        detailTarget={target}
+        detailTarget={effectiveTarget}
       />
     );
   }
@@ -84,13 +115,9 @@ export function RouteScreen({
         goalId={goalId}
         navigation={navigation}
         dependencies={apiDependencies}
-        onExploreDemo={() => onNavigatePlanner("demo", PLANNER_GOAL_SELECT)}
+        onExploreDemo={handleExploreDemo}
         onOpenPlanDetail={(nextGoalId, planId) =>
-          onNavigatePlanner("api", {
-            kind: "planDetail",
-            goalId: nextGoalId,
-            planId,
-          })
+          onNavigatePlanner("api", { kind: "planDetail", goalId: nextGoalId, planId })
         }
       />
     );
@@ -101,17 +128,9 @@ export function RouteScreen({
       loadPlan={loadPlan}
       goalId={goalId}
       navigation={navigation}
-      onExitDemo={
-        mode === "api"
-          ? () => onNavigatePlanner("api", PLANNER_GOAL_SELECT)
-          : undefined
-      }
+      onExitDemo={mode === "api" ? handleExitDemo : undefined}
       onOpenPlanDetail={(nextGoalId, planId) =>
-        onNavigatePlanner("demo", {
-          kind: "planDetail",
-          goalId: nextGoalId,
-          planId,
-        })
+        onNavigatePlanner("demo", { kind: "planDetail", goalId: nextGoalId, planId })
       }
     />
   );

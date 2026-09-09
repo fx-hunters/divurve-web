@@ -82,7 +82,7 @@ const scenarioResult: PlannerScenarioPreviewResponse = {
   changeReasonCode: "RATE_UP",
   priorityConstraint: "budget",
   before: {
-    remainingAmount: 1_740,
+    remainingAmount: 1_595,
     targetDate: "2026-12-31",
     totalRounds: 2,
     openRounds: 1,
@@ -91,7 +91,7 @@ const scenarioResult: PlannerScenarioPreviewResponse = {
     costRange: null,
   },
   after: {
-    remainingAmount: 1_740,
+    remainingAmount: 1_595,
     targetDate: "2026-12-31",
     totalRounds: 3,
     openRounds: 2,
@@ -149,6 +149,17 @@ beforeEach(() => {
 });
 
 describe("PlannerApiScreen", () => {
+  it("출처 보조 조회 오류를 안내하면서 서버 목표는 표시한다", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.load).mockResolvedValue({ ...PLANNER_API_FIXTURE,
+      dataSourceNotice: "자산 출처를 확인하지 못했습니다", isSampleData: undefined,
+    });
+    render(<RoutedPlannerApiScreen dependencies={deps} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("자산 출처");
+    expect(screen.getByRole("button", { name: /미국/ })).toBeInTheDocument();
+    expect(screen.getByText("서버 조회 데이터")).toBeInTheDocument();
+  });
+
   it("목표를 저장하기 전에 조건으로 계획을 계산해 보여준다", async () => {
     const deps = dependencies({
       load: vi.fn().mockResolvedValue({ items: [] }),
@@ -410,7 +421,7 @@ describe("PlannerApiScreen", () => {
     });
     const complete = vi.fn().mockReturnValue(pending);
     const deps = await openAction(dependencies({ complete }));
-    fireEvent.click(screen.getByRole("button", { name: "이번 회차 기록" }));
+    fireEvent.click(screen.getByRole("button", { name: "2회차 기록" }));
     expect(screen.getByRole("alert")).toHaveTextContent("실행 외화 금액");
     fireEvent.change(screen.getByLabelText("실행 외화 금액"), {
       target: { value: "150" },
@@ -418,7 +429,7 @@ describe("PlannerApiScreen", () => {
     fireEvent.change(screen.getByLabelText("실행 환율"), {
       target: { value: "1395" },
     });
-    const submit = screen.getByRole("button", { name: "이번 회차 기록" });
+    const submit = screen.getByRole("button", { name: "2회차 기록" });
     fireEvent.click(submit);
     fireEvent.click(submit);
     expect(complete).toHaveBeenCalledTimes(1);
@@ -435,9 +446,81 @@ describe("PlannerApiScreen", () => {
     });
   });
 
+  it("완료 후 재조회한 현재 확보액·진행률·다음 회차를 함께 갱신한다", async () => {
+    const beforeCompletion = {
+      ...PLANNER_API_FIXTURE,
+      items: PLANNER_API_FIXTURE.items.map((item) =>
+        item.goal.id !== "goal-usd" || item.activePlan === null
+          ? item
+          : {
+              ...item,
+              activePlan: {
+                ...item.activePlan,
+                goal: {
+                  ...item.activePlan.goal,
+                  allocatedHoldingAmount: 1_260,
+                  remainingAmount: 1_740,
+                },
+                summary: {
+                  ...item.activePlan.summary,
+                  completedRounds: 0,
+                  scheduledRounds: 2,
+                  nextActionSeq: 1,
+                },
+                steps: item.activePlan.steps.map((step, index) => ({
+                  ...step,
+                  executedAmount: 0,
+                  executedRate: null,
+                  executedDate: null,
+                  status: index === 0 ? "due" : "scheduled",
+                  nextAction: index === 0,
+                })),
+              },
+            },
+      ),
+    };
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(beforeCompletion)
+      .mockResolvedValueOnce(PLANNER_API_FIXTURE);
+    const deps = dependencies({
+      load,
+      complete: vi.fn().mockResolvedValue({
+        ...completeResult,
+        seq: 1,
+        nextActionSeq: 2,
+      }),
+    });
+
+    render(<RoutedPlannerApiScreen dependencies={deps} />);
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByText("1,260 USD")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("실행 외화 금액"), {
+      target: { value: "145" },
+    });
+    fireEvent.change(screen.getByLabelText("실행 환율"), {
+      target: { value: "1395" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "1회차 기록" }));
+
+    expect(
+      await screen.findByText("1회차 기록 후 최신 계획을 확인했습니다."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("1,405 USD")).toHaveLength(2);
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "47",
+    );
+    expect(
+      screen.getByRole("heading", { name: "2회차를 확인할까요?" }),
+    ).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it("건너뛰기는 저장 완료가 아닌 미리보기로 안내한다", async () => {
     const deps = await openAction();
-    fireEvent.click(screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }));
+    fireEvent.click(screen.getByRole("button", { name: "2회차를 놓쳤다면" }));
     expect(await screen.findByRole("dialog", { name: "어떤 변화가 생겼나요?" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("아직 계획에 반영되지 않았습니다");
     expect(screen.queryByText(/저장되었습니다|반영되었습니다/)).not.toBeInTheDocument();
@@ -468,7 +551,7 @@ describe("PlannerApiScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "변경안 적용" }));
     expect(await screen.findByText(/최신 활성 계획을 확인했습니다/)).toBeInTheDocument();
     expect(deps.apply).toHaveBeenCalledWith("draft-usd");
-    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
     expect(
       screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" }),
     ).toBeInTheDocument();

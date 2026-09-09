@@ -83,7 +83,9 @@ export function PlannerJourneyMain({
           <div><dt>남은 금액</dt><dd>{goal.remainingAmountLabel}</dd></div>
           <div><dt>목표일</dt><dd>{goal.targetDateLabel}</dd></div>
         </dl>
-        <ProgressBar ratio={goal.progressPercent} label={goal.progressLabel} />
+        {goal.heldAmount === null
+          ? <p>{goal.progressLabel}</p>
+          : <ProgressBar ratio={goal.progressPercent / 100} label={goal.progressLabel} />}
       </header>
 
       {view.curve === null || view.plan === null ? (
@@ -181,7 +183,7 @@ export function PlannerJourneyMain({
 
       <footer className="planner-main__footer">
         <button type="button" className="planner-api-journey__secondary" onClick={onBackToGoals}>
-          다른 목표 선택
+          ← 목표 목록
         </button>
         {onOpenEdit !== undefined && (
           <button type="button" className="planner-api-journey__secondary" onClick={onOpenEdit}>

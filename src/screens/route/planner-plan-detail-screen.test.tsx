@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlannerApiOverview, PlanVersion } from "../../api/planner";
 import type { PlannerPlanResponse } from "../../api/planner-contract";
 import { loadRoutePlan } from "../../api/route";
@@ -12,6 +12,11 @@ import {
   PlannerPlanDetailPage,
   type PlannerPlanDetailDependencies,
 } from "./planner-plan-detail-screen";
+import {
+  recordPlannerDemoSequence,
+  EMPTY_PLANNER_DEMO_PROGRESS,
+  writePlannerDemoProgress,
+} from "./planner-demo-progress";
 
 const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
 const activeView = presentPlannerOverview(PLANNER_API_FIXTURE, "goal-usd");
@@ -26,6 +31,8 @@ function dependencies(
     ...overrides,
   };
 }
+
+beforeEach(() => window.sessionStorage.clear());
 
 describe("PlannerPlanDetailPage", () => {
   it("목표 요약, 회차별 누적액, 데이터 기준과 계획 버전을 표시한다", () => {
@@ -74,7 +81,7 @@ describe("PlannerPlanDetailPage", () => {
     expect(screen.getByText("2026-12-20")).toBeInTheDocument();
     expect(screen.getByText("날짜 제공되지 않음")).toBeInTheDocument();
     expect(screen.getByText("서버가 제공한 주의사항")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -99,6 +106,25 @@ describe("PlannerPlanDetailPage", () => {
     expect(
       screen.getByText("데모에서는 서버 계획 버전 이력을 제공하지 않습니다."),
     ).toBeInTheDocument();
+  });
+
+  it("서버 요약 회차 수와 상세 행 수가 다르면 제공된 행 수를 명확히 구분한다", () => {
+    render(
+      <PlannerPlanDetailPage
+        view={{
+          ...activeView,
+          plan: { ...activeView.plan!, totalRounds: 4 },
+        }}
+        versions={[]}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "제공된 회차 2회" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/서버 요약은 전체 4회/)).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
   it("목표 또는 계획이 없으면 상세 내용을 렌더링하지 않는다", () => {
@@ -197,6 +223,25 @@ describe("PlannerApiPlanDetailScreen", () => {
     expect(loadOverview).toHaveBeenCalledTimes(2);
   });
 
+  it("조회한 계획이 현재 활성 계획과 다르면 활성 계획으로 오해해 표시하지 않는다", async () => {
+    render(
+      <PlannerApiPlanDetailScreen
+        goalId="goal-usd"
+        planId="plan-usd-old"
+        dependencies={dependencies({
+          loadPlan: vi.fn().mockResolvedValue({
+            ...activePlan,
+            planId: "plan-usd-old",
+            summary: { ...activePlan.summary, status: "active" },
+          }),
+        })}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("이전 버전")).toBeInTheDocument();
+  });
+
   it("화면을 떠난 뒤 완료된 요청은 상태를 갱신하지 않는다", async () => {
     let resolveOverview!: (value: PlannerApiOverview) => void;
     const loadOverview = vi.fn(
@@ -235,6 +280,33 @@ describe("PlannerDemoPlanDetailScreen", () => {
       screen.getByRole("heading", { name: "미국 ETF 정기 투자" }),
     ).toBeInTheDocument();
     expect(screen.getByText("데모 데이터")).toBeInTheDocument();
+  });
+
+  it("다시 마운트한 상세 화면도 목표별 데모 기록의 최신 확보액을 사용한다", async () => {
+    const data = await loadRoutePlan();
+    if (data === null) throw new Error("데모 플래너 데이터가 필요합니다.");
+    writePlannerDemoProgress(
+      recordPlannerDemoSequence(
+        EMPTY_PLANNER_DEMO_PROGRESS,
+        "jpy-travel-deadline-demo",
+        1,
+      ),
+    );
+
+    render(
+      <PlannerDemoPlanDetailScreen
+        data={data}
+        goalId="jpy-travel-deadline-demo"
+        planId="jpy-travel-deadline-demo"
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveTextContent("75,000 JPY");
+    expect(
+      screen.getByRole("heading", { name: "전체 4회" }),
+    ).toBeInTheDocument();
   });
 
   it("경로 식별자가 다르면 다른 데모 계획을 대신 표시하지 않는다", async () => {

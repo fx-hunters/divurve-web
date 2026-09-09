@@ -14,12 +14,13 @@ import type { RoutePlanData } from "../../types/route";
 import { presentPlannerOverview } from "./planner-api-presenter";
 import type { PlannerViewModel } from "./planner-api-types";
 import { findDemoPlan, presentDemoPlanner } from "./planner-demo-adapter";
+import { readPlannerDemoProgress } from "./planner-demo-progress";
 
 /** 머리말 문구. 로딩 중 자리표시자 화면도 같은 문구를 쓴다. */
 const PAGE_EYEBROW = "전체 계획 상세";
 const PAGE_DESCRIPTION =
   "회차별 날짜, 준비 금액, 누적 금액과 저장된 계획 이력을 확인합니다.";
-const BACK_LABEL = "플래너로 돌아가기";
+const BACK_LABEL = "← 내 계획";
 
 /** 요약 목록의 항목 이름. 값은 서버가 준다. */
 const SUMMARY_LABELS = ["현재 확보", "목표", "계획 종료일", "상태"];
@@ -42,6 +43,7 @@ export function PlannerPlanDetailPage({
   const goal = view.selectedGoal;
   const plan = view.plan;
   if (goal === null || plan === null) return null;
+  const hasRoundCountMismatch = plan.totalRounds !== view.steps.length;
 
   return (
     <section className="planner-detail-page" aria-labelledby="planner-detail-page-title">
@@ -69,10 +71,17 @@ export function PlannerPlanDetailPage({
         <div className="planner-detail-page__section-heading">
           <div>
             <p className="planner-api-journey__eyebrow">회차 계획</p>
-            <h2 id="planner-detail-rounds-title">전체 {plan.totalRounds}회</h2>
+            <h2 id="planner-detail-rounds-title">
+              {hasRoundCountMismatch ? "제공된 회차" : "전체"} {view.steps.length}회
+            </h2>
           </div>
           <p>{goal.heldAmountBasisLabel}</p>
         </div>
+        {hasRoundCountMismatch && (
+          <p className="planner-api__notice">
+            서버 요약은 전체 {plan.totalRounds}회이며, 상세 응답에는 {view.steps.length}회가 제공되었습니다.
+          </p>
+        )}
         <div className="planner-detail-page__table-wrap">
           <table>
             <thead>
@@ -194,9 +203,9 @@ export function PlannerApiPlanDetailScreen({
     ])
       .then(([overview, detail, versions]) => {
         if (!isActive) return;
-        const goal = overview.items.find((item) => item.goal.id === goalId)?.goal;
+        const overviewItem = overview.items.find((item) => item.goal.id === goalId);
         if (
-          goal === undefined ||
+          overviewItem === undefined ||
           detail.goalId !== goalId ||
           detail.planId !== planId
         ) {
@@ -206,9 +215,22 @@ export function PlannerApiPlanDetailScreen({
           });
           return;
         }
+        const goal = overviewItem.goal;
         const detailOverview: PlannerApiOverview = {
           ...overview,
-          items: [{ goal, activePlan: detail }],
+          items: [
+            {
+              goal,
+              activePlan:
+                overviewItem.activePlan?.planId === detail.planId ||
+                detail.summary.status !== "active"
+                  ? detail
+                  : {
+                      ...detail,
+                      summary: { ...detail.summary, status: "superseded" },
+                    },
+            },
+          ],
         };
         setState({
           status: "success",
@@ -288,5 +310,11 @@ export function PlannerDemoPlanDetailScreen({
   if (plan.id !== goalId || planId !== plan.id) {
     return <ApiStateView status="error" title="데모 계획을 찾지 못했습니다" message="플래너로 돌아가 다른 목표를 선택해 주세요." onRetry={onBack} />;
   }
-  return <PlannerPlanDetailPage view={presentDemoPlanner(data, goalId)} versions={[]} onBack={onBack} />;
+  return (
+    <PlannerPlanDetailPage
+      view={presentDemoPlanner(data, goalId, readPlannerDemoProgress())}
+      versions={[]}
+      onBack={onBack}
+    />
+  );
 }
