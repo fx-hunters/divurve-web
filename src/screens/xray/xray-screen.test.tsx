@@ -108,7 +108,28 @@ describe("XRayScreen", () => {
     });
   });
 
-  it("불러오는 중에는 로딩 안내를 보여준다", () => {
+  it("불러오는 중에도 탭 바가 서 있고 값 자리만 비워 둔다", () => {
+    const { container } = render(
+      <XRayScreen
+        explanationRequester={PENDING_REQUESTER}
+        dependencies={makeDependencies({
+          loadBundle: vi.fn().mockReturnValue(new Promise(() => {})),
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "통화 노출 · 손익 분해" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "통화 구성" })).toBeInTheDocument();
+    expect(screen.getByText("총 자산")).toBeInTheDocument();
+    expect(container.querySelectorAll(".divurve-skeleton").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/내 자산을 불러오는 중입니다/),
+    ).toBeInTheDocument();
+  });
+
+  it("불러오는 중에도 탭을 바꿀 수 있다", () => {
     render(
       <XRayScreen
         explanationRequester={PENDING_REQUESTER}
@@ -117,7 +138,10 @@ describe("XRayScreen", () => {
         })}
       />,
     );
-    expect(screen.getByText("내 자산을 불러오는 중입니다")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "통화 적합도" }));
+
+    expect(screen.getByRole("heading", { name: "집중도 진단" })).toBeInTheDocument();
   });
 
   it("실패하면 메시지와 재시도 버튼을 보여준다", async () => {

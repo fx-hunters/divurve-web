@@ -14,6 +14,7 @@ import { RouteScreen } from "../screens/route/route-screen";
 import { XRayScreen } from "../screens/xray/xray-screen";
 import { InitialSetupScreen } from "../screens/initial-setup/initial-setup-screen";
 import { ApiStateView } from "../components/common/api-state-view";
+import { AppShellSkeleton } from "./app-shell-skeleton";
 import { DetailedDiagnosisInvite } from "../components/diagnosis/detailed-diagnosis-invite";
 import { NAV_ITEMS, type NavTabId } from "../types/navigation";
 import type { AuthSuccessResult } from "../types/auth";
@@ -238,11 +239,13 @@ export function App({ ensureSession }: AppProps = {}) {
 
   if (sessionState.status === "bootstrapping") {
     return (
-      <ApiStateView
-        status="loading"
-        title="체험 데이터를 준비하고 있습니다"
-        message="서버에서 계정 세션을 확인하고 있습니다."
-      />
+      <>
+        <span className="sr-only" role="status">
+          체험 데이터를 준비하고 있습니다. 서버에서 계정 세션을 확인하고
+          있습니다.
+        </span>
+        <AppShellSkeleton />
+      </>
     );
   }
 

@@ -20,6 +20,8 @@ import {
   usePlannerApi,
   type PlannerApiDependencies,
 } from "./use-planner-api";
+import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
+import { PlannerJourneyHeader } from "./planner-journey-header";
 import {
   toPlannerGoalCreateRequest,
   toPlannerPlanPreviewRequest,
@@ -73,13 +75,28 @@ export function PlannerApiScreen({
   const [selectedOption, setSelectedOption] =
     useState<PlannerScenarioOptionViewModel | null>(null);
 
+  /*
+   * 로딩이라고 화면을 통째로 가리지 않는다. 여정의 단계 배정은 서버가 준
+   * 목표·계획에서 나오므로, 응답 전에는 첫 단계(목표 선택)의 틀만 세우고
+   * 목록 자리를 비워 둔다. 머리말과 '새 목표 만들기'는 그대로 산다.
+   */
   if (planner.state.status === "loading") {
     return (
-      <ApiStateView
-        status="loading"
-        title="플래너를 불러오는 중입니다"
-        message="목표와 활성 계획을 서버에서 확인하고 있습니다."
-      />
+      <section className="planner-api" data-testid="planner-journey-loading">
+        <PlannerJourneyHeader kind="unknown" />
+        <span className="sr-only" role="status">
+          플래너를 불러오는 중입니다. 목표와 활성 계획을 서버에서 확인하고
+          있습니다.
+        </span>
+        <div className="planner-api-journey" data-stage="goal">
+          <PlannerJourneyGoalSelect
+            goals={null}
+            selectedGoalId=""
+            onSelect={setHighlightedGoalId}
+            onExploreDemo={onExploreDemo}
+          />
+        </div>
+      </section>
     );
   }
   if (planner.state.status === "error") {

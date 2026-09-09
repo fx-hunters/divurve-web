@@ -371,7 +371,10 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "환전 플래너" })[0]);
 
-    expect(await screen.findByText(/플래너를 불러오/)).toBeInTheDocument();
+    // 탭을 누른 즉시 플래너 머리말이 선다 — 서버 응답을 기다리지 않는다.
+    expect(
+      screen.getByRole("heading", { name: "내 외화 플래너" }),
+    ).toBeInTheDocument();
   });
 
   it.each([

@@ -257,8 +257,14 @@ describe("PlannerApiScreen", () => {
       .fn()
       .mockRejectedValueOnce(new ApiError("조회 오류", 500, "SERVER"))
       .mockResolvedValueOnce(PLANNER_API_FIXTURE);
-    const first = render(<RoutedPlannerApiScreen dependencies={dependencies({ load })} />);
-    expect(screen.getByText("플래너를 불러오는 중입니다")).toBeInTheDocument();
+    const first = render(
+      <RoutedPlannerApiScreen dependencies={dependencies({ load })} />,
+    );
+    // 로딩 중에도 머리말과 단계 안내는 그대로 선다.
+    expect(
+      screen.getByRole("heading", { name: "내 외화 플래너" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/플래너를 불러오는 중입니다/)).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("조회 오류");
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(await screen.findByRole("region", { name: "API 플래너" })).toBeInTheDocument();

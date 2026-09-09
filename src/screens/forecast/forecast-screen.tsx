@@ -9,6 +9,7 @@ import { CARD_SURFACE, CARD_TITLE } from "./cards/card-surface";
 import { AiExplanation } from "../../components/ai/ai-explanation";
 import { ApiStateView } from "../../components/common/api-state-view";
 import { Badge } from "../../components/common/badge";
+import { Skeleton } from "../../components/common/skeleton";
 import { Spinner } from "../../components/common/spinner";
 import {
   useAiExplanation,
@@ -59,15 +60,6 @@ export function ForecastScreen({
     requester: explanationRequester,
   });
 
-  if (state.status === "loading") {
-    return (
-      <ApiStateView
-        status="loading"
-        title="환율 범위를 불러오는 중입니다"
-        message="팬 차트와 근거 데이터를 함께 확인하고 있습니다."
-      />
-    );
-  }
   if (state.status === "error") {
     return (
       <ApiStateView
@@ -88,12 +80,18 @@ export function ForecastScreen({
     );
   }
 
+  /*
+   * 로딩이라고 화면을 통째로 가리지 않는다. 컨트롤 바는 서버 응답이 필요
+   * 없으므로 먼저 세우고, 값이 들어갈 자리만 비워 둔 채 뷰를 그대로 그린다.
+   */
+  const isLoaded = state.status === "success";
+
   return (
     <ForecastView
       pair={pair}
       period={period}
-      chartData={toFanChartData(state.data)}
-      pairInfo={toPairForecastInfo(state.data, pair)}
+      chartData={isLoaded ? toFanChartData(state.data) : null}
+      pairInfo={isLoaded ? toPairForecastInfo(state.data, pair) : null}
       explanationState={explanation.state}
       onReloadExplanation={explanation.reload}
       onSelectPair={setPair}
@@ -106,8 +104,9 @@ export function ForecastScreen({
 interface ForecastViewProps {
   readonly pair: ForecastPair;
   readonly period: ForecastPeriod;
-  readonly chartData: readonly FanChartDataPoint[];
-  readonly pairInfo: PairForecastInfo;
+  /** 아직 서버를 기다리는 중이면 null. 값 자리만 자리표시자가 된다. */
+  readonly chartData: readonly FanChartDataPoint[] | null;
+  readonly pairInfo: PairForecastInfo | null;
   readonly explanationState: AiExplanationState;
   readonly onReloadExplanation: () => void;
   readonly onSelectPair: (pair: ForecastPair) => void;
@@ -142,10 +141,21 @@ function ForecastView({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/*
+        값 자리가 비어 있는 동안 상태를 한 번만 읽어 준다. 자리표시자 막대는
+        전부 aria-hidden 이라 여기 말고는 읽힐 것이 없다.
+      */}
+      {pairInfo === null && (
+        <span className="sr-only" role="status">
+          환율 범위를 불러오는 중입니다. 팬 차트와 근거 데이터를 함께 확인하고
+          있습니다.
+        </span>
+      )}
+
       <ForecastControls
         pair={pair}
         period={period}
-        asOfLabel={pairInfo.asOfLabel}
+        asOfLabel={pairInfo?.asOfLabel ?? null}
         onSelectPair={onSelectPair}
         onSelectPeriod={onSelectPeriod}
       />
@@ -166,11 +176,15 @@ function ForecastView({
             시뮬레이션 팬 차트 ({pairLabel})
           </h2>
           <div style={{ flex: 1, minHeight: "280px" }}>
-            <FanChart
-              data={chartData}
-              pairLabel={pairLabel}
-              accentColor={accentColor}
-            />
+            {chartData === null ? (
+              <Skeleton shape="block" height="280px" />
+            ) : (
+              <FanChart
+                data={chartData}
+                pairLabel={pairLabel}
+                accentColor={accentColor}
+              />
+            )}
           </div>
         </div>
 
@@ -219,9 +233,12 @@ function ForecastView({
 
       {/* 하단 3단 그리드 — 카드 높이는 서로 끌려가지 않는다(layout.css). */}
       <div className="forecast-bottom-grid">
-        <DriversCard drivers={pairInfo.drivers} />
-        <EventsCard events={pairInfo.events} />
-        <ModelScoreCard score={pairInfo.modelScore} />
+        <DriversCard drivers={pairInfo?.drivers ?? null} />
+        <EventsCard events={pairInfo?.events ?? null} />
+        <ModelScoreCard
+          score={pairInfo?.modelScore ?? null}
+          isLoading={pairInfo === null}
+        />
       </div>
     </div>
   );

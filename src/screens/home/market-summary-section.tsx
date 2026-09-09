@@ -12,6 +12,7 @@ import {
 } from "../../hooks/use-ai-explanation";
 import { usePersistedToggle } from "../../hooks/use-persisted-toggle";
 import {
+  DEFAULT_MARKET_PAIR_CODE,
   toDisplaySnapshot,
   toMarketFacts,
   toMarketView,
@@ -34,8 +35,12 @@ const EXPLANATION_SURFACE = "home_market_summary";
 export const EXPLANATION_TOGGLE_STORAGE_KEY = `divurve_ai_explanation_open:${EXPLANATION_SURFACE}`;
 
 interface MarketSummarySectionProps {
-  /** 홈 요약이 이미 준 시세. 첫 화면은 이 값으로 그리고 다시 조회하지 않는다. */
-  readonly summarySnapshot: HomeMarketSnapshot;
+  /**
+   * 홈 요약이 이미 준 시세. 첫 화면은 이 값으로 그리고 다시 조회하지 않는다.
+   * 아직 요약이 오지 않았으면 null — 카드는 기본 통화쌍으로 먼저 서고, 그
+   * 사이에 사용자가 통화쌍을 바꾸면 요약과 무관하게 시세를 따로 받아 온다.
+   */
+  readonly summarySnapshot: HomeMarketSnapshot | null;
   readonly loadMarket?: HomeMarketLoader;
   readonly explainRequester?: ExplanationRequester;
 }
@@ -46,11 +51,15 @@ export function MarketSummarySection({
   explainRequester,
 }: MarketSummarySectionProps) {
   const { pairCode, state, selectPairCode, reload } = useHomeMarket(
-    summarySnapshot.pairCode,
+    summarySnapshot?.pairCode ?? DEFAULT_MARKET_PAIR_CODE,
     loadMarket,
   );
 
-  const snapshot = toDisplaySnapshot(summarySnapshot, pairCode, state);
+  const snapshot = toDisplaySnapshot(
+    summarySnapshot ?? { pairCode },
+    pairCode,
+    state,
+  );
   const { state: explanationState, reload: reloadExplanation } =
     useAiExplanation({
       surface: EXPLANATION_SURFACE,
@@ -66,7 +75,14 @@ export function MarketSummarySection({
   return (
     <MarketSummaryCard
       view={toMarketView(snapshot)}
-      isReloading={state.status === "loading"}
+      /*
+        요약이 아직 없고 이 카드도 따로 받아 온 시세가 없으면 값 자리를 비워
+        둔다. 사용자가 통화쌍을 바꿔 시세를 먼저 받아 왔다면 그건 보여 준다.
+      */
+      isReloading={
+        state.status === "loading" ||
+        (summarySnapshot === null && state.status === "summary")
+      }
       errorMessage={state.status === "error" ? state.message : undefined}
       onSelectPairCode={selectPairCode}
       onRetry={reload}

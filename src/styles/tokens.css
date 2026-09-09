@@ -41,6 +41,15 @@
   --border: #e2e8f0;
   --border-subtle: rgba(226, 232, 240, 0.7);
 
+  /*
+   * 값 자리표시자(components/common/skeleton.tsx).
+   * sheen 은 언제나 base 보다 밝은 쪽이어야 훑고 지나가는 빛으로 읽힌다.
+   * 라이트에서는 --surface-subtle 이 --surface-hover 보다 밝고, 다크에서는
+   * 관계가 뒤집히므로 두 토큰의 짝을 서로 바꿔 배정한다.
+   */
+  --skeleton-base: var(--surface-hover);
+  --skeleton-sheen: var(--surface-subtle);
+
   --text: #121d28;
   --text-muted: #5c6e7e;
   --muted: #5c6e7e;
@@ -91,6 +100,9 @@
   --border: #262626;
   --border-subtle: rgba(38, 38, 38, 0.7);
 
+  --skeleton-base: var(--surface-subtle);
+  --skeleton-sheen: var(--surface-hover);
+
   --text: #e9eff4;
   --text-muted: #8b9daa;
   --muted: #8b9daa;
@@ -129,6 +141,9 @@
     --surface-hover: #262626;
     --border: #262626;
     --border-subtle: rgba(38, 38, 38, 0.7);
+
+    --skeleton-base: var(--surface-subtle);
+    --skeleton-sheen: var(--surface-hover);
 
     --text: #e9eff4;
     --text-muted: #8b9daa;
