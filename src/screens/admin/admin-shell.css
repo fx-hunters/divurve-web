@@ -503,3 +503,46 @@
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
+
+/* 대시보드 지표 카드(#84). 카드마다 따로 부르므로 하나가 실패해도 자리를 지킨다. */
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.admin-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-subtle);
+}
+
+.admin-metric-card__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.admin-metric-card__headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.admin-metric-card__headline--ok {
+  color: var(--primary);
+}
+
+.admin-metric-card__headline--warn {
+  color: var(--danger);
+}
+
+.admin-metric-card__headline--neutral {
+  color: var(--text);
+}
