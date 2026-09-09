@@ -64,3 +64,4 @@
 | [0067](./0067-planner-ux-unification.md) | API·데모 Planner Journey UI 통합 | 2026-09-09 |
 | [0071](./0071-planner-state-consistency.md) | Planner 현재 확보액과 데모 진행 상태 일관성 복구 | 2026-09-09 |
 | [0076](./0076-planner-followup-review.md) | Planner 후속 검수의 금액·세션·데모 경계 보완 | 2026-09-09 |
+| [0078](./0078-api-configuration-error-boundary.md) | 로컬 API 설정 오류와 연결 실패 구분 | 2026-09-09 |
