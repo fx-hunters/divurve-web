@@ -44,7 +44,10 @@ vi.mock("../api/auth", () => ({
   }),
 }));
 
-vi.mock("../api/session", () => ({ readApiSession: vi.fn().mockReturnValue(null) }));
+vi.mock("../api/session", () => ({
+  readApiSession: vi.fn().mockReturnValue(null),
+  readStoredApiSession: vi.fn().mockReturnValue(null),
+}));
 
 vi.mock("../api/mypage", () => ({
   fetchMyPageBundle: vi.fn(),

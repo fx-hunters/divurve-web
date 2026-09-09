@@ -21,6 +21,7 @@ import type {
 } from "./planner-api-types";
 import {
   mergePlannerCurveDomains,
+  normalizePlannerDate,
   presentPlannerCurve,
   type PlannerCurveInput,
 } from "./planner-curve-presenter";
@@ -132,8 +133,9 @@ function formatNullableAmount(
   return value === null ? "제공되지 않음" : formatAmount(value, currencyCode);
 }
 
-function progressPercent(heldAmount: number, targetAmount: number): number {
+function progressPercent(heldAmount: number | null, targetAmount: number): number {
   if (
+    heldAmount === null ||
     !Number.isFinite(heldAmount) ||
     !Number.isFinite(targetAmount) ||
     targetAmount <= 0
@@ -180,7 +182,8 @@ function nextStepIndex(item: PlannerSourceItem): number {
   const plan = item.activePlan;
   if (plan === null) return -1;
   const explicit = plan.steps.findIndex(
-    (step) => step.nextAction || step.seq === plan.summary.nextActionSeq,
+    (step) => step.status !== "completed" && step.status !== "skipped" &&
+      (step.nextAction || step.seq === plan.summary.nextActionSeq),
   );
   if (explicit >= 0) return explicit;
   return plan.steps.findIndex(
@@ -234,24 +237,20 @@ function toSteps(
   });
 }
 
-function currentAmount(item: PlannerSourceItem): number {
+function currentAmount(item: PlannerSourceItem): number | null {
   const plan = item.activePlan;
-  if (plan === null) return item.goal.heldAmount;
-  const value = plan.goal.allocatedHoldingAmount;
-  return Number.isFinite(value) && value >= 0 ? value : 0;
+  const value = plan === null ? item.goal.heldAmount : plan.goal.allocatedHoldingAmount;
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function completedAmount(plan: PlannerPlanResponse): number {
+function completedAmount(plan: PlannerPlanResponse): number | null {
+  if (plan.steps.some((step) =>
+    !Number.isFinite(step.executedAmount) || step.executedAmount < 0 ||
+    (step.status !== "completed" && step.executedAmount !== 0),
+  )) return null;
   return plan.steps
     .filter((step) => step.status === "completed")
-    .reduce(
-      (sum, step) =>
-        sum +
-        (Number.isFinite(step.executedAmount) && step.executedAmount > 0
-          ? step.executedAmount
-          : 0),
-      0,
-    );
+    .reduce((sum, step) => sum + step.executedAmount, 0);
 }
 
 function toCurve(
@@ -262,25 +261,32 @@ function toCurve(
   if (plan === null) return null;
   const planKey = plan.planId ?? `preview-${item.goal.id}`;
   const current = currentAmount(item);
+  if (current === null) return null;
   const completed = completedAmount(plan);
   const canReconstructStoredHistory =
-    plan.planId === null || completed <= current;
+    completed !== null && completed <= current &&
+    (plan.planId !== null || completed === 0);
   // 저장 Plan 조회 응답의 allocatedHoldingAmount에는 완료 회차가 이미 포함된다.
   // 과거 완료 노드를 그릴 때만 백엔드의 H + executed 계약으로 시작점을 복원한다.
   const baseline =
     plan.planId === null || !canReconstructStoredHistory
       ? current
-      : current - completed;
+      : current - completed!;
+  const observationDates = [
+    plan.calculationMeta?.calculatedAt ?? null,
+    ...plan.steps.filter((step) => step.status === "completed")
+      .map((step) => step.executedDate),
+  ].map(normalizePlannerDate).filter((date): date is string => date !== null).sort();
   return presentPlannerCurve({
     currencyCode: plan.goal.currencyCode,
     baselineAmount: baseline,
     currentAmount: current,
-    currentDate: plan.calculationMeta?.calculatedAt ?? null,
+    currentDate: observationDates[observationDates.length - 1] ?? null,
     targetAmount: plan.goal.targetAmount ?? item.goal.targetAmount,
     targetDate: plan.goal.targetDate ?? item.goal.targetDate ?? null,
     dataNotice: canReconstructStoredHistory
       ? null
-      : "현재 확보액보다 완료 기록 합계가 커서 과거 완료 구간은 표시하지 않았습니다.",
+      : "현재 확보액과 완료 기록의 관계를 확인할 수 없어 과거 완료 구간은 표시하지 않았습니다.",
     steps: plan.steps.flatMap((step, index) => {
       const status = nodeStatus(step.status, index === nextIndex);
       if (!canReconstructStoredHistory && status === "completed") return [];
@@ -323,10 +329,8 @@ export function presentPlannerOverview(
     selected === null
       ? 0
       : activePlan?.goal.targetAmount ?? selected.goal.targetAmount;
-  const remainingAmount = Math.max(
-    0,
-    planTargetAmount - selectedCurrentAmount,
-  );
+  const remainingAmount = selectedCurrentAmount === null
+    ? null : Math.max(0, planTargetAmount - selectedCurrentAmount);
 
   return {
     goalItems: overview.items.map((item) => {
@@ -340,7 +344,7 @@ export function presentPlannerOverview(
         name: item.goal.name,
         currencyCode: item.goal.currencyCode,
         targetAmountLabel: formatAmount(targetAmount, item.goal.currencyCode),
-        heldAmountLabel: formatAmount(heldAmount, item.goal.currencyCode),
+        heldAmountLabel: formatNullableAmount(heldAmount, item.goal.currencyCode),
         targetDateLabel: targetDate ?? "미설정",
         isSelected: item.goal.id === selected?.goal.id,
         planStatusLabel:
@@ -363,14 +367,14 @@ export function presentPlannerOverview(
               planTargetAmount,
               selected.goal.currencyCode,
             ),
-            heldAmountLabel: formatAmount(
+            heldAmountLabel: formatNullableAmount(
               selectedCurrentAmount,
               selected.goal.currencyCode,
             ),
             remainingAmountLabel:
               activePlan === undefined || activePlan === null
                 ? "목표별 배정 후 확인"
-                : formatAmount(remainingAmount, selected.goal.currencyCode),
+                : formatNullableAmount(remainingAmount, selected.goal.currencyCode),
             heldAmountBasisLabel:
               activePlan === undefined || activePlan === null
                 ? "같은 통화의 전체 보유액이며 목표별 배정액은 아닙니다."
@@ -379,8 +383,9 @@ export function presentPlannerOverview(
               selectedCurrentAmount,
               planTargetAmount,
             ),
-            progressLabel:
-              activePlan === undefined || activePlan === null
+            progressLabel: selectedCurrentAmount === null
+              ? "확보액을 확인할 수 없어 진행률을 표시하지 않았습니다"
+              : activePlan === undefined || activePlan === null
                 ? "같은 통화 전체 보유액 기준 참고"
                 : "현재 목표 확보액 기준",
           },
@@ -456,7 +461,9 @@ export function presentPlannerOverview(
     planAvailabilityMessage:
       activePlan === null
         ? "활성 계획이 없습니다. 미리보기를 확인한 뒤 계획을 만들 수 있습니다."
-        : "서버에서 확인한 활성 계획입니다.",
+        : selectedCurrentAmount === null
+          ? "계획의 현재 확보액을 확인할 수 없어 Curve를 표시하지 않았습니다. 다시 불러와 주세요."
+          : "서버에서 확인한 활성 계획입니다.",
     scenarioOptions: API_SCENARIO_OPTIONS,
   };
 }
@@ -566,9 +573,13 @@ function comparisonCurves(
   }
   const changes = new Map(response.changedSteps.map((step) => [step.seq, step]));
   let hasForeignPathChange = false;
-  const alternativeSteps = baseInput.steps.map((step) => {
+  const alternativeSteps = baseInput.steps.flatMap((step) => {
     const change = changes.get(step.sequence);
-    if (change === undefined || step.status === "completed") return step;
+    if (change === undefined) return [step];
+    if (change.changeType === "REMOVED") {
+      hasForeignPathChange = true;
+      return [];
+    }
     const scheduledDate = change.dateAfter ?? step.scheduledDate;
     const plannedAmount = change.amountAfter ?? step.plannedAmount;
     if (
@@ -577,7 +588,7 @@ function comparisonCurves(
     ) {
       hasForeignPathChange = true;
     }
-    return { ...step, scheduledDate, plannedAmount };
+    return [{ ...step, scheduledDate, plannedAmount }];
   });
   for (const change of response.changedSteps) {
     if (
@@ -630,7 +641,15 @@ export function presentPlannerScenarioComparison(
 ): PlannerScenarioComparisonViewModel {
   const currencyCode = view.selectedGoal?.currencyCode ?? "외화";
   const changedSequences = new Set(response.changedSteps.map((step) => step.seq));
-  const curves = comparisonCurves(view, response);
+  // 서버는 재계산 draft를 1회차부터 부여하고 apply에서 완료 회차를 복사한다.
+  // 닫힌 회차 번호와 겹치는 변경은 동일 회차라는 근거가 없어 선을 합성하지 않는다.
+  const hasUnmappedHistory = response.changedSteps.some((change) =>
+    view.steps.some((step) => step.sequence === change.seq &&
+      (step.status === "completed" || step.status === "skipped")),
+  );
+  const curves = hasUnmappedHistory
+    ? { baseCurve: view.curve, alternativeCurve: null }
+    : comparisonCurves(view, response);
   return {
     id: option.id,
     label: option.label,
@@ -641,20 +660,22 @@ export function presentPlannerScenarioComparison(
     rows: sideRows(response.before, response.after, currencyCode),
     baseCurve: curves.baseCurve,
     alternativeCurve: curves.alternativeCurve,
-    changedNodeIds: (curves.alternativeCurve?.nodes ?? view.curveNodes)
+    changedNodeIds: (hasUnmappedHistory ? [] : curves.alternativeCurve?.nodes ?? view.curveNodes)
       .filter(
         (node) =>
           node.status !== "completed" && changedSequences.has(node.sequence),
       )
       .map((node) => node.id),
-    warnings: response.warnings.map(
+    warnings: [...response.warnings.map(
       (warning) =>
         WARNING_LABELS[warning] ??
         displayServerText(
           warning,
           "추가 확인이 필요한 변경 조건이 있습니다",
         ),
-    ),
+    ), ...(hasUnmappedHistory
+      ? ["완료·건너뛴 회차와 변경안의 회차 연결을 확인할 수 없어 변경 경로는 표시하지 않았습니다. 아래의 조건과 비용을 비교해 주세요."]
+      : [])],
   };
 }
 

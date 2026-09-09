@@ -71,6 +71,43 @@ function overview(): PlannerApiOverview {
 }
 
 describe("presentPlannerOverview", () => {
+  it.each(["active", "superseded"])("%s 조회와 apply 후 복사된 완료 회차는 현재 확보액에 중복 반영하지 않는다", (status) => {
+    const source = overview().items[0]!;
+    const plan = source.activePlan!;
+    const model = presentPlannerOverview({ items: [{ ...source, activePlan: {
+      ...plan, planId: "applied-or-historical", version: 4,
+      calculationMeta: { ...plan.calculationMeta!, calculatedAt: "2026-09-01T00:00:00Z" },
+      goal: { ...plan.goal, allocatedHoldingAmount: 2000, targetAmount: 3000, remainingAmount: 1000 },
+      summary: { ...plan.summary, status, nextActionSeq: 1 },
+      steps: [
+        { ...plan.steps[0]!, seq: 1, executedAmount: 700, executedDate: "2026-09-02", nextAction: true },
+        { ...plan.steps[0]!, seq: 2, executedAmount: 300, executedDate: "2026-09-03", nextAction: false },
+        { ...plan.steps[2]!, seq: 3, amount: 100, executedAmount: 0 },
+      ],
+    } }] });
+    expect(model.selectedGoal).toMatchObject({ heldAmount: 2000, remainingAmountLabel: "1,000 USD" });
+    expect(model.curve).toMatchObject({ baselineAmount: 1000, currentAmount: 2000, currentDate: "2026-09-03" });
+    expect(model.curveNodes.map((node) => node.cumulativeAmount)).toEqual([1700, 2000, 2100]);
+    expect(model.nextAction?.sequence).toBe(3);
+  });
+
+  it("새 preview는 입력 배정액에서 시작하고 모순된 완료 기록은 과거 Curve로 복원하지 않는다", () => {
+    const source = overview().items[0]!;
+    const plan = source.activePlan!;
+    for (const executedAmount of [700, Number.NaN, -1]) {
+      const view = presentPlannerOverview({ items: [{ ...source, activePlan: {
+        ...plan, planId: null, goal: { ...plan.goal, allocatedHoldingAmount: 1000 },
+        steps: [{ ...plan.steps[0]!, executedAmount }, plan.steps[2]!],
+      } }] });
+      expect(view.selectedGoal?.heldAmount).toBe(1000);
+      expect(view.curve?.nodes.some((node) => node.status === "completed")).toBe(false);
+      expect(view.curve?.dataNotice).toContain("관계");
+    }
+    const contradictory = presentPlannerOverview({ items: [{ ...source, activePlan: {
+      ...plan, steps: [{ ...plan.steps[2]!, executedAmount: 10 }],
+    } }] });
+    expect(contradictory.curve?.dataNotice).toContain("관계");
+  });
   it("0개 목표에는 빈 ViewModel을 만들고 선택되지 않으면 첫 목표를 고른다", () => {
     expect(presentPlannerOverview({ items: [] })).toMatchObject({
       goalItems: [],
@@ -250,7 +287,7 @@ describe("presentPlannerOverview", () => {
     expect(model.supportedActions.canPreviewPlan).toBe(true);
   });
 
-  it("저장 Plan의 현재 확보액이 올바르지 않으면 0으로 표시한다", () => {
+  it("저장 Plan의 현재 확보액을 확인할 수 없으면 0으로 위장하지 않는다", () => {
     const first = overview().items[0]!;
     const model = presentPlannerOverview({
       items: [
@@ -268,11 +305,12 @@ describe("presentPlannerOverview", () => {
     });
 
     expect(model.selectedGoal).toMatchObject({
-      heldAmount: 0,
-      heldAmountLabel: "0 USD",
+      heldAmount: null,
+      heldAmountLabel: "제공되지 않음",
       progressPercent: 0,
     });
-    expect(model.curve?.currentPoint?.amount).toBe(0);
+    expect(model.curve).toBeNull();
+    expect(model.selectedGoal?.remainingAmountLabel).toBe("제공되지 않음");
   });
 
   it("실제 날짜 간격과 누적 금액으로 Curve 좌표와 상태를 만든다", () => {
@@ -474,6 +512,35 @@ describe("presentPlannerOverview", () => {
     expect(comparison.alternativeCurve?.path).not.toBe(model.curve?.path);
     expect(comparison.changedNodeIds).toHaveLength(2);
     expect(comparison.warnings).toEqual(["조건 확인"]);
+
+    // 실제 backend는 draft를 1부터 다시 매기고 apply에서 완료 이력을 복사한다.
+    // 닫힌 회차와 번호가 겹치는 응답으로 미래 Curve를 추측하지 않는다.
+    for (const sequence of [1, 2]) {
+      const unmapped = presentPlannerScenarioComparison({
+        ...response,
+        changedSteps: [{
+          seq: sequence, changeType: "MODIFIED", dateBefore: "2026-09-01",
+          dateAfter: "2026-10-15", amountBefore: 10, amountAfter: 25,
+        }],
+      }, model, option);
+      expect(unmapped.baseCurve).toBe(model.curve);
+      expect(unmapped.alternativeCurve).toBeNull();
+      expect(unmapped.changedNodeIds).toEqual([]);
+      expect(unmapped.rows).toEqual(comparison.rows);
+      expect(unmapped.warnings).toContainEqual(expect.stringContaining("회차 연결을 확인할 수 없어"));
+    }
+
+    const removed = presentPlannerScenarioComparison({
+      ...response,
+      changedSteps: [{
+        seq: 3, changeType: "REMOVED", dateBefore: "2026-10-10",
+        dateAfter: null, amountBefore: 30, amountAfter: null,
+      }],
+    }, model, option);
+    expect(removed.alternativeCurve?.nodes.some((node) => node.sequence === 3)).toBe(false);
+    expect(removed.alternativeCurve?.nodes.find((node) => node.sequence === 1))
+      .toMatchObject({ status: "completed", cumulativeAmount: 35 });
+    expect(removed.alternativeCurve?.nodes.find((node) => node.sequence === 4)?.cumulativeAmount).toBe(75);
 
     const completedStepWithoutExecutionDate: PlannerViewModel = {
       ...model,

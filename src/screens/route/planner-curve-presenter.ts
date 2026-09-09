@@ -178,6 +178,8 @@ export function presentPlannerCurve(
   input: PlannerCurveInput,
   domainOverride?: PlannerCurveDomain,
 ): PlannerCurveViewModel | null {
+  if (!Number.isFinite(input.baselineAmount) || input.baselineAmount < 0 ||
+      !Number.isFinite(input.currentAmount) || input.currentAmount < 0) return null;
   const issues: string[] = input.dataNotice === undefined || input.dataNotice === null
     ? []
     : [input.dataNotice];

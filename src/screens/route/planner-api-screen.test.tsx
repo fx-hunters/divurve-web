@@ -118,6 +118,17 @@ beforeEach(() => {
 });
 
 describe("PlannerApiScreen", () => {
+  it("출처 보조 조회 오류를 안내하면서 서버 목표는 표시한다", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.load).mockResolvedValue({ ...PLANNER_API_FIXTURE,
+      dataSourceNotice: "자산 출처를 확인하지 못했습니다", isSampleData: undefined,
+    });
+    render(<PlannerApiScreen dependencies={deps} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("자산 출처");
+    expect(screen.getByRole("button", { name: /미국/ })).toBeInTheDocument();
+    expect(screen.getByText("서버 조회 데이터")).toBeInTheDocument();
+  });
+
   it("로딩, 오류 재시도, 빈 목표를 각각 표시한다", async () => {
     const load = vi
       .fn()

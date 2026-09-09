@@ -157,7 +157,9 @@ export function PlannerApiScreen({
   const feedback: PlannerJourneyFeedback =
     planner.actionState.status === "success"
       ? { status: "success", message: planner.actionState.message }
-      : planner.actionState;
+      : planner.actionState.status === "idle" && baseOverview.dataSourceNotice !== undefined
+        ? { status: "error", message: baseOverview.dataSourceNotice }
+        : planner.actionState;
 
   return (
     <PlannerJourneyScreen

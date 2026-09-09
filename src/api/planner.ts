@@ -31,6 +31,7 @@ export interface PlannerApiOverview {
   readonly items: readonly PlannerApiItem[];
   readonly isDemo?: boolean;
   readonly isSampleData?: boolean;
+  readonly dataSourceNotice?: string;
 }
 
 /** 서버가 반환하는 계획 버전 이력의 한 행. */
@@ -77,6 +78,11 @@ function requiredNumber(value: unknown, field: string): number {
 
 function requiredBoolean(value: unknown, field: string): boolean {
   return typeof value === "boolean" ? value : invalidResponse(field);
+}
+
+function nonNegativeNumber(value: unknown, field: string): number {
+  const number = requiredNumber(value, field);
+  return number >= 0 ? number : invalidResponse(field);
 }
 
 function nullableString(value: unknown, field: string): string | null {
@@ -148,7 +154,7 @@ function toPlanGoal(value: unknown): PlannerPlanGoal {
     currencyCode: requiredString(row.currencyCode, "goal.currencyCode"),
     targetAmount: nullableNumber(row.targetAmount, "goal.targetAmount"),
     roundBudgetKrw: nullableNumber(row.roundBudgetKrw, "goal.roundBudgetKrw"),
-    allocatedHoldingAmount: requiredNumber(
+    allocatedHoldingAmount: nonNegativeNumber(
       row.allocatedHoldingAmount,
       "goal.allocatedHoldingAmount",
     ),
@@ -182,11 +188,11 @@ function toPlanStep(value: unknown, index: number): PlannerPlanStep {
   return {
     seq: requiredNumber(row.seq, `${field}.seq`),
     scheduledDate: requiredString(row.scheduledDate, `${field}.scheduledDate`),
-    amount: requiredNumber(row.amount, `${field}.amount`),
+    amount: nonNegativeNumber(row.amount, `${field}.amount`),
     budgetKrw: nullableNumber(row.budgetKrw, `${field}.budgetKrw`),
     estimatedCost: toCostRange(row.estimatedCost, `${field}.estimatedCost`),
     acquisition: toAcquisitionRange(row.acquisition, `${field}.acquisition`),
-    executedAmount: requiredNumber(row.executedAmount, `${field}.executedAmount`),
+    executedAmount: nonNegativeNumber(row.executedAmount, `${field}.executedAmount`),
     executedRate: nullableNumber(row.executedRate, `${field}.executedRate`),
     executedDate: nullableString(row.executedDate, `${field}.executedDate`),
     status: requiredString(row.status, `${field}.status`),
@@ -226,7 +232,13 @@ async function fetchActivePlan(goalId: string): Promise<PlannerPlanResponse | nu
 export async function fetchPlannerOverview(): Promise<PlannerApiOverview> {
   const [goalResult, xrayResult] = await Promise.all([
     requestWithMeta<GoalListResponse>("/api/v1/goals"),
-    fetchXrayOverview(),
+    fetchXrayOverview().catch((error: unknown) => {
+      // 인증 실패는 숨기지 않는다. 출처 보조 조회의 장애는 목표·계획 실패와 분리한다.
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        throw error;
+      }
+      return null;
+    }),
   ]);
   const items = await Promise.all(
     goalResult.data.goals.map(async (goal) => ({
@@ -236,9 +248,13 @@ export async function fetchPlannerOverview(): Promise<PlannerApiOverview> {
   );
   return {
     items,
-    isDemo: goalResult.meta.isDemo ?? xrayResult.meta.isDemo,
+    isDemo: goalResult.meta.isDemo ?? xrayResult?.meta.isDemo,
     isSampleData:
-      xrayResult.data.isSampleData ?? xrayResult.meta.isSampleData,
+      goalResult.meta.isSampleData ??
+      xrayResult?.data.isSampleData ?? xrayResult?.meta.isSampleData,
+    ...(xrayResult === null ? {
+      dataSourceNotice: "자산의 데이터 출처를 확인하지 못했습니다. 목표와 계획은 조회한 계정 응답을 표시합니다. 다시 불러오면 출처도 재확인합니다.",
+    } : {}),
   };
 }
 

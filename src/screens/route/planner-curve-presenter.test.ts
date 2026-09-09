@@ -87,8 +87,8 @@ describe("planner curve presenter", () => {
     expect(normalizePlannerDate(null)).toBeNull();
     const curve = presentPlannerCurve({
       ...input,
-      baselineAmount: Number.NaN,
-      currentAmount: Number.NaN,
+      baselineAmount: 0,
+      currentAmount: 0,
       currentDate: "2026-09-20",
       targetAmount: Number.POSITIVE_INFINITY,
       targetDate: "invalid",
@@ -109,6 +109,10 @@ describe("planner curve presenter", () => {
   });
 
   it("사용 가능한 날짜가 하나도 없으면 Curve를 만들지 않는다", () => {
+    for (const invalid of [Number.NaN, -1]) {
+      expect(presentPlannerCurve({ ...input, baselineAmount: invalid })).toBeNull();
+      expect(presentPlannerCurve({ ...input, currentAmount: invalid })).toBeNull();
+    }
     expect(
       presentPlannerCurve({
         currencyCode: "EUR",
