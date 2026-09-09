@@ -62,3 +62,4 @@
 | [0032](./0032-planner-journey-api-integration.md) | Planner Journey 실제 API 경계와 Curve UI 통합 | 2026-09-07 |
 | [0066](./0066-planner-develop-integration-and-preview-state.md) | 최신 develop 통합과 Planner preview 상태 분리 | 2026-09-08 |
 | [0067](./0067-planner-ux-unification.md) | API·데모 Planner Journey UI 통합 | 2026-09-09 |
+| [0071](./0071-planner-state-consistency.md) | Planner 현재 확보액과 데모 진행 상태 일관성 복구 | 2026-09-09 |
