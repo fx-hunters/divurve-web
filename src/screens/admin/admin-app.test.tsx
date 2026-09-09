@@ -98,7 +98,9 @@ beforeEach(() => {
   vi.mocked(readApiSession).mockReturnValue(SESSION);
   vi.mocked(login).mockResolvedValue(SESSION);
   vi.mocked(logout).mockReset();
-  setPathname("/admin");
+  // `/admin` 자체는 이제 대시보드다(#93). 사용자 화면을 전제하던 테스트는
+  // 목록 경로에서 시작한다.
+  setPathname("/admin/users");
 });
 
 afterEach(() => {
@@ -124,30 +126,59 @@ describe("AdminApp", () => {
     expect(installSessionRefresh).toHaveBeenCalled();
   });
 
+  it("/admin 은 대시보드로 들어간다", () => {
+    setPathname("/admin");
+
+    render(<AdminApp />);
+
+    expect(
+      screen.getByRole("heading", { name: "운영 현황" }),
+    ).toBeInTheDocument();
+  });
+
+  it("결측 메뉴로 히트맵 자리에 들어간다", () => {
+    render(<AdminApp />);
+
+    fireEvent.click(screen.getByRole("button", { name: "결측" }));
+
+    expect(
+      screen.getByRole("heading", { name: "환율 결측" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin/fx-rates/gaps");
+  });
+
+  it("메뉴를 묶음으로 세운다", () => {
+    render(<AdminApp />);
+
+    expect(screen.getByText("환율")).toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("마스터")).toBeInTheDocument();
+  });
+
   it("메뉴로 화면을 옮기고 경로를 바꾼다", () => {
     render(<AdminApp />);
 
-    fireEvent.click(screen.getByRole("button", { name: "통화 마스터" }));
+    fireEvent.click(screen.getByRole("button", { name: "통화" }));
     expect(screen.getByText("통화 화면")).toBeInTheDocument();
     expect(window.location.pathname).toBe("/admin/currencies");
 
-    fireEvent.click(screen.getByRole("button", { name: "환율·갱신" }));
+    fireEvent.click(screen.getByRole("button", { name: "시계열" }));
     expect(screen.getByText("환율 화면")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 설명" }));
+    fireEvent.click(screen.getByRole("button", { name: "설명" }));
     expect(screen.getByText("설명 화면")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 추출" }));
+    fireEvent.click(screen.getByRole("button", { name: "추출" }));
     expect(screen.getByText("추출 화면")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "AI 추출" }),
+      screen.getByRole("button", { name: "추출" }),
     ).toHaveAttribute("aria-current", "page");
 
     // 같은 경로를 다시 눌러도 히스토리를 늘리지 않는다.
-    fireEvent.click(screen.getByRole("button", { name: "AI 추출" }));
+    fireEvent.click(screen.getByRole("button", { name: "추출" }));
     expect(window.location.pathname).toBe("/admin/ai/extract");
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 로그" }));
+    fireEvent.click(screen.getByRole("button", { name: "로그" }));
     expect(screen.getByText("AI 로그 화면")).toBeInTheDocument();
     expect(window.location.pathname).toBe("/admin/ai/calls");
   });
@@ -155,7 +186,7 @@ describe("AdminApp", () => {
   it("AI 로그의 행에서도 사용자 상세로 이동한다", () => {
     render(<AdminApp />);
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 로그" }));
+    fireEvent.click(screen.getByRole("button", { name: "로그" }));
     fireEvent.click(screen.getByRole("button", { name: "로그에서 상세로" }));
 
     expect(screen.getByText("상세 화면 9")).toBeInTheDocument();
@@ -176,7 +207,7 @@ describe("AdminApp", () => {
   it("뒤로 가기(popstate)에 반응한다", async () => {
     render(<AdminApp />);
 
-    fireEvent.click(screen.getByRole("button", { name: "통화 마스터" }));
+    fireEvent.click(screen.getByRole("button", { name: "통화" }));
     expect(screen.getByText("통화 화면")).toBeInTheDocument();
 
     act(() => {

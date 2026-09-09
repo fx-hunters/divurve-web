@@ -39,14 +39,23 @@ describe("XRayExposureView", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "통화 구성" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "외화 비중" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "통화별 노출" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "환율 민감도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "손익 분해" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "스트레스 시나리오" })).toBeInTheDocument();
 
+    // 금액은 상단 요약 스트립에 모인다. 환율 민감도는 별도 카드가 아니라 스트립 한 칸이다.
+    expect(screen.getByText("총 자산")).toBeInTheDocument();
+    expect(screen.getByText("₩ 20,000,000")).toBeInTheDocument();
     expect(screen.getByText("₩ 8,000,000")).toBeInTheDocument();
     expect(screen.getByText("₩ 12,000,000")).toBeInTheDocument();
+    expect(screen.getByText("환율 1% 상승 시")).toBeInTheDocument();
+
+    // 도넛과 게이지는 모수가 달라 소제목마다 기준을 밝힌다.
+    expect(screen.getByText("총 자산 대비")).toBeInTheDocument();
+    expect(screen.getByText("총 자산의 40%")).toBeInTheDocument();
+    expect(screen.getByText("외화 자산 대비")).toBeInTheDocument();
     expect(screen.getByText("USD 75%")).toBeInTheDocument();
     expect(screen.getByText("JPY 25%")).toBeInTheDocument();
     expect(screen.getByText("기준선 60%")).toBeInTheDocument();

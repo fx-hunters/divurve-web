@@ -9,6 +9,11 @@ import {
   toCamelCase,
   toSnakeCase,
 } from "./client";
+import {
+  COLD_START_THRESHOLD_MS,
+  getColdStartNotice,
+  resetColdStartNotice,
+} from "./cold-start-notice";
 import { clearApiSession, saveApiSession } from "./session";
 import { registerSessionRefresher } from "./client";
 
@@ -418,5 +423,54 @@ describe("isRawBody", () => {
     expect(
       JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string),
     ).toEqual({ surface: "s", facts: { camelKey: 1, snake_key: 2 } });
+  });
+});
+
+describe("콜드 스타트 알림", () => {
+  // 앞선 테스트의 네트워크 실패가 알림을 켜 둔 채로 넘어온다.
+  beforeEach(() => {
+    resetColdStartNotice();
+  });
+
+  afterEach(() => {
+    resetColdStartNotice();
+    vi.useRealTimers();
+  });
+
+  it("응답이 임계 시간을 넘기면 알림을 켠다", async () => {
+    vi.useFakeTimers();
+    let settle: (response: Response) => void = () => {};
+    const pending = new Promise<Response>((resolve) => {
+      settle = resolve;
+    });
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending));
+
+    const result = request("/slow", { requiresAuth: false }, env);
+    expect(getColdStartNotice()).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(COLD_START_THRESHOLD_MS);
+    expect(getColdStartNotice()).toBe(true);
+
+    settle(jsonResponse({ data: "ok", meta: { as_of: "now" } }));
+    await expect(result).resolves.toBe("ok");
+  });
+
+  it("연결이 끊기면 곧바로 알림을 켠다", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    await expect(
+      request("/offline", { requiresAuth: false }, env),
+    ).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+    expect(getColdStartNotice()).toBe(true);
+  });
+
+  it("제때 응답이 오면 알림을 켜지 않는다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ data: "ok", meta: {} })),
+    );
+
+    await request("/fast", { requiresAuth: false }, env);
+    expect(getColdStartNotice()).toBe(false);
   });
 });

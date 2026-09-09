@@ -21,7 +21,7 @@ export function Sidebar({
       className="sidebar"
       style={{
         width: "var(--sidebar-width)",
-        height: "100vh",
+        height: "var(--viewport-height)",
         backgroundColor: "var(--surface)",
         borderRight: "1px solid var(--border)",
         display: "flex",

@@ -7,42 +7,21 @@
  * 만들거나 고치지 않는다.
  */
 import { apiPath, requestWithMeta, type ApiResult } from "./client";
+import {
+  isRecord,
+  readArray,
+  readBoolean,
+  readNumber,
+  readString,
+  readStringArray,
+  type AdminRecord,
+} from "./admin-record";
+
+/** 화면이 `api/admin`에서 그대로 가져다 쓰던 타입이라 재수출한다. */
+export type { AdminRecord };
+
 
 const ADMIN_BASE = "/api/v1/admin";
-
-/** 서버가 어떤 모양으로 주든 잃지 않고 담아 두기 위한 최소 단위. */
-export type AdminRecord = Readonly<Record<string, unknown>>;
-
-function isRecord(value: unknown): value is AdminRecord {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function readString(source: AdminRecord, key: string): string | null {
-  const value = source[key];
-  return typeof value === "string" ? value : null;
-}
-
-function readNumber(source: AdminRecord, key: string): number | null {
-  const value = source[key];
-  return typeof value === "number" ? value : null;
-}
-
-function readBoolean(source: AdminRecord, key: string): boolean | null {
-  const value = source[key];
-  return typeof value === "boolean" ? value : null;
-}
-
-function readArray(source: AdminRecord, key: string): readonly AdminRecord[] {
-  const value = source[key];
-  return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function readStringArray(source: AdminRecord, key: string): readonly string[] {
-  const value = source[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
 
 /* ------------------------------------------------------------------ *
  * 2-1. 사용자 목록

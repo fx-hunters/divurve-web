@@ -6,7 +6,7 @@
  */
 
 .admin-shell {
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -42,6 +42,25 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* 메뉴 묶음. 화면이 늘어 한 줄에 늘어놓기 어려워져 2단으로 바꿨다(#93). */
+.admin-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.5rem;
+}
+
+.admin-nav-group + .admin-nav-group {
+  border-left: 1px solid var(--border);
+  padding-left: 0.75rem;
+}
+
+.admin-nav-group__label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 .admin-nav-item {
@@ -452,7 +471,7 @@
 /* --- 로그인 --- */
 
 .admin-login {
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -483,4 +502,128 @@
 .admin-login__subtitle {
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+/* 대시보드 지표 카드(#84). 카드마다 따로 부르므로 하나가 실패해도 자리를 지킨다. */
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.admin-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-subtle);
+}
+
+.admin-metric-card__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.admin-metric-card__headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.admin-metric-card__headline--ok {
+  color: var(--primary);
+}
+
+.admin-metric-card__headline--warn {
+  color: var(--danger);
+}
+
+.admin-metric-card__headline--neutral {
+  color: var(--text);
+}
+/* 결측 히트맵(#85). 날짜 칸 격자가 아니라 조회 구간을 100%로 둔 비율 띠다 —
+   영업일 달력은 서버가 쥐고 있어 프론트가 칸을 세면 공휴일이 '보유'로 칠해진다. */
+.admin-gap-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.admin-gap-row__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+}
+
+.admin-gap-row__pair {
+  font-weight: 700;
+  min-width: 5rem;
+}
+
+.admin-gap-row__ratio--complete {
+  color: var(--primary);
+}
+
+.admin-gap-row__ratio--incomplete {
+  color: var(--danger);
+}
+
+.admin-gap-row__ratio--unknown {
+  color: var(--text-muted);
+}
+
+.admin-gap-row__missing {
+  color: var(--text-muted);
+}
+
+.admin-gap-track {
+  position: relative;
+  height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+  overflow: hidden;
+}
+
+/* 빠진 구간. 색만으로 구분하지 않도록 사선 무늬를 함께 준다. */
+.admin-gap-track__gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background-color: var(--danger-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    var(--danger-border) 3px 6px
+  );
+}
+
+.admin-gap-track__gap:hover,
+.admin-gap-track__gap:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+}
+
+.admin-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

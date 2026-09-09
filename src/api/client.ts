@@ -1,3 +1,7 @@
+import {
+  COLD_START_THRESHOLD_MS,
+  noticeColdStart,
+} from "./cold-start-notice";
 import { getApiAccessToken } from "./session";
 
 type ApiEnv = Pick<ImportMetaEnv, "VITE_API_URL">;
@@ -237,6 +241,9 @@ async function sendRequest<T>(
   }
 
   let response: Response;
+  // 절전 상태의 인스턴스는 깨어날 때까지 응답을 붙들고 있다. 임계 시간을 넘기면
+  // 화면 최상단 배너가 뜨도록 알린다(cold-start-notice.ts).
+  const coldStartTimer = setTimeout(noticeColdStart, COLD_START_THRESHOLD_MS);
   try {
     response = await fetch(apiUrl(path, env), {
       ...requestInit,
@@ -247,11 +254,15 @@ async function sendRequest<T>(
           : JSON.stringify(isRawBody ? body : toSnakeCase(body)),
     });
   } catch {
+    // 깨어나는 중인 인스턴스는 연결 자체를 끊기도 한다. 같은 안내를 띄운다.
+    noticeColdStart();
     throw new ApiError(
       "서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.",
       0,
       "NETWORK_ERROR",
     );
+  } finally {
+    clearTimeout(coldStartTimer);
   }
 
   if (response.status === 401 && requiresAuth && canRefresh) {
