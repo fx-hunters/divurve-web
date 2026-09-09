@@ -150,7 +150,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
     expect(window.location.pathname).toBe("/route");
 
     fireEvent.click(await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }));

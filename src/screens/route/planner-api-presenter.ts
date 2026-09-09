@@ -241,19 +241,17 @@ function currentAmount(item: PlannerSourceItem): number {
   return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function completedAmount(item: PlannerSourceItem): number {
-  return (
-    item.activePlan?.steps
-      .filter((step) => step.status === "completed")
-      .reduce(
-        (sum, step) =>
-          sum +
-          (Number.isFinite(step.executedAmount) && step.executedAmount > 0
-            ? step.executedAmount
-            : 0),
-        0,
-      ) ?? 0
-  );
+function completedAmount(plan: PlannerPlanResponse): number {
+  return plan.steps
+    .filter((step) => step.status === "completed")
+    .reduce(
+      (sum, step) =>
+        sum +
+        (Number.isFinite(step.executedAmount) && step.executedAmount > 0
+          ? step.executedAmount
+          : 0),
+      0,
+    );
 }
 
 function toCurve(
@@ -264,7 +262,7 @@ function toCurve(
   if (plan === null) return null;
   const planKey = plan.planId ?? `preview-${item.goal.id}`;
   const current = currentAmount(item);
-  const completed = completedAmount(item);
+  const completed = completedAmount(plan);
   const canReconstructStoredHistory =
     plan.planId === null || completed <= current;
   // 저장 Plan 조회 응답의 allocatedHoldingAmount에는 완료 회차가 이미 포함된다.

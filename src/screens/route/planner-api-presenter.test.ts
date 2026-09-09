@@ -250,6 +250,31 @@ describe("presentPlannerOverview", () => {
     expect(model.supportedActions.canPreviewPlan).toBe(true);
   });
 
+  it("저장 Plan의 현재 확보액이 올바르지 않으면 0으로 표시한다", () => {
+    const first = overview().items[0]!;
+    const model = presentPlannerOverview({
+      items: [
+        {
+          ...first,
+          activePlan: {
+            ...first.activePlan!,
+            goal: {
+              ...first.activePlan!.goal,
+              allocatedHoldingAmount: Number.NaN,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(model.selectedGoal).toMatchObject({
+      heldAmount: 0,
+      heldAmountLabel: "0 USD",
+      progressPercent: 0,
+    });
+    expect(model.curve?.currentPoint?.amount).toBe(0);
+  });
+
   it("실제 날짜 간격과 누적 금액으로 Curve 좌표와 상태를 만든다", () => {
     const model = presentPlannerOverview(overview());
     expect(model.steps.map((step) => step.status)).toEqual([
@@ -449,6 +474,20 @@ describe("presentPlannerOverview", () => {
     expect(comparison.alternativeCurve?.path).not.toBe(model.curve?.path);
     expect(comparison.changedNodeIds).toHaveLength(2);
     expect(comparison.warnings).toEqual(["조건 확인"]);
+
+    const completedStepWithoutExecutionDate: PlannerViewModel = {
+      ...model,
+      steps: model.steps.map((step) =>
+        step.status === "completed" ? { ...step, executedDate: null } : step,
+      ),
+    };
+    expect(
+      presentPlannerScenarioComparison(
+        response,
+        completedStepWithoutExecutionDate,
+        option,
+      ).baseCurve?.nodes.find((node) => node.sequence === 1)?.date,
+    ).toBe("2026-09-01");
 
     const noDestination: PlannerViewModel = {
       ...model,
@@ -767,6 +806,12 @@ describe("presentPlannerOverview", () => {
       ],
       warnings: [],
     });
+
+    expect(
+      presentPlannerSkipComparison({ ...response, seq: 0 }, model, option).reason,
+    ).toBe(
+      "선택한 회차를 건너뛴 조건으로 서버가 남은 금액의 재분배 영향을 계산했습니다.",
+    );
   });
 
   it("지원하지 않는 공급처 동작은 서버 호출 없이 false를 반환한다", async () => {

@@ -241,6 +241,22 @@ describe("RouteScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
   });
 
+  it("회원 API 모드에서 직접 연 데모 상세 경로는 데모 선택을 현재 세션에 고정한다", async () => {
+    render(
+      <RouteScreen
+        mode="api"
+        detailRoute={{
+          source: "demo",
+          goalId: "usd-etf-recurring-demo",
+          planId: "usd-etf-recurring-demo",
+        }}
+      />,
+    );
+
+    await screen.findByRole("heading", { name: "미국 ETF 정기 투자" });
+    expect(readPlannerDemoPreference()).toBe(true);
+  });
+
   it("기본 상세 열기 콜백이 없어도 데모 여정은 안전하게 동작한다", async () => {
     await enterDemoAction();
     fireEvent.click(screen.getByRole("button", { name: "전체 계획 상세 보기" }));

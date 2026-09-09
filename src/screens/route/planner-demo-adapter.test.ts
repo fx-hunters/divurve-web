@@ -13,6 +13,14 @@ import {
 
 let data: RoutePlanData;
 
+function mapNonEmpty<T>(
+  items: readonly [T, ...T[]],
+  mapper: (item: T) => T,
+): readonly [T, ...T[]] {
+  const [first, ...rest] = items;
+  return [mapper(first), ...rest.map(mapper)];
+}
+
 beforeAll(async () => {
   const loaded = await loadRoutePlan();
   if (loaded === null) throw new Error("데모 플래너 fixture가 필요합니다.");
@@ -409,5 +417,85 @@ describe("planner demo adapter", () => {
 
     expect(comparison?.alternativeCurve).toBeNull();
     expect(comparison?.changedNodeIds).toEqual([]);
+  });
+
+  it("대체 경로에만 있는 기록 회차는 그 대체 회차 값으로 완료 상태를 만든다", () => {
+    const sourcePlan = data.plans[0]!;
+    const extraStep = {
+      ...sourcePlan.curveData.steps[1]!,
+      id: "scenario-only-round",
+      sequence: 99,
+      scheduledDate: "2027-01-01",
+      amount: 77,
+      status: "upcoming" as const,
+    };
+    const fixture: RoutePlanData = {
+      ...data,
+      plans: [
+        {
+          ...sourcePlan,
+          scenarios: mapNonEmpty(sourcePlan.scenarios, (scenario) =>
+            scenario.id === "reducedBudget"
+              ? {
+                  ...scenario,
+                  curveData: {
+                    ...sourcePlan.curveData,
+                    steps: [...sourcePlan.curveData.steps, extraStep],
+                  },
+                }
+              : scenario,
+          ),
+        },
+      ],
+    };
+
+    const model = presentDemoPlanner(
+      fixture,
+      sourcePlan.id,
+      demoProgress(sourcePlan.id, [99], "reducedBudget"),
+    );
+
+    expect(model.steps.find((step) => step.sequence === 99)).toMatchObject({
+      scheduledDate: "2027-01-01",
+      amount: 77,
+      status: "completed",
+      executedAmount: 77,
+    });
+  });
+
+  it("대체 경로가 모든 회차를 건너뛰어도 원래 계획의 미완료 회차를 안전하게 찾는다", () => {
+    const sourcePlan = data.plans[0]!;
+    const fixture: RoutePlanData = {
+      ...data,
+      plans: [
+        {
+          ...sourcePlan,
+          scenarios: mapNonEmpty(sourcePlan.scenarios, (scenario) =>
+            scenario.id === "reducedBudget"
+              ? {
+                  ...scenario,
+                  curveData: {
+                    ...sourcePlan.curveData,
+                    steps: sourcePlan.curveData.steps.map((step) => ({
+                      ...step,
+                      status: "skipped" as const,
+                    })),
+                  },
+                }
+              : scenario,
+          ),
+        },
+      ],
+    };
+
+    const model = presentDemoPlanner(
+      fixture,
+      sourcePlan.id,
+      demoProgress(sourcePlan.id, [], "reducedBudget"),
+    );
+
+    expect(model.steps).toHaveLength(sourcePlan.curveData.steps.length);
+    expect(model.steps.every((step) => step.status === "skipped")).toBe(true);
+    expect(model.nextAction).toBeNull();
   });
 });

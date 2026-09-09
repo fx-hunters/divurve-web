@@ -215,6 +215,23 @@ describe("PlannerCurveCanvas", () => {
     ).toBeInTheDocument();
   });
 
+  it("중간 길이 Curve는 네 회차마다 보조 라벨을 표시한다", () => {
+    const nodes = Array.from({ length: 12 }, (_, index) => ({
+      ...curve.nodes[2]!,
+      id: `medium-${index + 1}`,
+      sequence: index + 1,
+      status: "upcoming" as const,
+      roundLabel: `${index + 1}회차`,
+    }));
+    render(<PlannerCurveCanvas curve={{ ...curve, nodes }} />);
+
+    expect(screen.getByText("1회차")).toBeInTheDocument();
+    expect(screen.getByText("4회차")).toBeInTheDocument();
+    expect(screen.getByText("8회차")).toBeInTheDocument();
+    expect(screen.getByText("12회차")).toBeInTheDocument();
+    expect(screen.queryByText("2회차")).toBeNull();
+  });
+
   it("현재와 목표 지점 가까이에 회차가 있으면 라벨 위치를 벌린다", () => {
     const { container } = render(
       <PlannerCurveCanvas

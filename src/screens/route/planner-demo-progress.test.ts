@@ -13,6 +13,7 @@ describe("planner demo progress", () => {
   beforeEach(() => window.sessionStorage.clear());
 
   it("목표별 기록과 적용 시나리오를 현재 세션에 분리해 보관한다", () => {
+    expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
     const withUsd = recordPlannerDemoSequence(
       EMPTY_PLANNER_DEMO_PROGRESS,
       "usd-goal",
@@ -44,6 +45,11 @@ describe("planner demo progress", () => {
     sessionStorage.setItem(PLANNER_DEMO_PROGRESS_KEY, "not-json");
     expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
 
+    for (const invalidRoot of ["null", "[]", '"invalid"']) {
+      sessionStorage.setItem(PLANNER_DEMO_PROGRESS_KEY, invalidRoot);
+      expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
+    }
+
     sessionStorage.setItem(
       PLANNER_DEMO_PROGRESS_KEY,
       JSON.stringify({ version: 2, goals: {} }),
@@ -60,6 +66,10 @@ describe("planner demo progress", () => {
             appliedScenarioId: "missedRound",
           },
           invalid: null,
+          invalidSequences: {
+            recordedSequences: "not-an-array",
+            appliedScenarioId: null,
+          },
         },
       }),
     );
@@ -72,6 +82,20 @@ describe("planner demo progress", () => {
         },
       },
     });
+  });
+
+  it("버전은 맞지만 목표 컨테이너가 아닌 값도 빈 상태로 복구한다", () => {
+    sessionStorage.setItem(
+      PLANNER_DEMO_PROGRESS_KEY,
+      JSON.stringify({ version: 1, goals: null }),
+    );
+    expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
+
+    sessionStorage.setItem(
+      PLANNER_DEMO_PROGRESS_KEY,
+      JSON.stringify({ version: 1, goals: "not-a-goal-map" }),
+    );
+    expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
   });
 
   it("브라우저 저장소가 막혀도 읽기와 쓰기가 화면을 중단하지 않는다", () => {
