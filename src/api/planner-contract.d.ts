@@ -26,6 +26,47 @@ export interface PlannerGoalCreateRequest {
   readonly isSpeculative: false;
 }
 
+/**
+ * 목표를 저장하기 전에 계획을 계산할 때 보내는 본문.
+ *
+ * 백엔드 `PlanRequest`는 `goal_id`를 **선택**으로 두고, 없으면 이 본문의 조건으로
+ * 계산한다. 저장된 목표를 쓰려면 `goalId`만 담은 {@link PlannerPlanRequest}를 보낸다.
+ *
+ * 유형별로 필수 필드가 갈린다. 마감형은 목표 금액·목표일, 정기형은 회차 예산·
+ * 반복 주기·시작일·점검 기간이다. 빠진 필드는 서버가 필드명으로 알려주므로
+ * 프론트에서 임의로 보정하지 않는다.
+ */
+export interface PlannerPlanPreviewRequest {
+  readonly goalType: PlannerGoalKind;
+  readonly purpose: PlannerGoalPurpose;
+  readonly currencyCode: string;
+  readonly allocatedHoldingAmount: number;
+  readonly targetAmount: number;
+  readonly targetDate: string | null;
+  readonly budgetAmount: number | null;
+  readonly budgetPeriod: string | null;
+  readonly preferredCadence: string | null;
+  readonly recurringBudgetAmount: number | null;
+  readonly recurInterval: string | null;
+  readonly startDate: string | null;
+  readonly reviewHorizonMonths: number | null;
+}
+
+/**
+ * 목표 부분 수정 요청(`PUT /api/v1/goals/{id}`).
+ *
+ * 백엔드 `GoalUpdateRequest`는 모든 필드가 "값 변경 없음"을 뜻하는 null을 허용하는
+ * 부분 갱신 계약이다. 그래서 바꾸지 않을 필드는 키 자체를 담지 않는다.
+ */
+export interface PlannerGoalUpdateRequest {
+  readonly name?: string;
+  readonly targetAmount?: number;
+  readonly targetDate?: string;
+  readonly budgetAmount?: number;
+  readonly budgetPeriod?: string;
+  readonly isSpeculative?: boolean;
+}
+
 export interface PlannerCostRange {
   readonly lowKrw: number;
   readonly baseKrw: number;

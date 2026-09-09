@@ -80,29 +80,69 @@ export type AppRoute =
   | {
       readonly kind: "dashboard";
       readonly tab: "planner";
-      readonly view: "plannerDetail";
+      readonly view: "planner";
       readonly source: PlannerRouteSource;
+      readonly target: PlannerRouteTarget;
+    };
+
+/**
+ * 플래너 안에서 지금 보고 있는 것.
+ *
+ * 단계마다 주소가 달라야 새로고침과 뒤로가기가 단계를 지키고, 특정 목표나 계획을
+ * 링크로 가리킬 수 있다. 목표가 정해지지 않은 단계와 정해진 단계를 유니온으로
+ * 갈라, 목표 없이 계획 상세를 가리키는 상태를 타입에서 막는다.
+ */
+export type PlannerRouteTarget =
+  | { readonly kind: "goalSelect" }
+  | {
+      readonly kind: "goal";
+      readonly goalId: string;
+      readonly stage: PlannerGoalStage;
+    }
+  | {
+      readonly kind: "planDetail";
       readonly goalId: string;
       readonly planId: string;
     };
 
+/** 목표 하나를 고른 뒤의 단계. 주소 조각과 짝을 이룬다. */
+export type PlannerGoalStage = "main" | "planSetup" | "history" | "edit";
+
+const PLANNER_STAGE_SEGMENTS: Readonly<Record<PlannerGoalStage, string>> = {
+  main: "",
+  planSetup: "/plan-setup",
+  history: "/history",
+  edit: "/edit",
+};
+
+
 export function dashboardRoute(tab: NavTabId): AppRoute {
   return { kind: "dashboard", tab, view: "tab" };
+}
+
+type PlannerRoute = Extract<AppRoute, { readonly view: "planner" }>;
+
+export function plannerRoute(
+  source: PlannerRouteSource,
+  target: PlannerRouteTarget,
+): PlannerRoute {
+  return { kind: "dashboard", tab: "planner", view: "planner", source, target };
+}
+
+export function plannerGoalRoute(
+  source: PlannerRouteSource,
+  goalId: string,
+  stage: PlannerGoalStage = "main",
+): PlannerRoute {
+  return plannerRoute(source, { kind: "goal", goalId, stage });
 }
 
 export function plannerDetailRoute(
   source: PlannerRouteSource,
   goalId: string,
   planId: string,
-): Extract<AppRoute, { readonly view: "plannerDetail" }> {
-  return {
-    kind: "dashboard",
-    tab: "planner",
-    view: "plannerDetail",
-    source,
-    goalId,
-    planId,
-  };
+): PlannerRoute {
+  return plannerRoute(source, { kind: "planDetail", goalId, planId });
 }
 
 export const LANDING_ROUTE: AppRoute = { kind: "landing" };
@@ -129,27 +169,56 @@ export function toPathname(route: AppRoute): string {
       return DIAGNOSIS_INPUT_PATHS[route.entryMode];
     case "dashboard":
       if (route.view === "diagnosisResult") return APP_PATHS.diagnosisResult;
-      if (route.view === "plannerDetail") {
-        const prefix = route.source === "demo" ? "/route/demo" : "/route";
-        return `${prefix}/goals/${encodeURIComponent(route.goalId)}/plans/${encodeURIComponent(route.planId)}`;
-      }
+      if (route.view === "planner") return plannerPathname(route);
       return TAB_PATHS[route.tab];
   }
 }
 
-function plannerDetailFromPath(
-  path: string,
-): Extract<AppRoute, { readonly view: "plannerDetail" }> | null {
-  const match = path.match(
-    /^\/route\/(demo\/)?goals\/([^/]+)\/plans\/([^/]+)$/,
-  );
+function plannerPathname(route: PlannerRoute): string {
+  const prefix = route.source === "demo" ? "/route/demo" : APP_PATHS.planner;
+  const { target } = route;
+  if (target.kind === "goalSelect") return prefix;
+
+  const goalPath = `${prefix}/goals/${encodeURIComponent(target.goalId)}`;
+  return target.kind === "planDetail"
+    ? `${goalPath}/plans/${encodeURIComponent(target.planId)}`
+    : `${goalPath}${PLANNER_STAGE_SEGMENTS[target.stage]}`;
+}
+
+const PLANNER_PATH_PATTERN =
+  /^\/route(\/demo)?(?:\/goals\/([^/]+)(?:\/(plan-setup|history|edit)|\/plans\/([^/]+))?)?$/;
+
+/**
+ * 플래너 주소를 화면 상태로 바꾼다.
+ *
+ * 목표 id와 계획 id는 사용자가 만든 값이 아니라 서버가 준 값이지만, 주소창은
+ * 누구나 손댈 수 있다. 퍼센트 인코딩이 깨진 주소는 예외를 던지므로 `null`로
+ * 돌려보내 대시보드가 흡수하게 한다.
+ */
+function plannerFromPath(path: string): PlannerRoute | null {
+  const match = path.match(PLANNER_PATH_PATTERN);
   if (match === null) return null;
+
+  const source: PlannerRouteSource = match[1] === undefined ? "api" : "demo";
+  const rawGoalId = match[2];
+  if (rawGoalId === undefined) return plannerRoute(source, { kind: "goalSelect" });
+
   try {
-    return plannerDetailRoute(
-      match[1] === undefined ? "api" : "demo",
-      decodeURIComponent(match[2]!),
-      decodeURIComponent(match[3]!),
-    );
+    const goalId = decodeURIComponent(rawGoalId);
+    const rawPlanId = match[4];
+    if (rawPlanId !== undefined) {
+      return plannerDetailRoute(source, goalId, decodeURIComponent(rawPlanId));
+    }
+    // 정규식이 조각을 두 개로 좁혀 두었으므로 나머지는 목표 메인 화면이다.
+    const stage: PlannerGoalStage =
+      match[3] === "plan-setup"
+        ? "planSetup"
+        : match[3] === "history"
+          ? "history"
+          : match[3] === "edit"
+            ? "edit"
+            : "main";
+    return plannerGoalRoute(source, goalId, stage);
   } catch {
     return null;
   }
@@ -172,11 +241,12 @@ export function resolveAppRoute(
   if (path === APP_PATHS.login) return { kind: "auth", mode: "login" };
   if (path === APP_PATHS.signup) return { kind: "auth", mode: "signup" };
 
-  const plannerDetail = plannerDetailFromPath(path);
-  if (plannerDetail !== null) {
-    return plannerDetail.source === "api" && !isMemberSession
-      ? dashboardRoute("planner")
-      : plannerDetail;
+  const planner = plannerFromPath(path);
+  if (planner !== null) {
+    // 서버 연결 플래너는 회원 전용이다. 데모·비로그인 세션은 목표 선택으로 되돌린다.
+    return planner.source === "api" && !isMemberSession
+      ? plannerRoute("api", { kind: "goalSelect" })
+      : planner;
   }
 
   const entryMode = DIAGNOSIS_ENTRY_BY_PATH[path];

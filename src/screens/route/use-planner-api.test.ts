@@ -35,7 +35,7 @@ const scenarioResult: PlannerScenarioPreviewResponse = {
 };
 
 function dependencies(overrides: Partial<PlannerApiDependencies> = {}): PlannerApiDependencies {
-  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), createGoal: vi.fn().mockResolvedValue(overview().items[0]!.goal), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
+  return { load: vi.fn().mockResolvedValue(overview()), complete: vi.fn().mockResolvedValue(completeResult), skip: vi.fn().mockResolvedValue(skipResult), preview: vi.fn().mockResolvedValue(planResult), create: vi.fn().mockResolvedValue(planResult), createGoal: vi.fn().mockResolvedValue(overview().items[0]!.goal), updateGoal: vi.fn().mockResolvedValue(overview().items[0]!.goal), deleteGoal: vi.fn().mockResolvedValue(undefined), previewDraft: vi.fn().mockResolvedValue(planResult), previewScenario: vi.fn().mockResolvedValue(scenarioResult), apply: vi.fn().mockResolvedValue(planResult), createExecutionKey: vi.fn(() => "stable-key"), getToday: vi.fn(() => "2026-09-08"), ...overrides };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -438,5 +438,147 @@ describe("usePlannerApi", () => {
       hook.unmount();
       void invoke;
     }
+  });
+
+  it("계산할 수 없는 조건은 요청 자체를 보내지 않는다", async () => {
+    const deps = dependencies();
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      // 반복형은 시작일·점검 기간이 없어 매퍼가 null을 준다(BE 계획 §1-1).
+      await expect(result.current.previewDraft(null)).resolves.toBe(false);
+    });
+    expect(deps.previewDraft).not.toHaveBeenCalled();
+    expect(result.current.draftPreview).toBeNull();
+  });
+
+  it("저장 전 미리보기 실패는 화면에 알리고 결과를 남기지 않는다", async () => {
+    const deps = dependencies({
+      previewDraft: vi.fn().mockRejectedValue(new ApiError("계산 실패", 400)),
+    });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      await result.current.previewDraft({
+        goalType: "deadline",
+        purpose: "TRAVEL",
+        currencyCode: "USD",
+        allocatedHoldingAmount: 0,
+        targetAmount: 100,
+        targetDate: "2027-01-01",
+        budgetAmount: null,
+        budgetPeriod: null,
+        preferredCadence: null,
+        recurringBudgetAmount: null,
+        recurInterval: null,
+        startDate: null,
+        reviewHorizonMonths: null,
+      });
+    });
+
+    expect(result.current.actionState).toMatchObject({
+      status: "error",
+      message: "계산 실패",
+    });
+    expect(result.current.draftPreview).toBeNull();
+  });
+
+  it("목표 수정은 성공하면 재조회하고 실패는 그대로 알린다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const updateGoal = vi
+      .fn()
+      .mockResolvedValueOnce(overview().items[0]!.goal)
+      .mockRejectedValueOnce(new ApiError("수정 실패", 400));
+    const deps = dependencies({ load, updateGoal });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      await result.current.updateGoal("goal-usd", { targetAmount: 200 });
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("서버에서 다시 확인"),
+    });
+
+    await act(async () => {
+      await result.current.updateGoal("goal-usd", { targetAmount: 300 });
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(result.current.actionState).toMatchObject({
+      status: "error",
+      message: "수정 실패",
+    });
+  });
+
+  it("목표 삭제는 임시 상태를 비우고 재조회하며 실패는 그대로 알린다", async () => {
+    const load = vi.fn().mockResolvedValue(overview());
+    const deleteGoal = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ApiError("삭제 실패", 409));
+    const deps = dependencies({ load, deleteGoal });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    await act(async () => {
+      await result.current.preview(overview().items[0]!.goal);
+    });
+    expect(result.current.planPreview).not.toBeNull();
+
+    await act(async () => {
+      await result.current.deleteGoal("goal-usd");
+    });
+    expect(result.current.planPreview).toBeNull();
+    expect(result.current.actionState).toMatchObject({
+      status: "success",
+      message: expect.stringContaining("남은 목표를 다시 확인"),
+    });
+
+    await act(async () => {
+      await result.current.deleteGoal("goal-usd");
+    });
+    expect(result.current.actionState).toMatchObject({
+      status: "error",
+      message: "삭제 실패",
+    });
+  });
+
+  it("요청이 진행 중이면 수정·삭제·미리보기를 겹쳐 보내지 않는다", async () => {
+    const pending = deferred<void>();
+    const deps = dependencies({
+      deleteGoal: vi.fn().mockReturnValue(pending.promise),
+    });
+    const { result } = renderHook(() => usePlannerApi(deps));
+    await waitFor(() => expect(result.current.state.status).toBe("success"));
+
+    act(() => {
+      void result.current.deleteGoal("goal-usd");
+      void result.current.deleteGoal("goal-usd");
+      void result.current.updateGoal("goal-usd", { name: "겹침" });
+      void result.current.previewDraft({
+        goalType: "deadline",
+        purpose: "TRAVEL",
+        currencyCode: "USD",
+        allocatedHoldingAmount: 0,
+        targetAmount: 100,
+        targetDate: "2027-01-01",
+        budgetAmount: null,
+        budgetPeriod: null,
+        preferredCadence: null,
+        recurringBudgetAmount: null,
+        recurInterval: null,
+        startDate: null,
+        reviewHorizonMonths: null,
+      });
+    });
+
+    expect(deps.deleteGoal).toHaveBeenCalledOnce();
+    expect(deps.updateGoal).not.toHaveBeenCalled();
+    expect(deps.previewDraft).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(undefined));
   });
 });

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import type {
@@ -10,6 +11,33 @@ import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import type { PlanVersionDependencies } from "./use-plan-versions";
 import { PlannerApiScreen } from "./planner-api-screen";
+import type { JourneyStage } from "./use-planner-journey-flow";
+
+/**
+ * 주소가 하는 일을 대신하는 테스트용 껍데기.
+ *
+ * 실제로는 단계와 목표를 URL이 들고 있다. 여기서는 상태 하나로 흉내 내서, 화면이
+ * 이동을 요청하면 그대로 따라가게 한다.
+ */
+function RoutedPlannerApiScreen(
+  props: Omit<ComponentProps<typeof PlannerApiScreen>, "goalId" | "navigation">,
+) {
+  const [target, setTarget] = useState<{
+    readonly goalId: string | null;
+    readonly stage: JourneyStage;
+  }>({ goalId: null, stage: "goal" });
+  return (
+    <PlannerApiScreen
+      {...props}
+      goalId={target.goalId}
+      navigation={{
+        stage: target.stage,
+        onOpenGoalSelect: () => setTarget({ goalId: null, stage: "goal" }),
+        onOpenGoalStage: (goalId, stage) => setTarget({ goalId, stage }),
+      }}
+    />
+  );
+}
 
 const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
 const previewPlan: PlannerPlanResponse = {
@@ -98,6 +126,9 @@ function dependencies(
     preview: vi.fn().mockResolvedValue(previewPlan),
     create: vi.fn().mockResolvedValue(createdPlan),
     createGoal: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.goal),
+    updateGoal: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE.items[0]!.goal),
+    deleteGoal: vi.fn().mockResolvedValue(undefined),
+    previewDraft: vi.fn().mockResolvedValue(previewPlan),
     previewScenario: vi.fn().mockResolvedValue(scenarioResult),
     apply: vi.fn().mockResolvedValue(activePlan),
     createExecutionKey: vi.fn(() => "screen-key"),
@@ -107,7 +138,7 @@ function dependencies(
 }
 
 async function openAction(deps = dependencies()) {
-  render(<PlannerApiScreen dependencies={deps} />);
+  render(<RoutedPlannerApiScreen dependencies={deps} />);
   await screen.findByRole("region", { name: "API 플래너" });
   fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
   return deps;
@@ -118,12 +149,117 @@ beforeEach(() => {
 });
 
 describe("PlannerApiScreen", () => {
+  it("목표를 저장하기 전에 조건으로 계획을 계산해 보여준다", async () => {
+    const deps = dependencies({
+      load: vi.fn().mockResolvedValue({ items: [] }),
+    });
+    render(<RoutedPlannerApiScreen dependencies={deps} />);
+
+    await screen.findByText("첫 외화 목표를 만들어 보세요");
+    fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
+    fireEvent.change(screen.getByLabelText("목표 이름 또는 목적"), {
+      target: { value: "미국 학비" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 외화 금액"), {
+      target: { value: "60000" },
+    });
+    fireEvent.change(screen.getByLabelText("목표 날짜"), {
+      target: { value: "2027-09-08" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "저장 전에 계획 보기" }));
+
+    expect(
+      await screen.findByRole("region", { name: "저장 전 계획 미리보기" }),
+    ).toBeInTheDocument();
+    expect(deps.previewDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ goalType: "deadline", targetAmount: 60_000 }),
+    );
+    // 목표도 계획도 저장하지 않는다.
+    expect(deps.createGoal).not.toHaveBeenCalled();
+  });
+
+  it("목표 조건을 고치면 바뀐 항목만 서버로 보낸다", async () => {
+    const deps = await openAction();
+
+    fireEvent.click(screen.getByRole("button", { name: "목표 조건 수정" }));
+    fireEvent.change(await screen.findByLabelText("목표 외화 금액"), {
+      target: { value: "9000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "바뀐 조건 저장" }));
+
+    await waitFor(() =>
+      expect(deps.updateGoal).toHaveBeenCalledWith("goal-usd", {
+        targetAmount: 9_000,
+      }),
+    );
+  });
+
+  it("목표를 지우면 목표 선택으로 나간다", async () => {
+    const deps = await openAction();
+
+    fireEvent.click(screen.getByRole("button", { name: "목표 조건 수정" }));
+    fireEvent.click(await screen.findByRole("button", { name: "이 목표 지우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "목표 지우기" }));
+
+    await waitFor(() => expect(deps.deleteGoal).toHaveBeenCalledWith("goal-usd"));
+    expect(
+      await screen.findByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("서버 컨텍스트를 받으면 계획과 같은 환율 전제를 상단에 적는다", async () => {
+    const loadContext = vi.fn().mockResolvedValue({
+      asOf: "2026-09-09T00:00:00Z",
+      diagnosis: { status: "done", grade: "B", score: 72, concentrationThreshold: 0.4 },
+      portfolio: { totalAssetKrw: null, fxAssetKrw: null, fxRatio: 0.25, exposure: {} },
+      forecast: {
+        pairCode: "USD/KRW",
+        baseRate: 1_380.5,
+        interval80: { lo: 1_340.2, hi: 1_420.8 },
+        vol30d: null,
+        baseDate: "2026-09-08",
+      },
+      stress: null,
+      regime: "normal",
+    });
+    render(
+      <RoutedPlannerApiScreen
+        dependencies={dependencies()}
+        loadContext={loadContext}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "계획 배경 정보" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("USD/KRW 기준 환율")).toBeInTheDocument();
+    expect(loadContext).toHaveBeenCalledOnce();
+  });
+
+  it("컨텍스트를 받지 못해도 플래너는 그대로 쓸 수 있다", async () => {
+    const loadContext = vi.fn().mockRejectedValue(new ApiError("없음", 404, "NOT_FOUND"));
+    render(
+      <RoutedPlannerApiScreen
+        dependencies={dependencies()}
+        loadContext={loadContext}
+      />,
+    );
+
+    await screen.findByRole("region", { name: "API 플래너" });
+    await waitFor(() => expect(loadContext).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByRole("region", { name: "계획 배경 정보" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("로딩, 오류 재시도, 빈 목표를 각각 표시한다", async () => {
     const load = vi
       .fn()
       .mockRejectedValueOnce(new ApiError("조회 오류", 500, "SERVER"))
       .mockResolvedValueOnce(PLANNER_API_FIXTURE);
-    const first = render(<PlannerApiScreen dependencies={dependencies({ load })} />);
+    const first = render(
+      <RoutedPlannerApiScreen dependencies={dependencies({ load })} />,
+    );
     // 로딩 중에도 머리말과 단계 안내는 그대로 선다.
     expect(
       screen.getByRole("heading", { name: "내 외화 플래너" }),
@@ -135,7 +271,7 @@ describe("PlannerApiScreen", () => {
     first.unmount();
 
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies({ load: vi.fn().mockResolvedValue({ items: [] }) })}
       />,
     );
@@ -148,7 +284,7 @@ describe("PlannerApiScreen", () => {
       .mockResolvedValueOnce({ items: [] })
       .mockResolvedValue(PLANNER_API_FIXTURE);
     const deps = dependencies({ load });
-    render(<PlannerApiScreen dependencies={deps} />);
+    render(<RoutedPlannerApiScreen dependencies={deps} />);
 
     await screen.findByText("첫 외화 목표를 만들어 보세요");
     fireEvent.click(screen.getByRole("button", { name: "새 목표 만들기" }));
@@ -183,7 +319,7 @@ describe("PlannerApiScreen", () => {
       .fn()
       .mockRejectedValue(new ApiError("목표 생성 실패", 503, "SERVER"));
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies({
           load: vi.fn().mockResolvedValue({ items: [] }),
           createGoal,
@@ -221,7 +357,7 @@ describe("PlannerApiScreen", () => {
       .mockResolvedValueOnce(PLANNER_API_FIXTURE)
       .mockResolvedValue(withJpyPlan);
     const deps = dependencies({ load });
-    render(<PlannerApiScreen dependencies={deps} />);
+    render(<RoutedPlannerApiScreen dependencies={deps} />);
     await screen.findByRole("region", { name: "API 플래너" });
     fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
@@ -253,7 +389,7 @@ describe("PlannerApiScreen", () => {
   it("현재 상태, Curve와 다음 행동을 함께 표시하고 상세 경로를 요청한다", async () => {
     const onOpenPlanDetail = vi.fn();
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies()}
         onOpenPlanDetail={onOpenPlanDetail}
       />,
@@ -416,7 +552,7 @@ describe("PlannerApiScreen", () => {
       ],
     };
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies({ load: vi.fn().mockResolvedValue(completed) })}
       />,
     );
@@ -466,7 +602,7 @@ describe("PlannerApiScreen", () => {
       meta: { asOf: "2026-09-08T00:00:00Z" },
     });
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies()}
         planVersionDependencies={planVersionDependencies}
         explanationRequester={explanationRequester}
@@ -504,7 +640,7 @@ describe("PlannerApiScreen", () => {
       loadDetail: vi.fn(),
     };
     render(
-      <PlannerApiScreen
+      <RoutedPlannerApiScreen
         dependencies={dependencies()}
         planVersionDependencies={planVersionDependencies}
       />,

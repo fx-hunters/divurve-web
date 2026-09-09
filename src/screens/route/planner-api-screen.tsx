@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ApiStateView } from "../../components/common/api-state-view";
 import {
   presentPlannerOverview,
+  presentPlannerPlanSummary,
   presentPlannerScenarioComparison,
   presentPlannerSkipComparison,
   replacePlannerPlan,
@@ -21,9 +22,20 @@ import {
 } from "./use-planner-api";
 import { PlannerJourneyGoalSelect } from "./planner-journey-goal-select";
 import { PlannerJourneyHeader } from "./planner-journey-header";
-import { toPlannerGoalCreateRequest } from "./planner-goal-input";
+import {
+  toPlannerGoalCreateRequest,
+  toPlannerPlanPreviewRequest,
+  type PlannerGoalInput,
+} from "./planner-goal-input";
+import { presentPlannerContext } from "./planner-context-presenter";
+import {
+  usePlannerContext,
+  type PlannerContextLoader,
+} from "./use-planner-context";
+import type { PlannerJourneyNavigation } from "./use-planner-journey-flow";
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { PlanVersionDependencies } from "./use-plan-versions";
+import type { PlannerGoalUpdateRequest } from "../../api/planner-contract";
 import {
   readPlannerUiSelection,
   writePlannerGoalSelection,
@@ -31,7 +43,11 @@ import {
 import "./planner-api-screen.css";
 
 interface PlannerApiScreenProps {
+  /** 주소가 가리키는 목표. 목표 선택 화면에서는 null이다. */
+  readonly goalId: string | null;
+  readonly navigation: PlannerJourneyNavigation;
   readonly dependencies?: PlannerApiDependencies;
+  readonly loadContext?: PlannerContextLoader;
   readonly planVersionDependencies?: PlanVersionDependencies;
   readonly explanationRequester?: ExplanationRequester;
   readonly onExploreDemo?: () => void;
@@ -39,16 +55,23 @@ interface PlannerApiScreenProps {
 }
 
 export function PlannerApiScreen({
+  goalId,
+  navigation,
   dependencies,
+  loadContext,
   planVersionDependencies,
   explanationRequester,
   onExploreDemo,
   onOpenPlanDetail = () => undefined,
 }: PlannerApiScreenProps) {
   const planner = usePlannerApi(dependencies);
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(
+  const contextState = usePlannerContext(loadContext);
+  // 주소에 목표가 없는 목표 선택 화면에서만 쓰는 강조 상태다. 주소가 목표를
+  // 가리키면 그쪽이 이긴다 — 화면과 주소가 다른 목표를 가리키면 안 된다.
+  const [highlightedGoalId, setHighlightedGoalId] = useState<string | null>(
     () => readPlannerUiSelection().goalId,
   );
+  const selectedGoalId = goalId ?? highlightedGoalId;
   const [selectedOption, setSelectedOption] =
     useState<PlannerScenarioOptionViewModel | null>(null);
 
@@ -69,7 +92,7 @@ export function PlannerApiScreen({
           <PlannerJourneyGoalSelect
             goals={null}
             selectedGoalId=""
-            onSelect={setSelectedGoalId}
+            onSelect={setHighlightedGoalId}
             onExploreDemo={onExploreDemo}
           />
         </div>
@@ -121,9 +144,9 @@ export function PlannerApiScreen({
           )
       : null;
 
-  const handleSelectGoal = (goalId: string) => {
-    setSelectedGoalId(goalId);
-    writePlannerGoalSelection(goalId);
+  const handleSelectGoal = (nextGoalId: string) => {
+    setHighlightedGoalId(nextGoalId);
+    writePlannerGoalSelection(nextGoalId);
     setSelectedOption(null);
     planner.clearTransient();
   };
@@ -134,10 +157,15 @@ export function PlannerApiScreen({
   ) => {
     const result = await planner.createGoal(toPlannerGoalCreateRequest(input));
     if (result === null) return null;
-    setSelectedGoalId(result.id);
+    setHighlightedGoalId(result.id);
     writePlannerGoalSelection(result.id);
     return result.id;
   };
+  const handlePreviewGoalDraft = async (input: PlannerGoalInput) =>
+    planner.previewDraft(toPlannerPlanPreviewRequest(input));
+  const handleSaveGoal = async (input: PlannerGoalUpdateRequest) =>
+    planner.updateGoal(activeGoalId!, input);
+  const handleDeleteGoal = async () => planner.deleteGoal(activeGoalId!);
   const handleClearTransient = () => {
     setSelectedOption(null);
     planner.clearTransient();
@@ -186,12 +214,38 @@ export function PlannerApiScreen({
         dependencies: planVersionDependencies,
         explanationRequester,
       }}
+      navigation={navigation}
+      context={
+        contextState.status === "success"
+          ? presentPlannerContext(contextState.data)
+          : null
+      }
       goalCreation={{
         sourceLabel: "내 계정",
         canCreateRecurring: false,
         today: getPlannerToday(),
         onCreate: handleCreateGoal,
+        onPreview: handlePreviewGoalDraft,
+        preview:
+          planner.draftPreview === null
+            ? null
+            : presentPlannerPlanSummary(planner.draftPreview),
       }}
+      goalEditing={
+        rawGoal === undefined
+          ? undefined
+          : {
+              initial: {
+                name: rawGoal.name,
+                targetAmount: String(rawGoal.targetAmount),
+                targetDate: rawGoal.targetDate ?? "",
+                budgetAmount: String(rawGoal.budgetAmount ?? 0),
+              },
+              today: getPlannerToday(),
+              onSave: handleSaveGoal,
+              onDelete: handleDeleteGoal,
+            }
+      }
       onExploreDemo={onExploreDemo}
       onOpenPlanDetail={onOpenPlanDetail}
       onSelectGoal={handleSelectGoal}

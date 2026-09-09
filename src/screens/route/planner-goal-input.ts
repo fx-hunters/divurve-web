@@ -2,6 +2,7 @@ import type {
   PlannerGoalCreateRequest,
   PlannerGoalKind,
   PlannerGoalPurpose,
+  PlannerPlanPreviewRequest,
 } from "../../api/planner-contract";
 
 export interface PlannerGoalDraft {
@@ -136,5 +137,38 @@ export function toPlannerGoalCreateRequest(
     budgetCurrencyCode: "KRW",
     budgetPeriod: input.budgetPeriod,
     isSpeculative: false,
+  };
+}
+
+/**
+ * 목표를 저장하기 전에 계획을 계산해 볼 요청 본문.
+ *
+ * 반복형은 `null`을 돌려준다 — 백엔드 계산이 시작일과 점검 기간을 요구하는데
+ * 지금 폼은 둘 다 받지 않는다(BE 계획 §1-1). 없는 값을 지어내 보내면 화면의
+ * 회차와 저장 뒤 회차가 갈리므로, 계산 자체를 하지 않는 쪽을 고른다.
+ *
+ * `allocatedHoldingAmount`가 0인 것도 같은 이유다. 목표별 배정 보유 외화를 받는
+ * 입력이 아직 없어서, 서버에 보낼 값이 0뿐이다(BE 계획 §2-1).
+ */
+export function toPlannerPlanPreviewRequest(
+  input: PlannerGoalInput,
+): PlannerPlanPreviewRequest | null {
+  if (input.kind === "recurring") return null;
+
+  return {
+    goalType: "deadline",
+    purpose: input.purpose,
+    currencyCode: input.currencyCode,
+    allocatedHoldingAmount: 0,
+    targetAmount: input.targetAmount,
+    targetDate: input.targetDate,
+    budgetAmount: input.budgetAmount > 0 ? input.budgetAmount : null,
+    budgetPeriod: input.budgetPeriod,
+    // 마감형 준비 주기는 폼이 받지 않는다. 서버 기본값(주간)에 맡긴다.
+    preferredCadence: null,
+    recurringBudgetAmount: null,
+    recurInterval: null,
+    startDate: null,
+    reviewHorizonMonths: null,
   };
 }
