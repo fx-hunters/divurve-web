@@ -8,6 +8,7 @@ import type {
 import type { ExplanationRequester } from "../../hooks/use-ai-explanation";
 import type { XRayDashboardData } from "../../types/xray";
 import { XRayAiExplanation, XRAY_FITNESS_SURFACE } from "./xray-ai-explanation";
+import { XRaySummaryStrip, type XRaySummaryItem } from "./xray-summary-strip";
 import { isRiskProfileMeasured } from "../../components/diagnosis/diagnosis-presenter";
 import { toPercent } from "../../lib/percent";
 import {
@@ -15,6 +16,7 @@ import {
   toConcentrationStatusLabel,
   toFitnessExplanationFacts,
 } from "./xray-presenter";
+import "./xray-layout.css";
 
 export type FitPreviewState =
   | { readonly status: "idle" }
@@ -95,6 +97,59 @@ const CARD_TITLE_STYLE = {
 /** 분산 매수 후보로 보여줄 통화. 통화 색 배정과 같은 고정 목록이다. */
 const CANDIDATE_CURRENCIES = ["USD", "JPY", "EUR"] as const;
 
+/** 값이 없으면 0 으로 꾸미지 않고 없다고 적는다. */
+function toPercentLabel(percent: number | undefined, suffix: string): string {
+  return percent === undefined ? "—" : `${percent}${suffix}`;
+}
+
+/**
+ * 상단 요약 스트립에 올릴 판정 수치들.
+ *
+ * `gapPp` 는 서버가 준 `share − threshold` 로 이미 0~1 비율이라 표시 단위로만
+ * 바꾼다. 프론트에서 격차를 다시 계산하지 않는다(AGENTS.md §1).
+ */
+function toFitnessSummaryItems(
+  data: XRayDashboardData,
+): readonly XRaySummaryItem[] {
+  const { concentration } = data;
+  const isOver = isConcentrationAboveThreshold(concentration.status);
+  return [
+    {
+      key: "top-currency",
+      label: "주력 통화",
+      value: concentration.topCurrencyCode ?? "—",
+    },
+    {
+      key: "share",
+      label: "집중도",
+      value: toPercentLabel(concentration.sharePct, "%"),
+      tone: isOver ? "danger" : "primary",
+      hint: "외화 자산 대비",
+    },
+    {
+      key: "threshold",
+      label: "기준선",
+      value: toPercentLabel(concentration.thresholdPct, "%"),
+      // 등급 이름은 아래 진단 카드가 이미 적는다. 여기서는 기준선의 출처만 밝힌다.
+      hint:
+        concentration.thresholdPct === undefined
+          ? "성향 진단 후 제공"
+          : "내 성향 기준",
+    },
+    {
+      key: "gap",
+      label: "기준선 격차",
+      value:
+        concentration.gapPp === undefined
+          ? "—"
+          : `${concentration.gapPp > 0 ? "+" : ""}${toPercent(concentration.gapPp)}%p`,
+      tone: isOver ? "danger" : "default",
+      hint: concentration.statusLabel,
+    },
+  ];
+}
+
+
 export function XRayFitnessView({
   data,
   previewState,
@@ -114,146 +169,171 @@ export function XRayFitnessView({
   const isMeasured = isRiskProfileMeasured(concentration.riskProfileStatus);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* 1행: 집중도 진단 & 쏠림 해결 가이드 */}
-      <div className="responsive-grid-2col">
-        {/* 집중도 진단 카드 */}
-        <div style={CARD_STYLE}>
-          <h2 style={CARD_TITLE_STYLE}>집중도 진단</h2>
+    <div className="xray-layout">
+      <div className="xray-layout__full">
+        <XRaySummaryStrip items={toFitnessSummaryItems(data)} />
+      </div>
 
-          {concentration.sharePct === undefined ? (
-            <p style={{ fontSize: "0.9375rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
-              집중도를 계산할 자산 정보가 아직 없습니다.
-            </p>
-          ) : (
-            <>
+      {/*
+       * 집중도 진단 — 큰 숫자는 위 스트립이 이미 보여 준다. 이 카드는 그
+       * 숫자를 기준선 옆에 세워 얼마나 넘었는지 보이는 일만 맡는다.
+       */}
+      <div className="xray-layout__pair" style={CARD_STYLE}>
+        <h2 style={CARD_TITLE_STYLE}>집중도 진단</h2>
+
+        {concentration.sharePct === undefined ? (
+          <p style={{ fontSize: "0.9375rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+            집중도를 계산할 자산 정보가 아직 없습니다.
+          </p>
+        ) : (
+          <>
+            <div
+              style={{
+                height: "20px",
+                width: "100%",
+                backgroundColor: "var(--border)",
+                borderRadius: "var(--radius-full)",
+                position: "relative",
+                overflow: "hidden",
+                marginBottom: "0.625rem",
+              }}
+            >
               <div
                 style={{
-                  fontSize: "clamp(3rem, 8vw, 4.5rem)",
-                  fontWeight: 800,
-                  color: isOver ? "var(--danger)" : "var(--primary)",
-                  marginBottom: "1rem",
-                  fontVariantNumeric: "tabular-nums",
-                  letterSpacing: "-0.04em",
-                  lineHeight: 1,
+                  width: `${concentration.sharePct}%`,
+                  height: "100%",
+                  backgroundColor: isOver ? "var(--danger)" : "var(--primary)",
                 }}
-              >
-                {concentration.sharePct}
-                <span style={{ fontSize: "2.25rem", fontWeight: 500, opacity: 0.7, marginLeft: "4px" }}>
-                  %
-                </span>
-              </div>
-              <p
-                style={{
-                  fontSize: "0.9375rem",
-                  fontWeight: 500,
-                  color: "var(--text)",
-                  borderLeft: `3px solid ${isOver ? "var(--danger)" : "var(--primary)"}`,
-                  paddingLeft: "0.75rem",
-                  lineHeight: 1.6,
-                }}
-              >
-                주력 통화({concentration.topCurrencyCode ?? "-"}) 비중이 전체의{" "}
-                {concentration.sharePct}%입니다. 판정: {concentration.statusLabel}.
-                {concentration.thresholdPct !== undefined &&
-                  ` 기준선은 ${concentration.thresholdPct}%입니다.`}
-              </p>
-            </>
-          )}
-
-          {!isMeasured && (
+              />
+              {concentration.thresholdPct !== undefined && (
+                <div
+                  data-testid="fitness-threshold-marker"
+                  style={{
+                    position: "absolute",
+                    left: `${concentration.thresholdPct}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: "2px",
+                    backgroundColor: "var(--text)",
+                    zIndex: 10,
+                  }}
+                />
+              )}
+            </div>
             <p
               style={{
-                fontSize: "0.8125rem",
-                color: "var(--text-muted)",
-                marginTop: "1rem",
+                fontSize: "0.9375rem",
+                fontWeight: 500,
+                color: "var(--text)",
+                borderLeft: `3px solid ${isOver ? "var(--danger)" : "var(--primary)"}`,
+                paddingLeft: "0.75rem",
                 lineHeight: 1.6,
               }}
             >
-              위험성향을 진단하면 내 성향에 맞는 기준선과 함께 판정을 볼 수 있습니다. 마이페이지에서
-              진단할 수 있습니다.
+              주력 통화({concentration.topCurrencyCode ?? "-"}) 비중이 전체의{" "}
+              {concentration.sharePct}%입니다. 판정: {concentration.statusLabel}.
+              {concentration.thresholdPct !== undefined &&
+                ` 기준선은 ${concentration.thresholdPct}%입니다.`}
             </p>
-          )}
-          {isMeasured && concentration.gradeLabel !== undefined && (
-            <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "1rem" }}>
-              위험성향 {concentration.gradeLabel}
-              {concentration.diagnosedOnLabel !== undefined &&
-                ` · ${concentration.diagnosedOnLabel} 진단`}
-            </p>
-          )}
-          <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
-            {concentration.basisNote}
+          </>
+        )}
+
+        {!isMeasured && (
+          <p
+            style={{
+              fontSize: "0.8125rem",
+              color: "var(--text-muted)",
+              marginTop: "1rem",
+              lineHeight: 1.6,
+            }}
+          >
+            위험성향을 진단하면 내 성향에 맞는 기준선과 함께 판정을 볼 수 있습니다. 마이페이지에서
+            진단할 수 있습니다.
+          </p>
+        )}
+        {isMeasured && concentration.gradeLabel !== undefined && (
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "1rem" }}>
+            위험성향 {concentration.gradeLabel}
+            {concentration.diagnosedOnLabel !== undefined &&
+              ` · ${concentration.diagnosedOnLabel} 진단`}
+          </p>
+        )}
+        <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.75rem", lineHeight: 1.6 }}>
+          {concentration.basisNote}
+        </p>
+      </div>
+
+      {/* 쏠림을 고치는 방법 */}
+      <div
+        className="xray-layout__pair"
+        style={{
+          ...CARD_STYLE,
+          borderTop: "4px solid var(--primary)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          boxShadow: "0 4px 20px var(--primary-subtle)",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 700,
+              color: "var(--text)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <div style={{ color: "var(--primary)" }}>
+              <Icon name="sparkles" size={18} />
+            </div>
+            <span>쏠림을 고치는 방법</span>
+          </h2>
+          <p
+            style={{
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              color: "var(--text-muted)",
+              lineHeight: 1.6,
+              marginBottom: "1.5rem",
+            }}
+          >
+            이미 가진 통화를 파는 것은 투자 결정이라 다루지 않습니다. 앞으로 사는 통화를 다른
+            통화로 바꾸면 쏠림이 자연스럽게 줄어듭니다.
           </p>
         </div>
 
-        {/* 쏠림을 고치는 방법 */}
-        <div
+        <button
+          type="button"
+          onClick={onNavigateToPlanner}
           style={{
-            ...CARD_STYLE,
-            borderTop: "4px solid var(--primary)",
+            backgroundColor: "var(--primary)",
+            color: "var(--primary-content)",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            padding: "0.875rem 1.5rem",
+            borderRadius: "var(--radius-md)",
             display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            boxShadow: "0 4px 20px var(--primary-subtle)",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            boxShadow: "0 4px 12px var(--primary-subtle)",
+            transition: "all 0.15s ease",
           }}
         >
-          <div>
-            <h2
-              style={{
-                fontSize: "1.125rem",
-                fontWeight: 700,
-                color: "var(--text)",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <div style={{ color: "var(--primary)" }}>
-                <Icon name="sparkles" size={18} />
-              </div>
-              <span>쏠림을 고치는 방법</span>
-            </h2>
-            <p
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                color: "var(--text-muted)",
-                lineHeight: 1.6,
-                marginBottom: "1.5rem",
-              }}
-            >
-              이미 가진 통화를 파는 것은 투자 결정이라 다루지 않습니다. 앞으로 사는 통화를 다른
-              통화로 바꾸면 쏠림이 자연스럽게 줄어듭니다.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onNavigateToPlanner}
-            style={{
-              backgroundColor: "var(--primary)",
-              color: "var(--primary-content)",
-              fontWeight: 700,
-              fontSize: "0.875rem",
-              padding: "0.875rem 1.5rem",
-              borderRadius: "var(--radius-md)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              boxShadow: "0 4px 12px var(--primary-subtle)",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <span>새 통화 목표 만들기</span>
-            <Icon name="arrowRight" size={16} />
-          </button>
-        </div>
+          <span>새 통화 목표 만들기</span>
+          <Icon name="arrowRight" size={16} />
+        </button>
       </div>
 
-      {/* 2행: 비중 조정 시뮬레이터 */}
-      <div style={CARD_STYLE}>
+      {/*
+       * 비중 조정 시뮬레이터는 전폭에 둔다. 조정 결과 박스가 붙으면 카드가
+       * 크게 늘어나는데, 2열 안에 있으면 그 행 전체 높이가 따라 튄다.
+       */}
+      <div className="xray-layout__full" style={CARD_STYLE}>
         <h2 style={CARD_TITLE_STYLE}>비중 조정 시뮬레이터</h2>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -380,13 +460,14 @@ export function XRayFitnessView({
         </div>
       </div>
 
-      {/* 3행: 적합도 결과에 대한 AI 설명 */}
-      <XRayAiExplanation
-        surface={XRAY_FITNESS_SURFACE}
-        title="통화 적합도 AI 설명"
-        facts={toFitnessExplanationFacts(data)}
-        requester={explanationRequester}
-      />
+      <div className="xray-layout__full">
+        <XRayAiExplanation
+          surface={XRAY_FITNESS_SURFACE}
+          title="통화 적합도 AI 설명"
+          facts={toFitnessExplanationFacts(data)}
+          requester={explanationRequester}
+        />
+      </div>
     </div>
   );
 }
