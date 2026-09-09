@@ -30,7 +30,13 @@ describe("XRayFitnessView", () => {
     );
 
     expect(screen.getByRole("heading", { name: "집중도 진단" })).toBeInTheDocument();
-    expect(screen.getByText("75")).toBeInTheDocument();
+
+    // 집중도·기준선·격차는 상단 요약 스트립이 맡고, 카드는 게이지로 둘을 나란히 세운다.
+    expect(screen.getByText("주력 통화")).toBeInTheDocument();
+    expect(screen.getByText("75%")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+    expect(screen.getByText("+15%p")).toBeInTheDocument();
+    expect(screen.getByTestId("fitness-threshold-marker")).toBeInTheDocument();
     expect(
       screen.getByText(/주력 통화\(USD\) 비중이 전체의 75%입니다/),
     ).toBeInTheDocument();
@@ -41,6 +47,36 @@ describe("XRayFitnessView", () => {
         "참고 기준선은 MVP 가설값이며 통계적으로 검증된 배분 기준이 아닙니다.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("기준선 이내면 격차를 음수 부호 그대로 보여준다", () => {
+    const bundle = {
+      ...XRAY_API_FIXTURE,
+      fit: {
+        ...XRAY_API_FIXTURE.fit,
+        concentration: {
+          topCurrencyCode: "USD",
+          share: 0.45,
+          status: "within_threshold" as const,
+        },
+        relation: {
+          code: "concentration_within_profile" as const,
+          facts: { share: 0.45, threshold: 0.6, gapPp: -0.15 },
+        },
+      },
+    };
+    render(
+      <XRayFitnessView
+        data={toXRayDashboardData(bundle)}
+        previewState={{ status: "idle" }}
+        onPreviewAdjustment={vi.fn()}
+        onNavigateToPlanner={vi.fn()}
+        explanationRequester={PENDING_REQUESTER}
+      />,
+    );
+    // 기준선을 넘은 계정만 "+" 를 붙인다. 음수 부호는 값이 이미 달고 온다.
+    expect(screen.getByText("-15%p")).toBeInTheDocument();
+    expect(screen.getByText("기준선 이내")).toBeInTheDocument();
   });
 
   it("기준선 없이 판정만 있는 계정은 기준선 문구를 빼고 보여준다", () => {

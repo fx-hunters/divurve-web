@@ -1,0 +1,159 @@
+/*
+ * 내 자산(X-ray) 두 탭의 공통 배치.
+ *
+ * 배치(숫자는 블록): 1=요약 스트립, 2=좌측 카드, 3=우측 카드,
+ * 4=전폭 카드, 5=AI 설명
+ *
+ *   1 1
+ *   2 3
+ *   4 4
+ *   5 5
+ *
+ * 요약 스트립이 맨 위인 이유 — 개편 전에는 총 자산·외화 자산·원화 자산이
+ * '외화 비중' 카드 안에, 환율 민감도가 103px 짜리 별도 카드에 흩어져 있었다.
+ * 모수가 다른 큰 금액이 서로 다른 카드에 놓이면 무엇의 합계인지 라벨만으로
+ * 구분되지 않는다. 같은 단위(KRW) 금액을 한 줄에 모아 서로 비교되게 한다.
+ *
+ * 2행이 두 장뿐인 이유 — 개편 전 좌측은 252/144/103 세 장, 우측은 494/157
+ * 두 장이라 카드 경계선이 한 군데도 맞지 않았고 좌측 하단에 128px 이 비었다.
+ * 도넛과 통화별 게이지를 '통화 구성' 한 장으로 합쳐 손익 분해와 무게를 맞춘다.
+ *
+ * 스트레스 시나리오·비중 조정 시뮬레이터가 전폭인 이유 — 결과가 붙으면
+ * 카드 높이가 크게 늘어난다. 2열 안에 두면 그 행 전체가 따라 튄다.
+ *
+ * DOM 순서는 화면 순서와 같다. 1열로 쌓이는 모바일에서 읽기 순서가 그대로
+ * 유지되도록 CSS 로 순서를 바꾸지 않는다.
+ */
+
+.xray-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .xray-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .xray-layout__full {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * 2행 두 장은 아래 변을 맞춘다. 남는 높이는 카드 안에서 도넛 블록이
+   * 흡수한다(.xray-composition__donut 의 flex: 1).
+   */
+  .xray-layout__pair {
+    align-self: stretch;
+  }
+}
+
+/*
+ * 요약 스트립. 칸 사이 1px 틈으로 배경(테두리 색)이 비쳐 구분선이 된다.
+ * 카드 5장을 늘리는 대신 얇은 띠 하나로 압축하는 것이 목적이므로,
+ * 칸마다 테두리를 두지 않는다.
+ */
+.xray-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  background-color: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (min-width: 480px) {
+  .xray-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .xray-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.xray-summary__tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1.125rem 1.25rem;
+  background-color: var(--surface);
+}
+
+.xray-summary__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.xray-summary__value {
+  /* 칸이 좁아져도 금액이 줄바꿈되지 않도록 폭에 따라 줄인다. */
+  font-size: clamp(1rem, 1.6vw, 1.375rem);
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.xray-summary__value--primary {
+  color: var(--primary);
+}
+
+.xray-summary__value--danger {
+  color: var(--danger);
+}
+
+.xray-summary__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.xray-summary__caption {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/*
+ * 통화 구성 카드의 도넛 블록.
+ *
+ * 이 카드는 옆의 손익 분해와 아래 변을 맞추느라 콘텐츠보다 높다. 남는 높이를
+ * 카드의 `justify-content: space-between` 에 맡기면 제목과 첫 블록 사이에
+ * 60px 짜리 빈 구멍이 생긴다 — 데이터가 빠진 것처럼 보인다. 남는 높이는
+ * 전부 이 블록이 흡수하고, 도넛은 그 안에서 가운데 선다.
+ */
+.xray-composition__donut {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 1rem 0;
+}
+
+/* 종목별 상세 목록. 전폭에서 한 줄에 하나만 두면 가로가 지나치게 빈다. */
+.xray-holdings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 2rem;
+  padding: 0 1.5rem 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .xray-holdings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
