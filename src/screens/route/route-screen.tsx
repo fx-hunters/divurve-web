@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   loadRoutePlan,
   type RoutePlanLoader,
@@ -15,6 +15,11 @@ import {
   PlannerDemoPlanDetailScreen,
   type PlannerPlanDetailDependencies,
 } from "./planner-plan-detail-screen";
+import {
+  clearPlannerDemoPreference,
+  readPlannerDemoPreference,
+  writePlannerDemoPreference,
+} from "./planner-mode-preference";
 
 /** 데모 fixture 화면과 Swagger API 화면 중 무엇을 렌더할지 정한다. */
 export type RouteScreenMode = "demo" | "api";
@@ -47,9 +52,31 @@ export function RouteScreen({
   onOpenPlanDetail = () => undefined,
   onBackFromDetail = () => undefined,
 }: RouteScreenProps) {
-  const [isTemporaryDemo, setTemporaryDemo] = useState(false);
+  const isDemoDetailRoute = detailRoute?.source === "demo";
+  const [isTemporaryDemo, setTemporaryDemo] = useState(
+    () => isDemoDetailRoute || readPlannerDemoPreference(),
+  );
+  const isDemoVisible =
+    mode === "demo" || isTemporaryDemo || isDemoDetailRoute;
 
-  if (detailRoute?.source === "api") {
+  useEffect(() => {
+    if (mode === "api" && isDemoDetailRoute) {
+      writePlannerDemoPreference();
+      setTemporaryDemo(true);
+    }
+  }, [isDemoDetailRoute, mode]);
+
+  const handleExploreDemo = () => {
+    writePlannerDemoPreference();
+    setTemporaryDemo(true);
+  };
+
+  const handleExitDemo = () => {
+    clearPlannerDemoPreference();
+    setTemporaryDemo(false);
+  };
+
+  if (!isDemoVisible && detailRoute?.source === "api") {
     return (
       <PlannerApiPlanDetailScreen
         goalId={detailRoute.goalId}
@@ -60,7 +87,7 @@ export function RouteScreen({
     );
   }
 
-  if (detailRoute?.source === "demo") {
+  if (isDemoVisible && isDemoDetailRoute) {
     return (
       <RouteDemoScreen
         loadPlan={loadPlan}
@@ -70,11 +97,11 @@ export function RouteScreen({
     );
   }
 
-  if (mode === "api" && !isTemporaryDemo) {
+  if (!isDemoVisible) {
     return (
       <PlannerApiScreen
         dependencies={apiDependencies}
-        onExploreDemo={() => setTemporaryDemo(true)}
+        onExploreDemo={handleExploreDemo}
         onOpenPlanDetail={(goalId, planId) =>
           onOpenPlanDetail("api", goalId, planId)
         }
@@ -85,7 +112,7 @@ export function RouteScreen({
   return (
     <RouteDemoScreen
       loadPlan={loadPlan}
-      onExitDemo={mode === "api" ? () => setTemporaryDemo(false) : undefined}
+      onExitDemo={mode === "api" ? handleExitDemo : undefined}
       onBackFromDetail={onBackFromDetail}
       onOpenPlanDetail={(goalId, planId) =>
         onOpenPlanDetail("demo", goalId, planId)

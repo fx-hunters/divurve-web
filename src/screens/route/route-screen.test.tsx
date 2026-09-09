@@ -8,6 +8,10 @@ import { PlannerDemoScreen } from "./planner-demo-screen";
 import type { PlannerPlanDetailDependencies } from "./planner-plan-detail-screen";
 import type { PlannerApiDependencies } from "./use-planner-api";
 import { writePlannerGoalSelection } from "./planner-ui-selection";
+import {
+  readPlannerDemoPreference,
+  writePlannerDemoPreference,
+} from "./planner-mode-preference";
 
 async function enterDemoAction(goalName = "미국 ETF 정기 투자") {
   render(<RouteScreen />);
@@ -49,7 +53,7 @@ describe("RouteScreen", () => {
     expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "계획 경로" })).toBeInTheDocument();
     expect(screen.getByText("계획 누적액")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "이번 회차 데모 기록" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1회차 데모 기록" })).toBeInTheDocument();
   });
 
   it("데모 시나리오 다섯 개를 비교하고 최종 확인 뒤에만 로컬 적용한다", async () => {
@@ -105,7 +109,7 @@ describe("RouteScreen", () => {
       await screen.findByRole("button", { name: /미국 ETF 정기 투자/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
-    fireEvent.click(screen.getByRole("button", { name: "이번 회차 데모 기록" }));
+    fireEvent.click(screen.getByRole("button", { name: "1회차 데모 기록" }));
     expect(await screen.findByRole("status")).toHaveTextContent("데모 화면에서만 기록했습니다");
     fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
     fireEvent.click(screen.getByRole("button", { name: /이번 회차를 놓치면/ }));
@@ -119,7 +123,7 @@ describe("RouteScreen", () => {
   it("데모 건너뛰기는 로컬 비교만 열고 현재 계획 선택으로 해제한다", async () => {
     await enterDemoAction();
     fireEvent.click(
-      screen.getByRole("button", { name: "이번 회차를 놓쳤다면" }),
+      screen.getByRole("button", { name: "1회차를 놓쳤다면" }),
     );
     expect(
       await screen.findByRole("heading", {
@@ -175,7 +179,7 @@ describe("RouteScreen", () => {
     expect(screen.getAllByText("2,400 EUR")).toHaveLength(2);
     expect(screen.getByText(/목표를 데모 화면에만 추가했습니다/)).toBeInTheDocument();
     expect(screen.getByText("아직 확인할 계획 Curve가 없습니다")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
     expect(screen.getByRole("button", { name: /유럽 여행 준비/ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -216,7 +220,7 @@ describe("RouteScreen", () => {
     expect(
       await screen.findByRole("heading", { name: "미국 ETF 준비" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -234,7 +238,7 @@ describe("RouteScreen", () => {
     expect(
       await screen.findByRole("heading", { name: "미국 ETF 정기 투자" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "플래너로 돌아가기" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 내 계획" }));
   });
 
   it("기본 상세 열기 콜백이 없어도 데모 여정은 안전하게 동작한다", async () => {
@@ -325,12 +329,115 @@ describe("RouteScreen", () => {
     expect(
       await screen.findByRole("region", { name: "데모 플래너" }),
     ).toBeInTheDocument();
+    expect(readPlannerDemoPreference()).toBe(true);
     fireEvent.click(
       screen.getByRole("button", { name: "내 계정 플래너로 돌아가기" }),
     );
     expect(
       await screen.findByRole("region", { name: "API 플래너" }),
     ).toBeInTheDocument();
+    expect(readPlannerDemoPreference()).toBe(false);
     expect(apiDependencies.createGoal).not.toHaveBeenCalled();
+  });
+
+  it("회원이 명시적으로 선택한 데모와 목표별 기록을 재마운트 뒤에도 유지한다", async () => {
+    const apiDependencies: PlannerApiDependencies = {
+      load: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+      complete: vi.fn(),
+      skip: vi.fn(),
+      preview: vi.fn(),
+      create: vi.fn(),
+      createGoal: vi.fn(),
+      previewScenario: vi.fn(),
+      apply: vi.fn(),
+      createExecutionKey: vi.fn(() => "api-key"),
+      getToday: vi.fn(() => "2026-09-08"),
+    };
+    const first = render(
+      <RouteScreen mode="api" apiDependencies={apiDependencies} />,
+    );
+
+    await screen.findByRole("region", { name: "API 플래너" });
+    fireEvent.click(screen.getByRole("button", { name: "데모로 둘러보기" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /일본 여행 준비/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "1회차 데모 기록" }),
+      );
+    });
+    expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
+    expect(screen.getByText("외화 확보율 42% (데모)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "2회차 준비 내용 확인" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
+    fireEvent.click(screen.getByRole("button", { name: /미국 ETF 정기 투자/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByText("1,260 USD 확보")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
+    fireEvent.click(screen.getByRole("button", { name: /일본 여행 준비/ }));
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
+
+    first.unmount();
+    render(<RouteScreen mode="api" apiDependencies={apiDependencies} />);
+
+    expect(
+      await screen.findByRole("region", { name: "데모 플래너" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /일본 여행 준비/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
+    expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "2회차 준비 내용 확인" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "상황이 바뀐다면?" }));
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /사용할 예산이 줄면/ }),
+      );
+    });
+    fireEvent.click(screen.getByRole("button", { name: "기존 계획 유지" }));
+    expect(screen.getByText("75,000 JPY 확보")).toBeInTheDocument();
+
+    expect(apiDependencies.load).toHaveBeenCalledOnce();
+    expect(apiDependencies.complete).not.toHaveBeenCalled();
+    expect(apiDependencies.skip).not.toHaveBeenCalled();
+    expect(apiDependencies.preview).not.toHaveBeenCalled();
+    expect(apiDependencies.create).not.toHaveBeenCalled();
+    expect(apiDependencies.previewScenario).not.toHaveBeenCalled();
+    expect(apiDependencies.apply).not.toHaveBeenCalled();
+  });
+
+  it("명시적 데모 선택 중 늦은 API 상세 경로가 주어져도 쓰기 가능한 API 화면을 열지 않는다", async () => {
+    writePlannerDemoPreference();
+    const activePlan = PLANNER_API_FIXTURE.items[0]!.activePlan!;
+    const detailDependencies: PlannerPlanDetailDependencies = {
+      loadOverview: vi.fn().mockResolvedValue(PLANNER_API_FIXTURE),
+      loadPlan: vi.fn().mockResolvedValue(activePlan),
+      loadVersions: vi.fn().mockResolvedValue([]),
+    };
+
+    render(
+      <RouteScreen
+        mode="api"
+        detailRoute={{ source: "api", goalId: "goal-usd", planId: "plan-usd" }}
+        detailDependencies={detailDependencies}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "데모 플래너" }),
+    ).toBeInTheDocument();
+    expect(detailDependencies.loadOverview).not.toHaveBeenCalled();
+    expect(detailDependencies.loadPlan).not.toHaveBeenCalled();
+    expect(detailDependencies.loadVersions).not.toHaveBeenCalled();
   });
 });

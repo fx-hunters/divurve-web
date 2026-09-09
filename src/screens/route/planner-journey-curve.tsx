@@ -9,6 +9,26 @@ interface PlannerCurveCanvasProps {
   readonly onSelect?: (sequence: number) => void;
 }
 
+function shouldShowNodeLabel(
+  index: number,
+  nodeCount: number,
+  status: PlannerCurveViewModel["nodes"][number]["status"],
+  sequence: number,
+  selectedSequence: number | null,
+): boolean {
+  if (nodeCount <= 8) return true;
+  if (
+    index === 0 ||
+    index === nodeCount - 1 ||
+    status === "next" ||
+    sequence === selectedSequence
+  ) {
+    return true;
+  }
+  const interval = nodeCount > 32 ? 8 : 4;
+  return (index + 1) % interval === 0;
+}
+
 export function PlannerCurveCanvas({
   curve,
   alternativeCurve = null,
@@ -18,6 +38,20 @@ export function PlannerCurveCanvas({
 }: PlannerCurveCanvasProps) {
   const descriptionId = useId();
   const changedIds = new Set(changedNodeIds);
+  const isCurrentLabelCrowded =
+    curve.currentPoint !== null &&
+    curve.nodes.some(
+      (node) =>
+        Math.abs(node.x - curve.currentPoint!.x) < 72 &&
+        Math.abs(node.y - curve.currentPoint!.y) < 48,
+    );
+  const isDestinationLabelCrowded =
+    curve.destination !== null &&
+    curve.nodes.some(
+      (node) =>
+        Math.abs(node.x - curve.destination!.x) < 72 &&
+        Math.abs(node.y - curve.destination!.y) < 48,
+    );
   return (
     <svg
       viewBox={curve.viewBox ?? "0 0 100 100"}
@@ -79,10 +113,10 @@ export function PlannerCurveCanvas({
           aria-hidden="true"
         >
           <circle r="8" />
-          <text y="-15">현재 확보</text>
+          <text y={isCurrentLabelCrowded ? -34 : -15}>현재 확보</text>
         </g>
       )}
-      {curve.nodes.map((node) => (
+      {curve.nodes.map((node, index) => (
         <g key={node.id} transform={`translate(${node.x} ${node.y})`}>
           <g
             className="planner-api-curve__svg-node"
@@ -115,8 +149,18 @@ export function PlannerCurveCanvas({
             <circle r={node.status === "next" ? 9 : 7} />
             {node.status === "completed" && <text className="planner-api-curve__mark" y="5">✓</text>}
             {node.status === "skipped" && <text className="planner-api-curve__mark" y="5">×</text>}
-            <text className="planner-api-curve__node-label" y="-17">{node.roundLabel}</text>
-            <text className="planner-api-curve__node-date" y="28">{node.dateLabel}</text>
+            {shouldShowNodeLabel(
+              index,
+              curve.nodes.length,
+              node.status,
+              node.sequence,
+              selectedSequence,
+            ) && (
+              <>
+                <text className="planner-api-curve__node-label" y="-17">{node.roundLabel}</text>
+                <text className="planner-api-curve__node-date" y="28">{node.dateLabel}</text>
+              </>
+            )}
           </g>
         </g>
       ))}
@@ -132,8 +176,18 @@ export function PlannerCurveCanvas({
             }
           >
             <circle r="8" />
-            <text className="planner-api-curve__node-label" y="-17">{curve.destination.label}</text>
-            <text className="planner-api-curve__node-date" y="28">{curve.destination.targetDateLabel}</text>
+            <text
+              className="planner-api-curve__node-label"
+              y={isDestinationLabelCrowded ? -36 : -17}
+            >
+              {curve.destination.label}
+            </text>
+            <text
+              className="planner-api-curve__node-date"
+              y={isDestinationLabelCrowded ? 40 : 28}
+            >
+              {curve.destination.targetDateLabel}
+            </text>
           </g>
         </g>
       )}

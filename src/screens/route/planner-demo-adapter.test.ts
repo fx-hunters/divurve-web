@@ -6,6 +6,10 @@ import {
   presentDemoScenarioComparison,
 } from "./planner-demo-adapter";
 import type { PlannerLocalGoal } from "./planner-goal-input";
+import {
+  EMPTY_PLANNER_DEMO_PROGRESS,
+  type PlannerDemoProgress,
+} from "./planner-demo-progress";
 
 let data: RoutePlanData;
 
@@ -14,6 +18,19 @@ beforeAll(async () => {
   if (loaded === null) throw new Error("데모 플래너 fixture가 필요합니다.");
   data = loaded;
 });
+
+function demoProgress(
+  goalId: string,
+  recordedSequences: readonly number[] = [],
+  appliedScenarioId: string | null = null,
+): PlannerDemoProgress {
+  return {
+    version: 1,
+    goals: {
+      [goalId]: { recordedSequences, appliedScenarioId },
+    },
+  };
+}
 
 function withoutScenarioCurveData(
   scenarios: RoutePlanData["plans"][number]["scenarios"],
@@ -50,7 +67,7 @@ describe("planner demo adapter", () => {
     const model = presentDemoPlanner(
       data,
       "jpy-travel-deadline-demo",
-      "rapidRise",
+      demoProgress("jpy-travel-deadline-demo", [], "rapidRise"),
     );
     expect(model.selectedGoal?.name).toBe("일본 여행 준비");
     expect(model.nextAction).toMatchObject({
@@ -63,7 +80,7 @@ describe("planner demo adapter", () => {
     const missed = presentDemoPlanner(
       data,
       "usd-etf-recurring-demo",
-      "missedRound",
+      demoProgress("usd-etf-recurring-demo", [], "missedRound"),
     );
     expect(missed.steps[0]).toMatchObject({
       status: "skipped",
@@ -75,8 +92,7 @@ describe("planner demo adapter", () => {
     const model = presentDemoPlanner(
       data,
       "usd-etf-recurring-demo",
-      "expectedRange",
-      true,
+      demoProgress("usd-etf-recurring-demo", [1], "expectedRange"),
     );
     expect(model.nextAction).toMatchObject({
       title: "2회차 준비 내용 확인",
@@ -86,6 +102,63 @@ describe("planner demo adapter", () => {
       "completed",
     );
     expect(model.supportedActions.canCompleteStep).toBe(false);
+    expect(model.selectedGoal).toMatchObject({
+      heldAmount: 1_405,
+      heldAmountLabel: "1,405 USD 확보",
+      remainingAmountLabel: "1,595 USD",
+      progressLabel: "외화 확보율 47% (데모)",
+    });
+    expect(model.selectedGoal?.progressPercent).toBeCloseTo(46.83, 2);
+  });
+
+  it("일본 목표 기록도 요약·진행률·Curve·다음 행동에 같은 값으로 반영한다", () => {
+    const goalId = "jpy-travel-deadline-demo";
+    const model = presentDemoPlanner(data, goalId, demoProgress(goalId, [1]));
+
+    expect(model.selectedGoal).toMatchObject({
+      heldAmount: 75_000,
+      heldAmountLabel: "75,000 JPY 확보",
+      remainingAmountLabel: "105,000 JPY",
+      progressLabel: "외화 확보율 42% (데모)",
+    });
+    expect(model.selectedGoal?.progressPercent).toBeCloseTo(41.67, 2);
+    expect(model.curve?.currentPoint?.amount).toBe(75_000);
+    expect(model.steps[0]).toMatchObject({
+      status: "completed",
+      cumulativeAmount: 75_000,
+    });
+    expect(model.nextAction).toMatchObject({ sequence: 2, amount: 35_000 });
+  });
+
+  it("완료한 실제 구간을 유지하고 다음 미완료 회차에 데이터가 있을 때만 변경 Curve를 만든다", () => {
+    const goalId = "jpy-travel-deadline-demo";
+    const progress = demoProgress(goalId, [1]);
+    const missed = presentDemoScenarioComparison(
+      data,
+      goalId,
+      "missedRound",
+      progress,
+    );
+    expect(missed?.alternativeCurve).toBeNull();
+    expect(missed?.changedNodeIds).toEqual([]);
+
+    const reduced = presentDemoScenarioComparison(
+      data,
+      goalId,
+      "reducedBudget",
+      progress,
+    );
+    expect(reduced?.alternativeCurve).not.toBeNull();
+    expect(reduced?.baseCurve?.nodes[0]).toMatchObject({
+      status: "completed",
+      cumulativeAmount: 75_000,
+    });
+    expect(reduced?.alternativeCurve?.nodes[0]).toMatchObject({
+      status: "completed",
+      cumulativeAmount: 75_000,
+    });
+    expect(reduced?.changedNodeIds).not.toContain("jpy-round-1");
+    expect(reduced?.changedNodeIds).toContain("jpy-round-2");
   });
 
   it("현재·알 수 없는 상황은 비교를 만들지 않고 대체 상황만 비교한다", () => {
@@ -143,8 +216,7 @@ describe("planner demo adapter", () => {
     const selected = presentDemoPlanner(
       data,
       localGoal.id,
-      null,
-      false,
+      demoProgress("usd-etf-recurring-demo", [1]),
       [localGoal],
     );
     expect(selected.selectedGoal).toMatchObject({
@@ -160,12 +232,12 @@ describe("planner demo adapter", () => {
       isSelected: true,
       planStatusLabel: "계획 데이터 없음",
     });
+    expect(selected.goalItems[0]?.heldAmountLabel).toBe("1,405 USD 확보");
 
     const fixtureSelected = presentDemoPlanner(
       data,
       data.plans[0]!.id,
-      null,
-      false,
+      EMPTY_PLANNER_DEMO_PROGRESS,
       [localGoal],
     );
     expect(
@@ -203,8 +275,7 @@ describe("planner demo adapter", () => {
     const model = presentDemoPlanner(
       fixture,
       sourcePlan.id,
-      "unknown",
-      true,
+      demoProgress(sourcePlan.id, [1], "unknown"),
     );
     expect(model.curve?.destination).toMatchObject({
       targetAmountLabel: "3,000 USD",
@@ -290,8 +361,7 @@ describe("planner demo adapter", () => {
     const invalidModel = presentDemoPlanner(
       invalidDates,
       sourcePlan.id,
-      null,
-      true,
+      demoProgress(sourcePlan.id, [1]),
     );
     expect(invalidModel.curve).toBeNull();
     expect(invalidModel.curveNodes).toEqual([]);
@@ -322,8 +392,7 @@ describe("planner demo adapter", () => {
     const emptyModel = presentDemoPlanner(
       withoutSteps,
       sourcePlan.id,
-      null,
-      true,
+      demoProgress(sourcePlan.id, [1]),
     );
     expect(emptyModel.selectedGoal?.heldAmount).toBe(
       sourcePlan.curveData.allocatedAmount,

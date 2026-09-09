@@ -393,8 +393,9 @@ export const PLANNER_API_FIXTURE: PlannerApiOverview = {
           currencyCode: "USD",
           targetAmount: 3_000,
           roundBudgetKrw: null,
-          allocatedHoldingAmount: 1_260,
-          remainingAmount: 1_740,
+          // 저장된 Plan 응답은 완료 회차를 이미 포함한 현재 목표 확보액을 반환한다.
+          allocatedHoldingAmount: 1_405,
+          remainingAmount: 1_595,
           targetDate: "2026-12-31",
         },
         summary: {

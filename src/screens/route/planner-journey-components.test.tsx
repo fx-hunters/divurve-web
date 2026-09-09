@@ -72,7 +72,7 @@ describe("Planner Journey 표현 컴포넌트", () => {
     fireEvent.click(screen.getByRole("button", { name: "선택한 목표 보기" }));
     expect(screen.getByRole("region", { name: "계획 Curve" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "2회차를 확인할까요?" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "다른 목표 선택" }));
+    fireEvent.click(screen.getByRole("button", { name: "← 목표 목록" }));
     expect(screen.getByRole("heading", { name: "어떤 외화 목표를 이어갈까요?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /미국 ETF 준비/ }));
     expect(ops.onSelectGoal).toHaveBeenCalledWith("goal-usd");

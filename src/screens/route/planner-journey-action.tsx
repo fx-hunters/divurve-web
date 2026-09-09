@@ -78,7 +78,7 @@ export function PlannerJourneyAction({
           disabled={isPending || !canComplete}
           onClick={onRecordDemo}
         >
-          이번 회차 데모 기록
+          {action.sequence}회차 데모 기록
         </button>
       ) : (
         <form className="planner-api-action" onSubmit={handleSubmit} noValidate>
@@ -112,7 +112,7 @@ export function PlannerJourneyAction({
             type="submit"
             disabled={isPending || !canComplete}
           >
-            {isPending ? "서버에 반영 중…" : "이번 회차 기록"}
+            {isPending ? "서버에 반영 중…" : `${action.sequence}회차 기록`}
           </button>
         </form>
       )}
@@ -125,7 +125,7 @@ export function PlannerJourneyAction({
             disabled={isPending}
             onClick={onSkip}
           >
-            이번 회차를 놓쳤다면
+            {action.sequence}회차를 놓쳤다면
           </button>
         )}
         {canExplore && (

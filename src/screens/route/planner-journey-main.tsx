@@ -173,7 +173,7 @@ export function PlannerJourneyMain({
 
       <footer className="planner-main__footer">
         <button type="button" className="planner-api-journey__secondary" onClick={onBackToGoals}>
-          다른 목표 선택
+          ← 목표 목록
         </button>
         {view.plan !== null && onOpenHistory !== undefined && (
           <button type="button" className="planner-api-journey__secondary" onClick={onOpenHistory}>

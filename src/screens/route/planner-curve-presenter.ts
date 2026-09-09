@@ -33,7 +33,10 @@ export interface PlannerCurveStepInput {
 
 export interface PlannerCurveInput {
   readonly currencyCode: string;
-  readonly allocatedAmount: number;
+  /** 과거 완료 구간을 누적하기 시작할 때의 확인된 금액. */
+  readonly baselineAmount: number;
+  /** 완료 기록이 이미 반영된 현재 확보액. */
+  readonly currentAmount: number;
   readonly currentDate: string | null;
   readonly targetAmount: number | null;
   readonly targetDate: string | null;
@@ -125,7 +128,8 @@ function pathFrom(
 }
 
 function curvePoints(input: PlannerCurveInput, issues: string[]): readonly AmountPoint[] {
-  let cumulativeAmount = safeAmount(input.allocatedAmount, issues);
+  let completedCumulative = safeAmount(input.baselineAmount, issues);
+  let plannedCumulative = safeAmount(input.currentAmount, issues);
   return [...input.steps]
     .sort((a, b) => a.sequence - b.sequence)
     .flatMap((step) => {
@@ -135,13 +139,17 @@ function curvePoints(input: PlannerCurveInput, issues: string[]): readonly Amoun
           : step.scheduledDate,
       );
       const plannedAmount = safeAmount(step.plannedAmount, issues);
-      const roundAmount =
-        step.status === "completed"
-          ? safeAmount(step.executedAmount, issues)
-          : step.status === "skipped"
-            ? 0
-            : plannedAmount;
-      cumulativeAmount += roundAmount;
+      const isCompleted = step.status === "completed";
+      const roundAmount = isCompleted
+        ? safeAmount(step.executedAmount, issues)
+        : step.status === "skipped"
+          ? 0
+          : plannedAmount;
+      if (isCompleted) {
+        completedCumulative += roundAmount;
+      } else {
+        plannedCumulative += roundAmount;
+      }
       if (date === null) {
         issues.push("날짜를 확인할 수 없는 회차는 경로에서 제외했습니다.");
         return [];
@@ -152,7 +160,9 @@ function curvePoints(input: PlannerCurveInput, issues: string[]): readonly Amoun
           sequence: step.sequence,
           date,
           epoch: toEpoch(date),
-          cumulativeAmount,
+          cumulativeAmount: isCompleted
+            ? completedCumulative
+            : plannedCumulative,
           roundAmount,
           status: step.status,
         },
@@ -177,15 +187,8 @@ export function presentPlannerCurve(
     normalizePlannerDate(input.currentDate) ??
     completedPoints[completedPoints.length - 1]?.date ??
     null;
-  const allocatedAmount = safeAmount(input.allocatedAmount, issues);
-  const currentAmount =
-    allocatedAmount +
-    input.steps
-      .filter((step) => step.status === "completed")
-      .reduce(
-        (total, step) => total + safeAmount(step.executedAmount, issues),
-        0,
-      );
+  const baselineAmount = safeAmount(input.baselineAmount, issues);
+  const currentAmount = safeAmount(input.currentAmount, issues);
   const targetDate = normalizePlannerDate(input.targetDate);
   const targetAmount =
     input.targetAmount !== null &&
@@ -326,7 +329,8 @@ export function presentPlannerCurve(
     xEndLabel: formatDate(new Date(maxDate).toISOString().slice(0, 10)),
     dataNotice: uniqueMessages(issues),
     currencyCode: input.currencyCode,
-    allocatedAmount,
+    baselineAmount,
+    currentAmount,
     targetAmount,
     targetDate,
     currentDate,
