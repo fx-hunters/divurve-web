@@ -152,16 +152,17 @@ create index idx_admin_audit_target  on admin_audit_logs (target_table, target_i
 | 문항 코드 | `Q1` ~ `Q6` (대문자) | **`q1` ~ `q6` (소문자)** | `RiskProfileScorer.SIMPLE_QUESTIONS = List.of("q1","q2","q3")`. 대문자로 넣으면 채점이 문항을 못 찾는다 |
 | 유형 코드 | `active` / `challenger` | **`aggressive` / `challenging`** | `RiskProfileScorer` 열거값. CHECK 제약이 이미 이 값만 허용한다 |
 
-`risk_profile_copy.display_name` 은 FE에 **두 벌**이 있어 시드 값이 정해지지 않는다:
+`risk_profile_copy.display_name` 은 FE에 두 벌이 있었으나 **2026-09-09 기획 결정으로 진단 결과 화면 어휘로 통일**했다.
 
-| kind | `home-presenter.ts` | `diagnosis-presenter.ts` |
+| kind | **시드 값** | 폐기 (`home-presenter.ts` `GRADE_LABELS`) |
 |---|---|---|
-| `stable` | 안정형 | 안정항로형 |
-| `balanced` | 중립형 | 균형항로형 |
-| `aggressive` | 공격형 | 적극항로형 |
-| `challenging` | 도전형 | 도전항로형 |
+| `stable` | **안정항로형** | ~~안정형~~ |
+| `balanced` | **균형항로형** | ~~중립형~~ |
+| `aggressive` | **적극항로형** | ~~공격형~~ |
+| `challenging` | **도전항로형** | ~~도전형~~ |
 
-**→ 선행 이슈 B 에서 한 벌로 정한 뒤 시드한다** (FE 계획 §9-B). 그전까지 BE-1은 착수하되 `risk_profile_copy` 시드만 비워두고, B 확정 후 `insert` 를 채우는 후속 마이그레이션을 낸다. **다른 4개 테이블은 B와 무관하므로 기다리지 않는다.**
+`summary` 와 `sentence_prefix` 는 `diagnosis-presenter.ts` 의 `RISK_PROFILE_COPY` 값을 그대로 옮긴다.
+**BE-1 이 이 표대로 시드하므로 선행 이슈 B 를 기다리지 않는다** — B 는 FE 쪽에서 `GRADE_LABELS` 를 걷어내는 작업만 남는다.
 
 ---
 
@@ -449,8 +450,8 @@ BE-6 (독립) ──────────────────────
 | 4 | 잠금 필드 방어 방식 | **요청 DTO에 편집 가능 필드만** | 보낼 수단 자체를 없앤다 (§5) |
 | 5 | ETag 구현 | **`ShallowEtagHeaderFilter` 부터** | 37행짜리 페이로드에 최적화할 비용이 없다 (§8) |
 | 6 | 대시보드 지표 API 범위 | **기존 API로 못 채우는 것만** | AI 사용량·FX 상태는 이미 있다 |
+| 7 | `risk_profile_copy` 시드 라벨 | **진단 결과 화면 어휘** | 2026-09-09 기획 결정. BE-1 이 선행 이슈 B 를 기다리지 않게 됐다 (§2-3) |
 
 ### 열린 질문
 
-1. `risk_profile_copy.display_name` 을 어느 쪽으로 통일할까 — "안정형/중립형/공격형/도전형" vs "안정항로형/균형항로형/적극항로형/도전항로형"? **기획 결정 필요.** 선행 이슈 B와 이 문서 §2-3이 함께 막혀 있다.
-2. `GET /api/v1/contents` 를 `MetaDemoFlagAdvice` 적용 대상에서 뺄까? (`is_demo` 주입이 본문을 흔들면 §8의 ETag가 깨진다 — 구현 시 확인)
+1. `GET /api/v1/contents` 를 `MetaDemoFlagAdvice` 적용 대상에서 뺄까? (`is_demo` 주입이 본문을 흔들면 §8의 ETag가 깨진다 — 구현 시 확인)

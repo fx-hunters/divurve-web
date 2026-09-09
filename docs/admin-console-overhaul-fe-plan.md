@@ -451,7 +451,7 @@ FE-1 ─┬─→ FE-5 ─┐                 │
 
 `risk_profile_copy` 테이블의 기본키가 `kind`다. B를 고치지 않은 채 이 테이블을 만들면 시드 값에 답이 없다 —
 `active`/`challenger`를 넣으면 FE 전용 이름을 DB에 굳히고, `aggressive`/`challenging`을 넣으면 번역표
-(`SERVER_GRADE_KIND`)를 영구히 남겨야 한다. 한글 라벨도 두 벌 중 무엇을 넣을지 정해지지 않는다.
+(`SERVER_GRADE_KIND`)를 영구히 남겨야 한다.
 **B가 먼저 끝나면 이 질문이 통째로 사라진다.**
 
 #### 작업 내용
@@ -459,7 +459,16 @@ FE-1 ─┬─→ FE-5 ─┐                 │
 - `calculateQuickRiskResult`·`getRiskProfileKind`·`QUICK_CHOICE_SCORES` 삭제
 - 온보딩이 `POST /me/risk-profile/simple`을 호출하고 서버 결과를 표시
 - `RiskProfileKind`를 BE 리터럴(`stable`/`balanced`/`aggressive`/`challenging`)로 통일, `SERVER_GRADE_KIND` 삭제 (AGENTS.md §4)
-- 한글 라벨 한 벌로 통일 — 어느 쪽을 살릴지는 기획 확인 필요
+- 한글 라벨을 **진단 결과 화면 어휘로 통일**한다 (2026-09-09 기획 결정)
+
+| BE 값 | 채택 | 폐기 |
+|---|---|---|
+| `stable` | **안정항로형** | ~~안정형~~ |
+| `balanced` | **균형항로형** | ~~중립형~~ |
+| `aggressive` | **적극항로형** | ~~공격형~~ |
+| `challenging` | **도전항로형** | ~~도전형~~ |
+
+  `screens/home/home-presenter.ts` 의 `GRADE_LABELS` 를 폐기하고 `risk_profile_copy.display_name` 하나만 남긴다.
 
 BE 신규 작업 없음(엔드포인트가 이미 있다). 사용자 동작이 바뀌므로 **자체 기술 변경로그**를 남긴다(§10).
 
@@ -473,5 +482,6 @@ BE 신규 작업 없음(엔드포인트가 이미 있다). 사용자 동작이 �
 | 2 | `content-defaults.ts`를 커버리지 `exclude`에 넣을까 | **넣지 않는다** | 함수·분기가 0이고 런타임 폴백으로 실제 import되므로 자연히 100%가 된다. **단 이 파일에 함수를 두지 않는다** |
 | 3 | 감사 로그 되돌리기 범위 | **1단계(직전 값)만** | §4-5 |
 | 4 | B(채점기 이중화) 처리 시점 | **별도 이슈로 분리, FE-3보다 먼저** | §9-B |
+| 5 | 위험유형 한글 라벨을 어느 쪽으로 통일할까 | **진단 결과 화면 어휘**(안정항로형·균형항로형·적극항로형·도전항로형) | 2026-09-09 기획 결정. `home-presenter.ts` 의 `GRADE_LABELS` 를 폐기한다 (§9-B) |
 
 열린 질문 없음.
