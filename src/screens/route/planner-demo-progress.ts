@@ -3,6 +3,8 @@ export const PLANNER_DEMO_PROGRESS_KEY = "divurve_planner_demo_progress_v1";
 export interface PlannerDemoGoalProgress {
   readonly recordedSequences: readonly number[];
   readonly appliedScenarioId: string | null;
+  /** 기록 당시 선택한 예시 경로. 숫자·계정 정보는 저장하지 않는다. */
+  readonly recordedScenarioIds?: Readonly<Record<string, string>>;
 }
 
 export interface PlannerDemoProgress {
@@ -35,7 +37,15 @@ function parseGoalProgress(value: unknown): PlannerDemoGoalProgress | null {
     typeof record.appliedScenarioId === "string"
       ? record.appliedScenarioId
       : null;
-  return { recordedSequences, appliedScenarioId };
+  const scenarioIds = record.recordedScenarioIds;
+  const recordedScenarioIds = scenarioIds !== null && typeof scenarioIds === "object" && !Array.isArray(scenarioIds)
+    ? Object.fromEntries(Object.entries(scenarioIds).filter(([seq, id]) =>
+        recordedSequences.includes(Number(seq)) && typeof id === "string",
+      )) as Readonly<Record<string, string>>
+    : {};
+  return { recordedSequences, appliedScenarioId,
+    ...(Object.keys(recordedScenarioIds).length === 0 ? {} : { recordedScenarioIds }),
+  };
 }
 
 export function readPlannerDemoProgress(): PlannerDemoProgress {
@@ -103,6 +113,12 @@ export function recordPlannerDemoSequence(
         recordedSequences: [...current.recordedSequences, sequence].sort(
           (first, second) => first - second,
         ),
+        ...(current.appliedScenarioId === null ? {} : {
+          recordedScenarioIds: {
+            ...current.recordedScenarioIds,
+            [sequence]: current.appliedScenarioId,
+          },
+        }),
       },
     },
   };

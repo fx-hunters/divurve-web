@@ -8,6 +8,8 @@ import {
 import type { PlannerLocalGoal } from "./planner-goal-input";
 import {
   EMPTY_PLANNER_DEMO_PROGRESS,
+  applyPlannerDemoScenario,
+  recordPlannerDemoSequence,
   type PlannerDemoProgress,
 } from "./planner-demo-progress";
 
@@ -51,6 +53,27 @@ function withoutScenarioCurveData(
 }
 
 describe("planner demo adapter", () => {
+  it("적용한 경로가 다음 비교의 기준이며 기록 당시 금액은 다른 경로 적용 후에도 유지된다", () => {
+    const id = "jpy-travel-deadline-demo";
+    const first = recordPlannerDemoSequence(EMPTY_PLANNER_DEMO_PROGRESS, id, 1);
+    const applied = applyPlannerDemoScenario(first, id, "reducedBudget");
+    const current = presentDemoPlanner(data, id, applied);
+    const nextAmount = current.nextAction!.amount!;
+    const comparison = presentDemoScenarioComparison(data, id, "missedRound", applied)!;
+    expect(comparison.baseCurve?.nodes.map((node) => node.cumulativeAmount))
+      .toEqual(current.curve!.nodes.map((node) => node.cumulativeAmount));
+    expect(current.scenarioOptions?.find((option) => option.id === "reducedBudget")?.isCurrent).toBe(true);
+    expect(presentDemoScenarioComparison(data, id, "reducedBudget", applied)).toBeNull();
+    expect(presentDemoScenarioComparison(data, id, "expectedRange", applied)).not.toBeNull();
+    const recorded = recordPlannerDemoSequence(applied, id, 2);
+    const switched = applyPlannerDemoScenario(recorded, id, "rapidRise");
+    for (const progress of [recorded, switched]) {
+      const view = presentDemoPlanner(data, id, progress);
+      expect(view.selectedGoal?.heldAmount).toBe(75_000 + nextAmount);
+      expect(view.curve?.currentAmount).toBe(75_000 + nextAmount);
+      expect(view.steps.find((step) => step.sequence === 2)?.executedAmount).toBe(nextAmount);
+    }
+  });
   it("두 fixture 목표를 공통 ViewModel과 데모 출처로 변환한다", () => {
     const model = presentDemoPlanner(data);
     expect(model.goalItems).toHaveLength(2);
@@ -96,7 +119,7 @@ describe("planner demo adapter", () => {
     });
   });
 
-  it("데모 기록 뒤에는 다음 확인 문구를 사용하고 완료 action을 막는다", () => {
+  it("데모 기록 뒤 다음 미완료 회차의 기록과 건너뛰기는 계속 허용한다", () => {
     const model = presentDemoPlanner(
       data,
       "usd-etf-recurring-demo",
@@ -109,7 +132,8 @@ describe("planner demo adapter", () => {
     expect(model.steps.find((step) => step.sequence === 1)?.status).toBe(
       "completed",
     );
-    expect(model.supportedActions.canCompleteStep).toBe(false);
+    expect(model.supportedActions.canCompleteStep).toBe(true);
+    expect(model.supportedActions.canSkipStep).toBe(true);
     expect(model.selectedGoal).toMatchObject({
       heldAmount: 1_405,
       heldAmountLabel: "1,405 USD 확보",
@@ -419,7 +443,7 @@ describe("planner demo adapter", () => {
     expect(comparison?.changedNodeIds).toEqual([]);
   });
 
-  it("대체 경로에만 있는 기록 회차는 그 대체 회차 값으로 완료 상태를 만든다", () => {
+  it("복원 근거가 없는 회차 번호만으로 대체 회차를 완료 처리하지 않는다", () => {
     const sourcePlan = data.plans[0]!;
     const extraStep = {
       ...sourcePlan.curveData.steps[1]!,
@@ -458,8 +482,8 @@ describe("planner demo adapter", () => {
     expect(model.steps.find((step) => step.sequence === 99)).toMatchObject({
       scheduledDate: "2027-01-01",
       amount: 77,
-      status: "completed",
-      executedAmount: 77,
+      status: "upcoming",
+      executedAmount: null,
     });
   });
 

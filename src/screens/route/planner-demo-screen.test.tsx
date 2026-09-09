@@ -55,6 +55,13 @@ describe("PlannerDemoScreen", () => {
     await expect(duplicate).resolves.toBe(false);
     expect(readPlannerDemoProgress().goals["usd-etf-recurring-demo"])
       .toMatchObject({ recordedSequences: [1] });
+
+    // 새 렌더에서 사용자가 2회차를 누른 것은 1회차 중복 요청이 아니다.
+    await act(async () => {
+      expect(await captured!.onRecordDemo()).toBe(true);
+    });
+    expect(readPlannerDemoProgress().goals["usd-etf-recurring-demo"])
+      .toMatchObject({ recordedSequences: [1, 2] });
   });
 
   it("다음 회차가 없는 데모에서는 기록을 거절하고 비교 없이 적용하지 않는다", async () => {

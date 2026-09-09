@@ -62,7 +62,7 @@ function nextDemoSequence(
   progress: PlannerDemoGoalProgress,
   curveData: PlannerPlan["curveData"],
 ): number | null {
-  const recorded = new Set(progress.recordedSequences);
+  const recorded = knownRecordedSequences(plan, progress);
   return (
     [...curveData.steps]
       .sort((first, second) => first.sequence - second.sequence)
@@ -86,15 +86,25 @@ function demoCurrentAmount(
   plan: PlannerPlan,
   progress: PlannerDemoGoalProgress,
 ): number {
-  const recorded = new Set(progress.recordedSequences);
-  return plan.curveData.steps.reduce((current, step) => {
-    if (step.status === "completed") {
-      return current + Math.max(0, step.executedAmount);
-    }
-    return recorded.has(step.sequence)
-      ? current + Math.max(0, step.amount)
-      : current;
-  }, plan.curveData.allocatedAmount);
+  const seededAmount = plan.curveData.steps
+    .filter((step) => step.status === "completed")
+    .reduce((sum, step) => sum + Math.max(0, step.executedAmount), plan.curveData.allocatedAmount);
+  return [...new Set(progress.recordedSequences)].reduce((sum, sequence) => {
+    const step = recordedDemoStep(plan, progress, sequence);
+    return step === undefined || step.status === "completed"
+      ? sum : sum + Math.max(0, step.amount);
+  }, seededAmount);
+}
+
+function recordedDemoStep(plan: PlannerPlan, progress: PlannerDemoGoalProgress, sequence: number) {
+  const scenario = findScenario(plan, progress.recordedScenarioIds?.[sequence]);
+  return (scenario.curveData ?? plan.curveData).steps.find((step) => step.sequence === sequence);
+}
+
+function knownRecordedSequences(plan: PlannerPlan, progress: PlannerDemoGoalProgress): ReadonlySet<number> {
+  return new Set(progress.recordedSequences.filter((sequence) =>
+    recordedDemoStep(plan, progress, sequence) !== undefined,
+  ));
 }
 
 function demoCurveInput(
@@ -102,15 +112,11 @@ function demoCurveInput(
   progress: PlannerDemoGoalProgress,
   curveData = plan.curveData,
 ): PlannerCurveInput {
-  const recorded = new Set(progress.recordedSequences);
+  const recorded = knownRecordedSequences(plan, progress);
   const nextSequence = nextDemoSequence(plan, progress, curveData);
-  const baseSteps = new Map(
-    plan.curveData.steps.map((step) => [step.sequence, step]),
-  );
-  const latestRecordedDate = [...plan.curveData.steps]
-    .filter((step) => recorded.has(step.sequence))
-    .sort((first, second) => second.sequence - first.sequence)[0]
-    ?.scheduledDate;
+  const latestRecordedDate = [...recorded]
+    .map((sequence) => recordedDemoStep(plan, progress, sequence)?.scheduledDate)
+    .filter((date): date is string => date !== undefined).sort().pop();
   return {
     currencyCode: plan.goal.currencyCode,
     baselineAmount: plan.curveData.allocatedAmount,
@@ -120,8 +126,8 @@ function demoCurveInput(
     targetDate: curveData.targetDate,
     dataNotice: curveData.notice,
     steps: curveData.steps.map((step) => {
-      const confirmedStep = recorded.has(step.sequence)
-        ? baseSteps.get(step.sequence) ?? step
+      const confirmedStep = progress.recordedSequences.includes(step.sequence)
+        ? recordedDemoStep(plan, progress, step.sequence) ?? step
         : step;
       const status = demoStepStatus(
         confirmedStep.status,
@@ -164,14 +170,11 @@ function toSteps(
   curve: PlannerCurveViewModel | null,
   curveData = plan.curveData,
 ): readonly PlannerStepViewModel[] {
-  const recorded = new Set(progress.recordedSequences);
+  const recorded = knownRecordedSequences(plan, progress);
   const nextSequence = nextDemoSequence(plan, progress, curveData);
-  const baseSteps = new Map(
-    plan.curveData.steps.map((step) => [step.sequence, step]),
-  );
   return curveData.steps.map((step) => {
-    const confirmedStep = recorded.has(step.sequence)
-      ? baseSteps.get(step.sequence) ?? step
+    const confirmedStep = progress.recordedSequences.includes(step.sequence)
+      ? recordedDemoStep(plan, progress, step.sequence) ?? step
       : step;
     const status = demoStepStatus(
       confirmedStep.status,
@@ -216,13 +219,13 @@ function toSteps(
   });
 }
 
-function scenarioOptions(plan: PlannerPlan): readonly PlannerScenarioOptionViewModel[] {
+function scenarioOptions(plan: PlannerPlan, currentScenarioId: string): readonly PlannerScenarioOptionViewModel[] {
   return plan.scenarios.map((scenario) => ({
     id: scenario.id,
     label: scenario.label,
     description: scenario.summary,
     scenarioCode: SCENARIO_CODES[scenario.id],
-    isCurrent: scenario.id === plan.baseScenarioId,
+    isCurrent: scenario.id === currentScenarioId,
     requiresBudget: scenario.id === "reducedBudget",
   }));
 }
@@ -445,10 +448,8 @@ export function presentDemoPlanner(
     supportedActions: {
       canPreviewPlan: false,
       canCreatePlan: false,
-      canCompleteStep:
-        nextStep !== undefined && goalProgress.recordedSequences.length === 0,
-      canSkipStep:
-        nextStep !== undefined && goalProgress.recordedSequences.length === 0,
+      canCompleteStep: nextStep !== undefined,
+      canSkipStep: nextStep !== undefined,
       canPreviewScenario: nextStep !== undefined,
       canApplyDraft: true,
     },
@@ -458,7 +459,7 @@ export function presentDemoPlanner(
       "실제 환전 실행",
     ],
     planAvailabilityMessage: "브라우저에서만 사용하는 체험용 계획입니다.",
-    scenarioOptions: scenarioOptions(plan),
+    scenarioOptions: scenarioOptions(plan, scenario.id),
   };
 }
 
@@ -470,10 +471,10 @@ export function presentDemoScenarioComparison(
 ): PlannerScenarioComparisonViewModel | null {
   const plan = findDemoPlan(data, selectedGoalId);
   const scenario = plan.scenarios.find((candidate) => candidate.id === scenarioId);
-  if (scenario === undefined || scenario.id === plan.baseScenarioId) return null;
   const goalProgress = getPlannerDemoGoalProgress(progress, plan.id);
-  const baseScenario = findScenario(plan, plan.baseScenarioId);
-  const baseInput = demoCurveInput(plan, goalProgress);
+  const baseScenario = findScenario(plan, goalProgress.appliedScenarioId);
+  if (scenario === undefined || scenario.id === baseScenario.id) return null;
+  const baseInput = demoCurveInput(plan, goalProgress, baseScenario.curveData ?? plan.curveData);
   const alternativeInput =
     scenario.curveData === undefined
       ? null
@@ -541,9 +542,7 @@ export function presentDemoScenarioComparison(
       {
         label: "다음 행동",
         before:
-          goalProgress.recordedSequences.length > 0
-            ? plan.recordedState.action.description
-            : baseScenario.nextAction,
+          baseScenario.nextAction,
         after: scenario.nextAction,
       },
     ],

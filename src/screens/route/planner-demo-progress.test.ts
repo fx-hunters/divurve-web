@@ -12,6 +12,24 @@ import {
 describe("planner demo progress", () => {
   beforeEach(() => window.sessionStorage.clear());
 
+  it("기록 당시 경로만 기억하고 이후 적용 경로가 과거 기록을 바꾸지 않는다", () => {
+    const applied = applyPlannerDemoScenario(EMPTY_PLANNER_DEMO_PROGRESS, "jpy", "reducedBudget");
+    const recorded = recordPlannerDemoSequence(applied, "jpy", 2);
+    const switched = applyPlannerDemoScenario(recorded, "jpy", "rapidRise");
+    writePlannerDemoProgress(switched);
+    expect(readPlannerDemoProgress().goals.jpy).toMatchObject({
+      recordedSequences: [2], appliedScenarioId: "rapidRise", recordedScenarioIds: { 2: "reducedBudget" },
+    });
+    for (const recordedScenarioIds of [null, [], { 2: "reducedBudget", 3: "rapidRise", 1: 123 }]) {
+      sessionStorage.setItem(PLANNER_DEMO_PROGRESS_KEY, JSON.stringify({
+        version: 1, goals: { jpy: { recordedSequences: [1, 2], recordedScenarioIds } },
+      }));
+      const parsed = readPlannerDemoProgress().goals.jpy!;
+      expect(parsed.recordedScenarioIds?.[3]).toBeUndefined();
+      expect(parsed.recordedScenarioIds?.[1]).toBeUndefined();
+    }
+  });
+
   it("목표별 기록과 적용 시나리오를 현재 세션에 분리해 보관한다", () => {
     expect(readPlannerDemoProgress()).toBe(EMPTY_PLANNER_DEMO_PROGRESS);
     const withUsd = recordPlannerDemoSequence(
